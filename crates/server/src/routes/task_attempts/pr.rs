@@ -95,7 +95,6 @@ Analyze the changes in this branch and write:
    - What changes were made
    - Why they were made (based on the task context)
    - Any important implementation details
-   - At the end, include a note: "This PR was written using [Vibe Kanban](https://vibekanban.com)"
 
 Use `gh pr edit` to update the PR."#;
 
