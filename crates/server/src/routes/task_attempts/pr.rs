@@ -90,7 +90,7 @@ pub const DEFAULT_PR_DESCRIPTION_PROMPT: &str = r#"Update the GitHub PR that was
 The PR number is #{pr_number} and the URL is {pr_url}.
 
 Analyze the changes in this branch and write:
-1. A concise, descriptive title that summarizes the changes, postfixed with "(Vibe Kanban)"
+1. A concise, descriptive title that summarizes the changes
 2. A detailed description that explains:
    - What changes were made
    - Why they were made (based on the task context)
