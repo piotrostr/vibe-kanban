@@ -3,17 +3,14 @@ import type { TaskWithAttemptStatus } from "shared/types";
 
 /**
  * Hook to show browser notifications when tasks complete (status changes to 'inreview')
+ * Automatically requests permission and enables notifications
  */
-export const useBrowserNotifications = (
-	tasks: TaskWithAttemptStatus[],
-	enabled: boolean,
-) => {
+export const useBrowserNotifications = (tasks: TaskWithAttemptStatus[]) => {
 	const prevTasksRef = useRef<Map<string, string>>(new Map());
 	const permissionGranted = useRef(false);
 
-	// Request notification permission on mount if enabled
+	// Auto-request notification permission on mount
 	useEffect(() => {
-		if (!enabled) return;
 		if (!("Notification" in window)) return;
 
 		if (Notification.permission === "granted") {
@@ -23,7 +20,7 @@ export const useBrowserNotifications = (
 				permissionGranted.current = permission === "granted";
 			});
 		}
-	}, [enabled]);
+	}, []);
 
 	const showNotification = useCallback((title: string, body: string) => {
 		if (!("Notification" in window)) return;
@@ -43,7 +40,6 @@ export const useBrowserNotifications = (
 
 	// Watch for task status changes to 'inreview'
 	useEffect(() => {
-		if (!enabled) return;
 		if (!permissionGranted.current && Notification.permission !== "granted")
 			return;
 
@@ -71,5 +67,5 @@ export const useBrowserNotifications = (
 			newPrevTasks.set(task.id, task.status);
 		}
 		prevTasksRef.current = newPrevTasks;
-	}, [tasks, enabled, showNotification]);
+	}, [tasks, showNotification]);
 };
