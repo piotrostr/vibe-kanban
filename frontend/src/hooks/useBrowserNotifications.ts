@@ -3,8 +3,9 @@ import type { TaskWithAttemptStatus } from "shared/types";
 
 /**
  * Hook to show browser notifications when tasks complete (status changes to 'inreview')
- * Automatically requests permission and enables notifications
- * Clicking notification navigates to the task
+ * - Always shows notifications, even when app is focused
+ * - Notifications persist until clicked/dismissed
+ * - Clicking navigates to the task
  */
 export const useBrowserNotifications = (
 	tasks: TaskWithAttemptStatus[],
@@ -32,10 +33,12 @@ export const useBrowserNotifications = (
 			if (Notification.permission !== "granted") return;
 			if (!projectId) return;
 
+			// Always show notification, even when app is focused
 			const notification = new Notification(title, {
 				body,
 				icon: "/vibe.jpeg",
 				tag: `task-complete-${taskId}`,
+				requireInteraction: true, // Persist until clicked/dismissed
 			});
 
 			notification.onclick = () => {
