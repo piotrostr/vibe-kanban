@@ -1,6 +1,9 @@
 {
-  "name": "Vibe Kanban",
-  "short_name": "VK",
+  "name": "Vibe",
+  "short_name": "Vibe",
+  "description": "AI-powered task management",
+  "start_url": "/",
+  "scope": "/",
   "icons": [
     {
       "src": "/favicon-vk-light.svg",
@@ -17,5 +20,6 @@
   ],
   "theme_color": "#ffffff",
   "background_color": "#ffffff",
-  "display": "standalone"
+  "display": "standalone",
+  "orientation": "portrait"
 }
