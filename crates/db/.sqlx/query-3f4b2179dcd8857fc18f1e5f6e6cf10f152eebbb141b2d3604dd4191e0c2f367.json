@@ -6,12 +6,12 @@
       {
         "name": "id!: Uuid",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Text"
       },
       {
         "name": "session_id!: Uuid",
         "ordinal": 1,
-        "type_info": "Blob"
+        "type_info": "Text"
       },
       {
         "name": "run_reason!: ExecutionProcessRunReason",
@@ -63,7 +63,7 @@
       "Right": 1
     },
     "nullable": [
-      true,
+      false,
       false,
       false,
       false,

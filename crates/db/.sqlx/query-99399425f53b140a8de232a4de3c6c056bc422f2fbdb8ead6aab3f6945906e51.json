@@ -6,12 +6,12 @@
       {
         "name": "id!: Uuid",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Text"
       },
       {
         "name": "session_id!: Uuid",
         "ordinal": 1,
-        "type_info": "Blob"
+        "type_info": "Text"
       },
       {
         "name": "workspace_id!: Uuid",
@@ -48,7 +48,7 @@
       "Right": 0
     },
     "nullable": [
-      true,
+      false,
       false,
       false,
       false,

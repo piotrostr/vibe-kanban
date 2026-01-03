@@ -34,6 +34,11 @@ import { toPrettyCase } from "@/utils/string";
 import { useEditorAvailability } from "@/hooks/useEditorAvailability";
 import { EditorAvailabilityIndicator } from "@/components/EditorAvailabilityIndicator";
 import { useTheme } from "@/components/ThemeProvider";
+import {
+	useSyntaxTheme,
+	SYNTAX_THEMES,
+	type SyntaxTheme,
+} from "@/components/SyntaxThemeProvider";
 import { useUserSystem } from "@/components/ConfigProvider";
 
 export function GeneralSettings() {
@@ -62,6 +67,7 @@ export function GeneralSettings() {
 		null,
 	);
 	const { setTheme } = useTheme();
+	const { syntaxTheme, setSyntaxTheme } = useSyntaxTheme();
 
 	// Check editor availability when draft editor changes
 	const editorAvailability = useEditorAvailability(draft?.editor.editor_type);
@@ -278,6 +284,28 @@ export function GeneralSettings() {
 						</Select>
 						<p className="text-sm text-muted-foreground">
 							{t("settings.general.appearance.language.helper")}
+						</p>
+					</div>
+
+					<div className="space-y-2">
+						<Label htmlFor="syntax-theme">Syntax Theme</Label>
+						<Select
+							value={syntaxTheme}
+							onValueChange={(value: SyntaxTheme) => setSyntaxTheme(value)}
+						>
+							<SelectTrigger id="syntax-theme">
+								<SelectValue placeholder="Select syntax theme" />
+							</SelectTrigger>
+							<SelectContent>
+								{SYNTAX_THEMES.map((theme) => (
+									<SelectItem key={theme.value} value={theme.value}>
+										{theme.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<p className="text-sm text-muted-foreground">
+							Color scheme for code syntax highlighting in diffs and code blocks
 						</p>
 					</div>
 				</CardContent>

@@ -124,7 +124,7 @@ module.exports = {
 				sm: "calc(var(--radius) - 4px)",
 			},
 			fontFamily: {
-				"chivo-mono": ['"Liga SFMono Nerd Font"', "monospace"],
+				mono: ['"Liga SFMono Nerd Font"', "ui-monospace", "monospace"],
 			},
 			keyframes: {
 				"accordion-down": {

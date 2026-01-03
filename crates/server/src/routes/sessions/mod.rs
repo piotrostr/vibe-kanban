@@ -18,6 +18,7 @@ use deployment::Deployment;
 use executors::{
     actions::{
         ExecutorAction, ExecutorActionType, coding_agent_follow_up::CodingAgentFollowUpRequest,
+        script::{ScriptContext, ScriptRequest, ScriptRequestLanguage},
     },
     profile::ExecutorProfileId,
 };
@@ -114,6 +115,44 @@ pub async fn follow_up(
         .container()
         .ensure_container_exists(&workspace)
         .await?;
+
+    // Handle quick commands starting with `!`
+    if payload.prompt.starts_with('!') {
+        let command = payload.prompt.trim_start_matches('!').trim();
+        if command.is_empty() {
+            return Err(ApiError::Workspace(WorkspaceError::ValidationError(
+                "Empty command".to_string(),
+            )));
+        }
+
+        let working_dir = workspace
+            .agent_working_dir
+            .as_ref()
+            .filter(|dir| !dir.is_empty())
+            .cloned();
+
+        let action = ExecutorAction::new(
+            ExecutorActionType::ScriptRequest(ScriptRequest {
+                script: command.to_string(),
+                language: ScriptRequestLanguage::Bash,
+                context: ScriptContext::QuickCommand,
+                working_dir,
+            }),
+            None,
+        );
+
+        let execution_process = deployment
+            .container()
+            .start_execution(
+                &workspace,
+                &session,
+                &action,
+                &ExecutionProcessRunReason::QuickCommand,
+            )
+            .await?;
+
+        return Ok(ResponseJson(ApiResponse::success(execution_process)));
+    }
 
     // Get executor profile data from the latest CodingAgent process in this session
     let initial_executor_profile_id =

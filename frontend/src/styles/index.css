@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Enable font ligatures for monospace code */
+.font-mono, code, pre, .prose code, .prose pre {
+  font-feature-settings: "liga" 1, "calt" 1;
+  -webkit-font-feature-settings: "liga" 1, "calt" 1;
+}
+
 /* 1) THEME TOKENS (underscored): defaults + classes control these */
 @layer base {
   /* Light defaults */
@@ -40,16 +46,16 @@
     --_console-success: 138 69% 45%;
     --_console-error: 5 100% 69%;
 
-    /* Syntax highlighting (light - GitHub) */
-    --_syntax-keyword: #d73a49;
-    --_syntax-function: #6f42c1;
-    --_syntax-constant: #005cc5;
-    --_syntax-string: #032f62;
-    --_syntax-variable: #e36209;
-    --_syntax-comment: #6a737d;
-    --_syntax-tag: #22863a;
-    --_syntax-punctuation: #24292e;
-    --_syntax-deleted: #b31d28;
+    /* Syntax highlighting (light - Gruvbox Light) */
+    --_syntax-keyword: #9d0006;
+    --_syntax-function: #b57614;
+    --_syntax-constant: #8f3f71;
+    --_syntax-string: #79740e;
+    --_syntax-variable: #af3a03;
+    --_syntax-comment: #928374;
+    --_syntax-tag: #076678;
+    --_syntax-punctuation: #3c3836;
+    --_syntax-deleted: #9d0006;
   }
 
   /* Dark defaults (used if no theme class but user prefers dark) */
@@ -87,16 +93,16 @@
     --_console-success: 138.5 76.5% 47.7%;
     --_console-error: 0 84.2% 60.2%;
 
-    /* Syntax highlighting (dark - GitHub Dark) */
-    --_syntax-keyword: #ff7b72;
-    --_syntax-function: #d2a8ff;
-    --_syntax-constant: #79c0ff;
-    --_syntax-string: #a5d6ff;
-    --_syntax-variable: #ffa657;
-    --_syntax-comment: #8b949e;
-    --_syntax-tag: #7ee787;
-    --_syntax-punctuation: #c9d1d9;
-    --_syntax-deleted: #ffdcd7;
+    /* Syntax highlighting (dark - Gruvbox Dark) */
+    --_syntax-keyword: #fb4934;
+    --_syntax-function: #fabd2f;
+    --_syntax-constant: #d3869b;
+    --_syntax-string: #b8bb26;
+    --_syntax-variable: #fe8019;
+    --_syntax-comment: #928374;
+    --_syntax-tag: #83a598;
+    --_syntax-punctuation: #ebdbb2;
+    --_syntax-deleted: #fb4934;
   }
 }
 
@@ -205,7 +211,7 @@
   }
 
   body {
-    @apply bg-background text-foreground font-chivo-mono;
+    @apply bg-background text-foreground font-mono;
   }
 
   *:focus {
@@ -294,4 +300,88 @@
   .ansi-underline {
     @apply underline;
   }
+}
+
+/* Syntax Theme Definitions */
+/* Default is Gruvbox (already defined in :root and .dark) */
+
+/* GitHub Theme */
+.syntax-github:root,
+.syntax-github :root {
+  --_syntax-keyword: #d73a49;
+  --_syntax-function: #6f42c1;
+  --_syntax-constant: #005cc5;
+  --_syntax-string: #032f62;
+  --_syntax-variable: #e36209;
+  --_syntax-comment: #6a737d;
+  --_syntax-tag: #22863a;
+  --_syntax-punctuation: #24292e;
+  --_syntax-deleted: #b31d28;
+}
+
+.syntax-github.dark,
+.syntax-github .dark {
+  --_syntax-keyword: #ff7b72;
+  --_syntax-function: #d2a8ff;
+  --_syntax-constant: #79c0ff;
+  --_syntax-string: #a5d6ff;
+  --_syntax-variable: #ffa657;
+  --_syntax-comment: #8b949e;
+  --_syntax-tag: #7ee787;
+  --_syntax-punctuation: #c9d1d9;
+  --_syntax-deleted: #ffdcd7;
+}
+
+/* Monokai Theme */
+.syntax-monokai:root,
+.syntax-monokai :root {
+  --_syntax-keyword: #f92672;
+  --_syntax-function: #a6e22e;
+  --_syntax-constant: #ae81ff;
+  --_syntax-string: #e6db74;
+  --_syntax-variable: #fd971f;
+  --_syntax-comment: #75715e;
+  --_syntax-tag: #f92672;
+  --_syntax-punctuation: #f8f8f2;
+  --_syntax-deleted: #f92672;
+}
+
+.syntax-monokai.dark,
+.syntax-monokai .dark {
+  --_syntax-keyword: #f92672;
+  --_syntax-function: #a6e22e;
+  --_syntax-constant: #ae81ff;
+  --_syntax-string: #e6db74;
+  --_syntax-variable: #fd971f;
+  --_syntax-comment: #75715e;
+  --_syntax-tag: #f92672;
+  --_syntax-punctuation: #f8f8f2;
+  --_syntax-deleted: #f92672;
+}
+
+/* Dracula Theme */
+.syntax-dracula:root,
+.syntax-dracula :root {
+  --_syntax-keyword: #ff79c6;
+  --_syntax-function: #50fa7b;
+  --_syntax-constant: #bd93f9;
+  --_syntax-string: #f1fa8c;
+  --_syntax-variable: #ffb86c;
+  --_syntax-comment: #6272a4;
+  --_syntax-tag: #ff79c6;
+  --_syntax-punctuation: #f8f8f2;
+  --_syntax-deleted: #ff5555;
+}
+
+.syntax-dracula.dark,
+.syntax-dracula .dark {
+  --_syntax-keyword: #ff79c6;
+  --_syntax-function: #50fa7b;
+  --_syntax-constant: #bd93f9;
+  --_syntax-string: #f1fa8c;
+  --_syntax-variable: #ffb86c;
+  --_syntax-comment: #6272a4;
+  --_syntax-tag: #ff79c6;
+  --_syntax-punctuation: #f8f8f2;
+  --_syntax-deleted: #ff5555;
 }
