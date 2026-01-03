@@ -94,15 +94,11 @@ impl NotificationService {
         }
     }
 
-    /// Send a cross-platform push notification
-    async fn send_push_notification(title: &str, message: &str) {
-        if cfg!(target_os = "macos") {
-            Self::send_macos_notification(title, message).await;
-        } else if cfg!(target_os = "linux") && !utils::is_wsl2() {
-            Self::send_linux_notification(title, message).await;
-        } else if cfg!(target_os = "windows") || (cfg!(target_os = "linux") && utils::is_wsl2()) {
-            Self::send_windows_notification(title, message).await;
-        }
+    /// Push notifications are now handled by the browser/PWA frontend
+    /// This is a no-op - see useBrowserNotifications hook
+    async fn send_push_notification(_title: &str, _message: &str) {
+        // Browser notifications are used instead - they work better with PWA
+        // and don't have the Script Editor/osascript issues on macOS
     }
 
     /// Send macOS notification using terminal-notifier (preferred) or osascript fallback
