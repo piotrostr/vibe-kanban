@@ -133,8 +133,9 @@ export function Navbar() {
 			<div className="w-full px-3">
 				<div className="flex items-center h-12 py-2">
 					<div className="flex-1 flex items-center">
-						<Link to="/projects">
+						<Link to="/projects" className="flex items-center gap-2">
 							<Logo />
+							<span className="font-semibold text-lg">Vibe</span>
 						</Link>
 					</div>
 
