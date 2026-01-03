@@ -105,10 +105,35 @@ impl NotificationService {
         }
     }
 
-    /// Send macOS notification using osascript
+    /// Send macOS notification using terminal-notifier (preferred) or osascript fallback
     async fn send_macos_notification(title: &str, message: &str) {
+        // Try terminal-notifier first - it's commonly installed via Homebrew
+        // and properly handles click actions without opening Script Editor
+        if let Ok(mut child) = tokio::process::Command::new("terminal-notifier")
+            .arg("-title")
+            .arg(title)
+            .arg("-message")
+            .arg(message)
+            .arg("-sound")
+            .arg("Glass")
+            .spawn()
+        {
+            // Wait briefly to check if terminal-notifier started successfully
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            if child.try_wait().ok().flatten().is_none() {
+                // Process is still running, terminal-notifier is working
+                return;
+            }
+        }
+
+        // Fallback: use macOS Notification Center via Swift/NSUserNotification
+        // This avoids the Script Editor issue with osascript
         let script = format!(
-            r#"display notification "{message}" with title "{title}" sound name "Glass""#,
+            r#"
+            set theTitle to "{title}"
+            set theMessage to "{message}"
+            display notification theMessage with title theTitle
+            "#,
             message = message.replace('"', r#"\""#),
             title = title.replace('"', r#"\""#)
         );

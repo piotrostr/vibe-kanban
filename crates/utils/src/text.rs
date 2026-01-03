@@ -10,11 +10,7 @@ pub fn git_branch_id(input: &str) -> String {
     let slug = re.replace_all(&lower, "-");
 
     // 3. trim extra hyphens
-    let trimmed = slug.trim_matches('-');
-
-    // 4. take up to 16 chars, then trim trailing hyphens again
-    let cut: String = trimmed.chars().take(16).collect();
-    cut.trim_end_matches('-').to_string()
+    slug.trim_matches('-').to_string()
 }
 
 pub fn short_uuid(u: &Uuid) -> String {
