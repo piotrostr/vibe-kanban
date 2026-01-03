@@ -199,7 +199,7 @@ export function ProjectTasks() {
 	const { config, updateAndSaveConfig, loading } = useUserSystem();
 
 	// Browser notifications for task completion (always enabled)
-	useBrowserNotifications(tasks);
+	useBrowserNotifications(tasks, projectId);
 
 	const isLoaded = !loading;
 	const showcaseId = showcases.taskPanel.id;
