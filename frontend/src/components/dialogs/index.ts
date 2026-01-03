@@ -1,117 +1,112 @@
 // Global app dialogs
-export { DisclaimerDialog } from './global/DisclaimerDialog';
+export { DisclaimerDialog } from "./global/DisclaimerDialog";
 export {
-  OnboardingDialog,
-  type OnboardingResult,
-} from './global/OnboardingDialog';
-export { ReleaseNotesDialog } from './global/ReleaseNotesDialog';
-export { OAuthDialog } from './global/OAuthDialog';
+	OnboardingDialog,
+	type OnboardingResult,
+} from "./global/OnboardingDialog";
+export { ReleaseNotesDialog } from "./global/ReleaseNotesDialog";
+export { OAuthDialog } from "./global/OAuthDialog";
 
 // Organization dialogs
 export {
-  CreateOrganizationDialog,
-  type CreateOrganizationResult,
-} from './org/CreateOrganizationDialog';
+	CreateOrganizationDialog,
+	type CreateOrganizationResult,
+} from "./org/CreateOrganizationDialog";
 export {
-  InviteMemberDialog,
-  type InviteMemberResult,
-} from './org/InviteMemberDialog';
+	InviteMemberDialog,
+	type InviteMemberResult,
+} from "./org/InviteMemberDialog";
 
 // Project-related dialogs
 export {
-  ProjectFormDialog,
-  type ProjectFormDialogProps,
-  type ProjectFormDialogResult,
-} from './projects/ProjectFormDialog';
+	ProjectFormDialog,
+	type ProjectFormDialogProps,
+	type ProjectFormDialogResult,
+} from "./projects/ProjectFormDialog";
 export {
-  ProjectEditorSelectionDialog,
-  type ProjectEditorSelectionDialogProps,
-} from './projects/ProjectEditorSelectionDialog';
+	ProjectEditorSelectionDialog,
+	type ProjectEditorSelectionDialogProps,
+} from "./projects/ProjectEditorSelectionDialog";
 export {
-  LinkProjectDialog,
-  type LinkProjectResult,
-} from './projects/LinkProjectDialog';
+	LinkProjectDialog,
+	type LinkProjectResult,
+} from "./projects/LinkProjectDialog";
 
 // Task-related dialogs
 export {
-  TaskFormDialog,
-  type TaskFormDialogProps,
-} from './tasks/TaskFormDialog';
+	TaskFormDialog,
+	type TaskFormDialogProps,
+} from "./tasks/TaskFormDialog";
 
-export { CreatePRDialog } from './tasks/CreatePRDialog';
+export { CreatePRDialog } from "./tasks/CreatePRDialog";
 export {
-  EditorSelectionDialog,
-  type EditorSelectionDialogProps,
-} from './tasks/EditorSelectionDialog';
+	EditorSelectionDialog,
+	type EditorSelectionDialogProps,
+} from "./tasks/EditorSelectionDialog";
 export {
-  DeleteTaskConfirmationDialog,
-  type DeleteTaskConfirmationDialogProps,
-} from './tasks/DeleteTaskConfirmationDialog';
-export { ShareDialog, type ShareDialogProps } from './tasks/ShareDialog';
+	DeleteTaskConfirmationDialog,
+	type DeleteTaskConfirmationDialogProps,
+} from "./tasks/DeleteTaskConfirmationDialog";
+export { ShareDialog, type ShareDialogProps } from "./tasks/ShareDialog";
 export {
-  TagEditDialog,
-  type TagEditDialogProps,
-  type TagEditResult,
-} from './tasks/TagEditDialog';
+	ChangeTargetBranchDialog,
+	type ChangeTargetBranchDialogProps,
+	type ChangeTargetBranchDialogResult,
+} from "./tasks/ChangeTargetBranchDialog";
 export {
-  ChangeTargetBranchDialog,
-  type ChangeTargetBranchDialogProps,
-  type ChangeTargetBranchDialogResult,
-} from './tasks/ChangeTargetBranchDialog';
+	RebaseDialog,
+	type RebaseDialogProps,
+	type RebaseDialogResult,
+} from "./tasks/RebaseDialog";
 export {
-  RebaseDialog,
-  type RebaseDialogProps,
-  type RebaseDialogResult,
-} from './tasks/RebaseDialog';
+	RestoreLogsDialog,
+	type RestoreLogsDialogProps,
+	type RestoreLogsDialogResult,
+} from "./tasks/RestoreLogsDialog";
 export {
-  RestoreLogsDialog,
-  type RestoreLogsDialogProps,
-  type RestoreLogsDialogResult,
-} from './tasks/RestoreLogsDialog';
+	ViewProcessesDialog,
+	type ViewProcessesDialogProps,
+} from "./tasks/ViewProcessesDialog";
 export {
-  ViewProcessesDialog,
-  type ViewProcessesDialogProps,
-} from './tasks/ViewProcessesDialog';
+	ViewRelatedTasksDialog,
+	type ViewRelatedTasksDialogProps,
+} from "./tasks/ViewRelatedTasksDialog";
 export {
-  ViewRelatedTasksDialog,
-  type ViewRelatedTasksDialogProps,
-} from './tasks/ViewRelatedTasksDialog';
+	GitActionsDialog,
+	type GitActionsDialogProps,
+} from "./tasks/GitActionsDialog";
 export {
-  GitActionsDialog,
-  type GitActionsDialogProps,
-} from './tasks/GitActionsDialog';
+	ReassignDialog,
+	type ReassignDialogProps,
+} from "./tasks/ReassignDialog";
 export {
-  ReassignDialog,
-  type ReassignDialogProps,
-} from './tasks/ReassignDialog';
+	StopShareTaskDialog,
+	type StopShareTaskDialogProps,
+} from "./tasks/StopShareTaskDialog";
 export {
-  StopShareTaskDialog,
-  type StopShareTaskDialogProps,
-} from './tasks/StopShareTaskDialog';
-export {
-  EditBranchNameDialog,
-  type EditBranchNameDialogResult,
-} from './tasks/EditBranchNameDialog';
-export { CreateAttemptDialog } from './tasks/CreateAttemptDialog';
+	EditBranchNameDialog,
+	type EditBranchNameDialogResult,
+} from "./tasks/EditBranchNameDialog";
+export { CreateAttemptDialog } from "./tasks/CreateAttemptDialog";
 
 // Auth dialogs
-export { GhCliSetupDialog } from './auth/GhCliSetupDialog';
+export { GhCliSetupDialog } from "./auth/GhCliSetupDialog";
 
 // Settings dialogs
 export {
-  CreateConfigurationDialog,
-  type CreateConfigurationDialogProps,
-  type CreateConfigurationResult,
-} from './settings/CreateConfigurationDialog';
+	CreateConfigurationDialog,
+	type CreateConfigurationDialogProps,
+	type CreateConfigurationResult,
+} from "./settings/CreateConfigurationDialog";
 export {
-  DeleteConfigurationDialog,
-  type DeleteConfigurationDialogProps,
-  type DeleteConfigurationResult,
-} from './settings/DeleteConfigurationDialog';
+	DeleteConfigurationDialog,
+	type DeleteConfigurationDialogProps,
+	type DeleteConfigurationResult,
+} from "./settings/DeleteConfigurationDialog";
 
 // Shared/Generic dialogs
-export { ConfirmDialog, type ConfirmDialogProps } from './shared/ConfirmDialog';
+export { ConfirmDialog, type ConfirmDialogProps } from "./shared/ConfirmDialog";
 export {
-  FolderPickerDialog,
-  type FolderPickerDialogProps,
-} from './shared/FolderPickerDialog';
+	FolderPickerDialog,
+	type FolderPickerDialogProps,
+} from "./shared/FolderPickerDialog";
