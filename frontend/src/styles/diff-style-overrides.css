@@ -541,16 +541,18 @@
 .diff-tailwindcss-wrapper .diff-line-syntax-raw .hljs-template-variable,
 .diff-tailwindcss-wrapper .diff-line-syntax-raw .hljs-type,
 .diff-tailwindcss-wrapper .diff-line-syntax-raw .hljs-variable.language_ {
-	/* prettylights-syntax-keyword */
+	/* Keywords - bold for emphasis */
 	color: var(--syntax-keyword);
+	font-weight: 600;
 }
 
 .diff-tailwindcss-wrapper .diff-line-syntax-raw .hljs-title,
 .diff-tailwindcss-wrapper .diff-line-syntax-raw .hljs-title.class_,
 .diff-tailwindcss-wrapper .diff-line-syntax-raw .hljs-title.class_.inherited__,
 .diff-tailwindcss-wrapper .diff-line-syntax-raw .hljs-title.function_ {
-	/* prettylights-syntax-entity */
+	/* Functions/classes - bold for emphasis */
 	color: var(--syntax-function);
+	font-weight: 600;
 }
 
 .diff-tailwindcss-wrapper .diff-line-syntax-raw .hljs-attr,
@@ -583,8 +585,9 @@
 .diff-tailwindcss-wrapper .diff-line-syntax-raw .hljs-comment,
 .diff-tailwindcss-wrapper .diff-line-syntax-raw .hljs-code,
 .diff-tailwindcss-wrapper .diff-line-syntax-raw .hljs-formula {
-	/* prettylights-syntax-comment */
+	/* Comments - italic for distinction */
 	color: var(--syntax-comment);
+	font-style: italic;
 }
 
 .diff-tailwindcss-wrapper .diff-line-syntax-raw .hljs-name,
@@ -685,8 +688,9 @@
 .diff-tailwindcss-wrapper[data-theme="dark"]
 	.diff-line-syntax-raw
 	.hljs-variable.language_ {
-	/* prettylights-syntax-keyword */
+	/* Keywords - bold for emphasis */
 	color: var(--syntax-keyword);
+	font-weight: 600;
 }
 
 .diff-tailwindcss-wrapper[data-theme="dark"] .diff-line-syntax-raw .hljs-title,
@@ -699,8 +703,9 @@
 .diff-tailwindcss-wrapper[data-theme="dark"]
 	.diff-line-syntax-raw
 	.hljs-title.function_ {
-	/* prettylights-syntax-entity */
+	/* Functions/classes - bold for emphasis */
 	color: var(--syntax-function);
+	font-weight: 600;
 }
 
 .diff-tailwindcss-wrapper[data-theme="dark"] .diff-line-syntax-raw .hljs-attr,
@@ -758,8 +763,9 @@
 .diff-tailwindcss-wrapper[data-theme="dark"]
 	.diff-line-syntax-raw
 	.hljs-formula {
-	/* prettylights-syntax-comment */
+	/* Comments - italic for distinction */
 	color: var(--syntax-comment);
+	font-style: italic;
 }
 
 .diff-tailwindcss-wrapper[data-theme="dark"] .diff-line-syntax-raw .hljs-name,
