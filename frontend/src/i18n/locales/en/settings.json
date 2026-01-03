@@ -67,7 +67,7 @@
           "host": {
             "label": "Remote SSH Host (Optional)",
             "placeholder": "e.g., hostname or IP address",
-            "helper": "Set this if Vibe Kanban is running on a remote server. When set, clicking \"Open in Editor\" will generate a URL to open your editor via SSH instead of spawning a local command."
+            "helper": "Set this if Vibe is running on a remote server. When set, clicking \"Open in Editor\" will generate a URL to open your editor via SSH instead of spawning a local command."
           },
           "user": {
             "label": "Remote SSH User (Optional)",
