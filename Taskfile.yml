@@ -1,0 +1,117 @@
+version: '3'
+
+vars:
+  FRONTEND_PORT:
+    sh: node scripts/setup-dev-environment.js frontend
+  BACKEND_PORT:
+    sh: node scripts/setup-dev-environment.js backend
+
+tasks:
+  dev:
+    desc: Start frontend and backend in hot-reload mode
+    deps: [install]
+    cmds:
+      - task: dev:run
+
+  dev:run:
+    internal: true
+    env:
+      FRONTEND_PORT: '{{.FRONTEND_PORT}}'
+      BACKEND_PORT: '{{.BACKEND_PORT}}'
+      DISABLE_WORKTREE_ORPHAN_CLEANUP: '1'
+      RUST_LOG: debug
+    cmds:
+      - |
+        echo "Starting dev server..."
+        echo "Frontend: http://localhost:{{.FRONTEND_PORT}}"
+        echo "Backend: http://localhost:{{.BACKEND_PORT}}"
+      - bunx concurrently --kill-others "task backend:watch" "task frontend:dev"
+
+  install:
+    desc: Install dependencies if needed
+    status:
+      - test -d node_modules
+      - test -d frontend/node_modules
+    cmds:
+      - pnpm install
+
+  frontend:dev:
+    desc: Start frontend dev server
+    dir: frontend
+    env:
+      FRONTEND_PORT: '{{.FRONTEND_PORT}}'
+    cmds:
+      - pnpm run dev -- --port {{.FRONTEND_PORT}} --host
+
+  backend:watch:
+    desc: Start backend with cargo-watch
+    env:
+      BACKEND_PORT: '{{.BACKEND_PORT}}'
+      DISABLE_WORKTREE_ORPHAN_CLEANUP: '1'
+      RUST_LOG: debug
+    cmds:
+      - cargo watch -w crates -x 'run --bin server'
+
+  backend:run:
+    desc: Run backend once (no watch)
+    env:
+      BACKEND_PORT: '{{.BACKEND_PORT}}'
+      RUST_LOG: debug
+    cmds:
+      - cargo run --bin server
+
+  check:
+    desc: Run all checks (frontend + backend)
+    cmds:
+      - task: frontend:check
+      - task: backend:check
+
+  frontend:check:
+    desc: Type-check frontend
+    dir: frontend
+    cmds:
+      - pnpm run check
+
+  backend:check:
+    desc: Type-check backend
+    cmds:
+      - cargo check --workspace
+
+  lint:
+    desc: Lint all code
+    cmds:
+      - task: frontend:lint
+      - task: backend:lint
+
+  frontend:lint:
+    desc: Lint frontend
+    dir: frontend
+    cmds:
+      - pnpm run lint
+
+  backend:lint:
+    desc: Lint backend
+    cmds:
+      - cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  format:
+    desc: Format all code
+    cmds:
+      - cargo fmt --all
+      - cd frontend && pnpm run format
+
+  test:
+    desc: Run all tests
+    cmds:
+      - cargo test --workspace
+
+  generate-types:
+    desc: Generate TypeScript types from Rust
+    cmds:
+      - cargo run --bin generate_types
+
+  build:
+    desc: Build for production
+    cmds:
+      - cargo build --release
+      - cd frontend && pnpm run build

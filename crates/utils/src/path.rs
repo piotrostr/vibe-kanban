@@ -102,22 +102,10 @@ pub fn normalize_macos_private_alias<P: AsRef<Path>>(p: P) -> PathBuf {
 }
 
 pub fn get_vibe_kanban_temp_dir() -> std::path::PathBuf {
-    let dir_name = if cfg!(debug_assertions) {
-        "vibe-kanban-dev"
-    } else {
-        "vibe-kanban"
-    };
-
-    if cfg!(target_os = "macos") {
-        // macOS already uses /var/folders/... which is persistent storage
-        std::env::temp_dir().join(dir_name)
-    } else if cfg!(target_os = "linux") {
-        // Linux: use /var/tmp instead of /tmp to avoid RAM usage
-        std::path::PathBuf::from("/var/tmp").join(dir_name)
-    } else {
-        // Windows and other platforms: use temp dir with vibe-kanban subdirectory
-        std::env::temp_dir().join(dir_name)
-    }
+    // Use ~/.vibe/worktrees for all platforms - no more /private/var nonsense
+    dirs::home_dir()
+        .expect("Could not determine home directory")
+        .join(".vibe")
 }
 
 /// Expand leading ~ to user's home directory.
@@ -154,7 +142,7 @@ mod tests {
     #[test]
     fn test_make_path_relative_macos_private_alias() {
         // Simulate a worktree under /var with a path reported under /private/var
-        let worktree = "/var/folders/zz/abc123/T/vibe-kanban-dev/worktrees/vk-test";
+        let worktree = "/var/folders/zz/abc123/T/vibe-dev/worktrees/vk-test";
         let path_under_private = format!(
             "/private/var{}/hello-world.txt",
             worktree.strip_prefix("/var").unwrap()
