@@ -254,11 +254,8 @@ impl ClaudeCode {
             .with_profile(&self.cmd)
             .apply_to_command(&mut command);
 
-        // Remove ANTHROPIC_API_KEY if disable_api_key is enabled
-        if self.disable_api_key.unwrap_or(false) {
-            command.env_remove("ANTHROPIC_API_KEY");
-            tracing::info!("ANTHROPIC_API_KEY removed from environment");
-        }
+        // Always remove ANTHROPIC_API_KEY to prevent pay-as-you-go billing
+        command.env_remove("ANTHROPIC_API_KEY");
 
         let mut child = command.group_spawn()?;
         let child_stdout = child.inner().stdout.take().ok_or_else(|| {
