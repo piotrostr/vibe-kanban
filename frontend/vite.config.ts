@@ -57,7 +57,7 @@ export default defineConfig({
 		executorSchemasPlugin(),
 		VitePWA({
 			registerType: "autoUpdate",
-			includeAssets: ["favicon-vk-light.svg", "favicon-vk-dark.svg"],
+			includeAssets: ["vibe-192.png", "vibe-512.png", "vibe-apple-touch.png"],
 			manifest: false, // Use existing site.webmanifest
 			workbox: {
 				globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
