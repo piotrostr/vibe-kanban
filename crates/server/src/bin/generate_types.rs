@@ -201,6 +201,8 @@ fn generate_types_content() -> String {
         executors::logs::ToolStatus::decl(),
         executors::logs::utils::patch::PatchType::decl(),
         serde_json::Value::decl(),
+        server::routes::slash_commands::SlashCommand::decl(),
+        server::routes::slash_commands::SlashCommandSource::decl(),
     ];
 
     let body = decls

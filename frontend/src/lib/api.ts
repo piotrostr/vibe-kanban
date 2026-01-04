@@ -84,6 +84,7 @@ import {
 	RepoBranchStatus,
 	AbortConflictsRequest,
 	Session,
+	SlashCommand,
 	Workspace,
 } from "shared/types";
 import type { WorkspaceWithSession } from "@/types/attempt";
@@ -1250,5 +1251,16 @@ export const queueApi = {
 	getStatus: async (sessionId: string): Promise<QueueStatus> => {
 		const response = await makeRequest(`/api/sessions/${sessionId}/queue`);
 		return handleApiResponse<QueueStatus>(response);
+	},
+};
+
+// Slash Commands API for discovering available Claude Code commands
+export const slashCommandsApi = {
+	/**
+	 * Get all available slash commands
+	 */
+	list: async (): Promise<SlashCommand[]> => {
+		const response = await makeRequest("/api/slash-commands");
+		return handleApiResponse<SlashCommand[]>(response);
 	},
 };

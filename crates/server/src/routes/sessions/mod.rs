@@ -154,6 +154,67 @@ pub async fn follow_up(
         return Ok(ResponseJson(ApiResponse::success(execution_process)));
     }
 
+    // Handle slash commands starting with `/`
+    if payload.prompt.starts_with('/') {
+        let command = payload.prompt.trim();
+        if command.len() <= 1 {
+            return Err(ApiError::Workspace(WorkspaceError::ValidationError(
+                "Empty slash command".to_string(),
+            )));
+        }
+
+        // Get executor profile data for the session
+        let initial_executor_profile_id =
+            ExecutionProcess::latest_executor_profile_for_session(pool, session.id).await?;
+
+        let executor_profile_id = ExecutorProfileId {
+            executor: initial_executor_profile_id.executor,
+            variant: payload.variant.clone(),
+        };
+
+        let working_dir = workspace
+            .agent_working_dir
+            .as_ref()
+            .filter(|dir| !dir.is_empty())
+            .cloned();
+
+        let latest_agent_session_id =
+            ExecutionProcess::find_latest_coding_agent_turn_session_id(pool, session.id).await?;
+
+        // Send slash command to Claude Code
+        let action_type = if let Some(agent_session_id) = latest_agent_session_id {
+            ExecutorActionType::CodingAgentFollowUpRequest(CodingAgentFollowUpRequest {
+                prompt: command.to_string(),
+                session_id: agent_session_id,
+                executor_profile_id,
+                working_dir,
+            })
+        } else {
+            // No existing session - start a new one with the slash command
+            ExecutorActionType::CodingAgentInitialRequest(
+                executors::actions::coding_agent_initial::CodingAgentInitialRequest {
+                    prompt: command.to_string(),
+                    executor_profile_id,
+                    working_dir,
+                },
+            )
+        };
+
+        let action = ExecutorAction::new(action_type, None);
+
+        let execution_process = deployment
+            .container()
+            .start_execution(
+                &workspace,
+                &session,
+                &action,
+                &ExecutionProcessRunReason::SlashCommand,
+            )
+            .await?;
+
+        return Ok(ResponseJson(ApiResponse::success(execution_process)));
+    }
+
     // Get executor profile data from the latest CodingAgent process in this session
     let initial_executor_profile_id =
         ExecutionProcess::latest_executor_profile_for_session(pool, session.id).await?;

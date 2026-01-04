@@ -56,6 +56,7 @@ pub enum ExecutionProcessRunReason {
     CodingAgent,
     DevServer,
     QuickCommand,
+    SlashCommand,
 }
 
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize, TS)]

@@ -84,7 +84,7 @@ dropped: boolean, started_at: string, completed_at: string | null, created_at: s
 
 export enum ExecutionProcessStatus { running = "running", completed = "completed", failed = "failed", killed = "killed" }
 
-export type ExecutionProcessRunReason = "setupscript" | "cleanupscript" | "codingagent" | "devserver" | "quickcommand";
+export type ExecutionProcessRunReason = "setupscript" | "cleanupscript" | "codingagent" | "devserver" | "quickcommand" | "slashcommand";
 
 export type ExecutionProcessRepoState = { id: string, execution_process_id: string, repo_id: string, before_head_commit: string | null, after_head_commit: string | null, merge_commit: string | null, created_at: Date, updated_at: Date, };
 
@@ -492,6 +492,34 @@ export type ToolStatus = { "status": "created" } | { "status": "success" } | { "
 export type PatchType = { "type": "NORMALIZED_ENTRY", "content": NormalizedEntry } | { "type": "STDOUT", "content": string } | { "type": "STDERR", "content": string } | { "type": "DIFF", "content": Diff };
 
 export type JsonValue = number | string | boolean | Array<JsonValue> | { [key in string]?: JsonValue } | null;
+
+export type SlashCommand = { 
+/**
+ * Command name (e.g., "commit")
+ */
+name: string, 
+/**
+ * Qualified name including plugin namespace (e.g., "commit-commands:commit")
+ */
+qualified_name: string, 
+/**
+ * Description from frontmatter
+ */
+description: string | null, 
+/**
+ * Argument hint from frontmatter (e.g., "[file-path]")
+ */
+argument_hint: string | null, 
+/**
+ * Plugin name if from a plugin
+ */
+plugin_name: string | null, 
+/**
+ * Where the command comes from
+ */
+source: SlashCommandSource, };
+
+export type SlashCommandSource = "builtin" | "user" | "plugin";
 
 export const DEFAULT_PR_DESCRIPTION_PROMPT = `Update the GitHub PR that was just created with a better title and description.
 The PR number is #{pr_number} and the URL is {pr_url}.

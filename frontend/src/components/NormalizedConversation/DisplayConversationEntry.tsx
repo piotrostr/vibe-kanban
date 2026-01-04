@@ -870,6 +870,24 @@ function DisplayConversationEntry({
 		);
 	}
 
+	// Handle slash command output (custom entry type for /commands)
+	if ((entryType as { type: string }).type === "slash_command_output") {
+		const slashCmd = entryType as {
+			type: string;
+			execution_process_id: string;
+			is_running: boolean;
+			exit_code: number | null;
+		};
+		return (
+			<QuickCommandOutput
+				content={entry.content}
+				executionProcessId={slashCmd.execution_process_id}
+				isRunning={slashCmd.is_running}
+				exitCode={slashCmd.exit_code}
+			/>
+		);
+	}
+
 	if (entry.entry_type.type === "next_action") {
 		return (
 			<div className="px-4 py-2 text-sm">

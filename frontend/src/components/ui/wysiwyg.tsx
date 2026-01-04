@@ -20,7 +20,9 @@ import {
 	type LocalImageMetadata,
 } from "./wysiwyg/context/task-attempt-context";
 import { FileTypeaheadPlugin } from "./wysiwyg/plugins/file-typeahead-plugin";
+import { SlashCommandTypeaheadPlugin } from "./wysiwyg/plugins/slash-command-typeahead-plugin";
 import { KeyboardCommandsPlugin } from "./wysiwyg/plugins/keyboard-commands-plugin";
+import { InputHistoryPlugin } from "./wysiwyg/plugins/input-history-plugin";
 import { ImageKeyboardPlugin } from "./wysiwyg/plugins/image-keyboard-plugin";
 import { ReadOnlyLinkPlugin } from "./wysiwyg/plugins/read-only-link-plugin";
 import { ToolbarPlugin } from "./wysiwyg/plugins/toolbar-plugin";
@@ -67,6 +69,12 @@ type WysiwygProps = {
 	onDelete?: () => void;
 	/** Auto-focus the editor on mount */
 	autoFocus?: boolean;
+	/** History navigation - go to previous message (Ctrl+P) */
+	onHistoryPrevious?: (currentValue: string) => string | null;
+	/** History navigation - go to next message (Ctrl+N) */
+	onHistoryNext?: () => string | null;
+	/** Called when user types (to reset history navigation) */
+	onHistoryReset?: () => void;
 };
 
 function WYSIWYGEditor({
@@ -86,6 +94,9 @@ function WYSIWYGEditor({
 	onEdit,
 	onDelete,
 	autoFocus = false,
+	onHistoryPrevious,
+	onHistoryNext,
+	onHistoryReset,
 }: WysiwygProps) {
 	// Copy button state
 	const [copied, setCopied] = useState(false);
@@ -235,12 +246,21 @@ function WYSIWYGEditor({
 									<HistoryPlugin />
 									<MarkdownShortcutPlugin transformers={extendedTransformers} />
 									<FileTypeaheadPlugin projectId={projectId} />
+									<SlashCommandTypeaheadPlugin />
 									<KeyboardCommandsPlugin
 										onCmdEnter={onCmdEnter}
 										onShiftCmdEnter={onShiftCmdEnter}
 									/>
 									<ImageKeyboardPlugin />
 									<CodeBlockShortcutPlugin />
+									{onHistoryPrevious && onHistoryNext && onHistoryReset && (
+										<InputHistoryPlugin
+											onPrevious={onHistoryPrevious}
+											onNext={onHistoryNext}
+											onUserInput={onHistoryReset}
+											getCurrentValue={() => value}
+										/>
+									)}
 								</>
 							)}
 							{/* Link sanitization for read-only mode */}

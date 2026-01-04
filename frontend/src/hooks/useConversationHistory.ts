@@ -31,6 +31,7 @@ type ExecutionProcessStaticInfo = {
 	created_at: string;
 	updated_at: string;
 	executor_action: ExecutorAction;
+	run_reason: string;
 };
 
 type ExecutionProcessState = {
@@ -119,7 +120,8 @@ export const useConversationHistory = ({
 				ep.run_reason === "setupscript" ||
 				ep.run_reason === "cleanupscript" ||
 				ep.run_reason === "codingagent" ||
-				ep.run_reason === "quickcommand",
+				ep.run_reason === "quickcommand" ||
+				ep.run_reason === "slashcommand",
 		);
 	}, [executionProcessesRaw]);
 
@@ -226,6 +228,86 @@ export const useConversationHistory = ({
 				)
 				.flatMap((p, index) => {
 					const entries: PatchTypeWithKey[] = [];
+
+					// Handle SlashCommand - show as user message + slash command output (similar to QuickCommand)
+					if (p.executionProcess.run_reason === "slashcommand") {
+						const executionProcess = getLiveExecutionProcess(
+							p.executionProcess.id,
+						);
+
+						if (executionProcess?.status === ExecutionProcessStatus.running) {
+							hasRunningProcess = true;
+						}
+
+						if (
+							(executionProcess?.status === ExecutionProcessStatus.failed ||
+								executionProcess?.status === ExecutionProcessStatus.killed) &&
+							index === Object.keys(executionProcessState).length - 1
+						) {
+							lastProcessFailedOrKilled = true;
+						}
+
+						// User message with the slash command
+						const prompt =
+							p.executionProcess.executor_action.typ.type ===
+								"CodingAgentFollowUpRequest" ||
+							p.executionProcess.executor_action.typ.type ===
+								"CodingAgentInitialRequest"
+								? p.executionProcess.executor_action.typ.prompt
+								: "";
+						const userEntry: NormalizedEntry = {
+							entry_type: { type: "user_message" },
+							content: prompt,
+							timestamp: null,
+						};
+						entries.push(
+							patchWithKey(
+								{ type: "NORMALIZED_ENTRY", content: userEntry },
+								p.executionProcess.id,
+								"user",
+							),
+						);
+
+						// Slash command output entry (similar to quick command)
+						const output = p.entries
+							.filter(
+								(e) =>
+									e.type === "NORMALIZED_ENTRY" &&
+									e.content.entry_type.type !== "user_message",
+							)
+							.map((e) =>
+								e.type === "NORMALIZED_ENTRY" ? e.content.content : "",
+							)
+							.join("\n");
+						const isRunning =
+							executionProcess?.status === ExecutionProcessStatus.running;
+						const exitCode = Number(executionProcess?.exit_code) || 0;
+
+						const slashCommandEntry: NormalizedEntry = {
+							entry_type: {
+								type: "slash_command_output" as "system_message",
+								execution_process_id: p.executionProcess.id,
+								is_running: isRunning,
+								exit_code: isRunning ? null : exitCode,
+							} as NormalizedEntry["entry_type"],
+							content: output,
+							timestamp: null,
+						};
+						entries.push(
+							patchWithKey(
+								{ type: "NORMALIZED_ENTRY", content: slashCommandEntry },
+								p.executionProcess.id,
+								0,
+							),
+						);
+
+						if (isRunning) {
+							entries.push(makeLoadingPatch(p.executionProcess.id));
+						}
+
+						return entries;
+					}
+
 					if (
 						p.executionProcess.executor_action.typ.type ===
 							"CodingAgentInitialRequest" ||
@@ -633,6 +715,7 @@ export const useConversationHistory = ({
 						created_at: p.created_at,
 						updated_at: p.updated_at,
 						executor_action: p.executor_action,
+						run_reason: p.run_reason,
 					},
 					entries: [],
 				};
