@@ -80,7 +80,7 @@ impl LinearClient {
         let response = self
             .http
             .post(Self::API_URL)
-            .bearer_auth(&self.api_key)
+            .header("Authorization", &self.api_key)
             .json(&serde_json::json!({ "query": query }))
             .send()
             .await?;
