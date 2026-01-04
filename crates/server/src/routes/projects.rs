@@ -16,12 +16,14 @@ use db::models::{
     project::{CreateProject, Project, ProjectError, SearchResult, UpdateProject},
     project_repo::{CreateProjectRepo, ProjectRepo, UpdateProjectRepo},
     repo::Repo,
+    task::{CreateTask, Task},
 };
 use deployment::Deployment;
 use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use serde::Deserialize;
+use serde::Serialize;
 use services::services::{
-    file_search_cache::SearchQuery, project::ProjectServiceError,
+    file_search_cache::SearchQuery, linear::LinearClient, project::ProjectServiceError,
     remote_client::CreateRemoteProjectPayload,
 };
 use ts_rs::TS;
@@ -582,6 +584,76 @@ pub async fn update_project_repository(
     }
 }
 
+#[derive(Debug, Serialize, TS)]
+pub struct LinearSyncResponse {
+    pub synced_count: usize,
+    pub created_count: usize,
+    pub updated_count: usize,
+}
+
+/// Sync backlog issues from Linear into the project's Backlog column
+pub async fn sync_linear_backlog(
+    Extension(project): Extension<Project>,
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<LinearSyncResponse>>, ApiError> {
+    let api_key = project.linear_api_key.ok_or_else(|| {
+        ApiError::BadRequest("Linear API key not configured for this project".to_string())
+    })?;
+
+    let client = LinearClient::new(api_key);
+    let issues = client.fetch_backlog_issues().await.map_err(|e| {
+        tracing::error!("Failed to fetch Linear issues: {}", e);
+        ApiError::BadRequest(format!("Failed to fetch Linear issues: {}", e))
+    })?;
+
+    let pool = &deployment.db().pool;
+    let mut created = 0;
+    let mut updated = 0;
+
+    for issue in &issues {
+        if let Some(existing) =
+            Task::find_by_linear_issue_id(pool, project.id, &issue.id).await?
+        {
+            // Update existing task title/description if changed
+            Task::update(
+                pool,
+                existing.id,
+                existing.project_id,
+                issue.title.clone(),
+                issue.description.clone(),
+                existing.status, // Keep current status (might have moved from backlog)
+                existing.parent_workspace_id,
+            )
+            .await?;
+            updated += 1;
+        } else {
+            // Create new task from Linear issue
+            let create_task = CreateTask::from_linear_issue(
+                project.id,
+                issue.title.clone(),
+                issue.description.clone(),
+                issue.id.clone(),
+            );
+            Task::create(pool, &create_task, Uuid::new_v4()).await?;
+            created += 1;
+        }
+    }
+
+    tracing::info!(
+        "Linear sync complete for project {}: {} synced, {} created, {} updated",
+        project.id,
+        issues.len(),
+        created,
+        updated
+    );
+
+    Ok(ResponseJson(ApiResponse::success(LinearSyncResponse {
+        synced_count: issues.len(),
+        created_count: created,
+        updated_count: updated,
+    })))
+}
+
 pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
     let project_id_router = Router::new()
         .route(
@@ -600,6 +672,7 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
             "/repositories",
             get(get_project_repositories).post(add_project_repository),
         )
+        .route("/linear/sync", post(sync_linear_backlog))
         .layer(from_fn_with_state(
             deployment.clone(),
             load_project_middleware,

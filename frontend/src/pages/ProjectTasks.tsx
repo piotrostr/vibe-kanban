@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertTriangle, Plus, X } from "lucide-react";
 import { Loader } from "@/components/ui/loader";
-import { tasksApi } from "@/lib/api";
+import { tasksApi, projectsApi } from "@/lib/api";
 import type { RepoBranchStatus, Workspace } from "shared/types";
 import { openTaskForm } from "@/lib/openTaskForm";
 import { FeatureShowcaseDialog } from "@/components/dialogs/global/FeatureShowcaseDialog";
@@ -77,6 +77,7 @@ import type { TaskWithAttemptStatus, TaskStatus } from "shared/types";
 type Task = TaskWithAttemptStatus;
 
 const TASK_STATUSES = [
+	"backlog",
 	"todo",
 	"inprogress",
 	"inreview",
@@ -144,6 +145,7 @@ export function ProjectTasks() {
 	const [selectedSharedTaskId, setSelectedSharedTaskId] = useState<
 		string | null
 	>(null);
+	const [isRefreshingBacklog, setIsRefreshingBacklog] = useState(false);
 	const { userId } = useAuth();
 
 	const {
@@ -165,6 +167,19 @@ export function ProjectTasks() {
 			openTaskForm({ mode: "create", projectId });
 		}
 	}, [projectId]);
+
+	const handleRefreshBacklog = useCallback(async () => {
+		if (!projectId || isRefreshingBacklog) return;
+		setIsRefreshingBacklog(true);
+		try {
+			await projectsApi.syncLinearBacklog(projectId);
+		} catch (err) {
+			console.error("Failed to sync Linear backlog:", err);
+		} finally {
+			setIsRefreshingBacklog(false);
+		}
+	}, [projectId, isRefreshingBacklog]);
+
 	const { query: searchQuery, focusInput } = useSearch();
 
 	const {
@@ -364,6 +379,7 @@ export function ProjectTasks() {
 
 	const kanbanColumns = useMemo(() => {
 		const columns: Record<TaskStatus, KanbanColumnItem[]> = {
+			backlog: [],
 			todo: [],
 			inprogress: [],
 			inreview: [],
@@ -456,6 +472,7 @@ export function ProjectTasks() {
 
 	const visibleTasksByStatus = useMemo(() => {
 		const map: Record<TaskStatus, Task[]> = {
+			backlog: [],
 			todo: [],
 			inprogress: [],
 			inreview: [],
@@ -863,6 +880,8 @@ export function ProjectTasks() {
 					selectedSharedTaskId={selectedSharedTaskId}
 					onCreateTask={handleCreateNewTask}
 					projectId={projectId!}
+					onRefreshBacklog={handleRefreshBacklog}
+					isRefreshingBacklog={isRefreshingBacklog}
 				/>
 			</div>
 		);
