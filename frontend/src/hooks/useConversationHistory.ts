@@ -31,6 +31,7 @@ type ExecutionProcessStaticInfo = {
 	created_at: string;
 	updated_at: string;
 	executor_action: ExecutorAction;
+	run_reason: string;
 };
 
 type ExecutionProcessState = {
@@ -128,7 +129,11 @@ export const useConversationHistory = ({
 		executionProcess: ExecutionProcess,
 	) => {
 		let url = "";
-		if (executionProcess.executor_action.typ.type === "ScriptRequest") {
+		// Use raw logs for scripts and slash commands (slash commands output to stdout, not structured JSON)
+		if (
+			executionProcess.executor_action.typ.type === "ScriptRequest" ||
+			executionProcess.run_reason === "slashcommand"
+		) {
 			url = `/api/execution-processes/${executionProcess.id}/raw-logs/ws`;
 		} else {
 			url = `/api/execution-processes/${executionProcess.id}/normalized-logs/ws`;
@@ -228,7 +233,77 @@ export const useConversationHistory = ({
 				.flatMap((p, index) => {
 					const entries: PatchTypeWithKey[] = [];
 
-					// Slash commands use CodingAgent action types, so they flow through the normal agent path below
+					// Handle slash commands - show as user message + raw output (like QuickCommand)
+					if (p.executionProcess.run_reason === "slashcommand") {
+						const executionProcess = getLiveExecutionProcess(
+							p.executionProcess.id,
+						);
+
+						if (executionProcess?.status === ExecutionProcessStatus.running) {
+							hasRunningProcess = true;
+						}
+
+						if (
+							(executionProcess?.status === ExecutionProcessStatus.failed ||
+								executionProcess?.status === ExecutionProcessStatus.killed) &&
+							index === Object.keys(executionProcessState).length - 1
+						) {
+							lastProcessFailedOrKilled = true;
+						}
+
+						// User message with the slash command
+						const prompt =
+							p.executionProcess.executor_action.typ.type ===
+								"CodingAgentFollowUpRequest" ||
+							p.executionProcess.executor_action.typ.type ===
+								"CodingAgentInitialRequest"
+								? p.executionProcess.executor_action.typ.prompt
+								: "";
+						const userEntry: NormalizedEntry = {
+							entry_type: { type: "user_message" },
+							content: prompt,
+							timestamp: null,
+						};
+						entries.push(
+							patchWithKey(
+								{ type: "NORMALIZED_ENTRY", content: userEntry },
+								p.executionProcess.id,
+								"user",
+							),
+						);
+
+						// Slash command output entry (use quick_command_output type for display)
+						const output = p.entries.map((line) => line.content).join("\n");
+						const isRunning =
+							executionProcess?.status === ExecutionProcessStatus.running;
+						const exitCode = Number(executionProcess?.exit_code) || 0;
+
+						const slashCommandEntry: NormalizedEntry = {
+							entry_type: {
+								type: "quick_command_output" as "system_message",
+								execution_process_id: p.executionProcess.id,
+								is_running: isRunning,
+								exit_code: isRunning ? null : exitCode,
+							} as NormalizedEntry["entry_type"],
+							content: output,
+							timestamp: null,
+						};
+						entries.push(
+							patchWithKey(
+								{ type: "NORMALIZED_ENTRY", content: slashCommandEntry },
+								p.executionProcess.id,
+								0,
+							),
+						);
+
+						if (isRunning) {
+							entries.push(makeLoadingPatch(p.executionProcess.id));
+						}
+
+						return entries;
+					}
+
+					// Handle CodingAgent requests
 					if (
 						p.executionProcess.executor_action.typ.type ===
 							"CodingAgentInitialRequest" ||
@@ -504,7 +579,11 @@ export const useConversationHistory = ({
 		(executionProcess: ExecutionProcess): Promise<void> => {
 			return new Promise((resolve, reject) => {
 				let url = "";
-				if (executionProcess.executor_action.typ.type === "ScriptRequest") {
+				// Use raw logs for scripts and slash commands (slash commands output to stdout, not structured JSON)
+				if (
+					executionProcess.executor_action.typ.type === "ScriptRequest" ||
+					executionProcess.run_reason === "slashcommand"
+				) {
 					url = `/api/execution-processes/${executionProcess.id}/raw-logs/ws`;
 				} else {
 					url = `/api/execution-processes/${executionProcess.id}/normalized-logs/ws`;
@@ -636,6 +715,7 @@ export const useConversationHistory = ({
 						created_at: p.created_at,
 						updated_at: p.updated_at,
 						executor_action: p.executor_action,
+						run_reason: p.run_reason,
 					},
 					entries: [],
 				};
