@@ -1,0 +1,222 @@
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { ChevronDown, ChevronRight } from "lucide-react";
+
+type JsonObject = Record<string, unknown>;
+
+interface JsonMessageRendererProps {
+	content: string;
+}
+
+// Fields to display as badges (type indicators)
+const BADGE_FIELDS = ["type", "subtype", "status"];
+
+// Fields to display prominently as main text
+const TEXT_FIELDS = ["message", "result", "content", "error", "output"];
+
+// Fields to hide in collapsed sections (verbose arrays)
+const COLLAPSIBLE_FIELDS = [
+	"tools",
+	"mcp_servers",
+	"plugins",
+	"agents",
+	"skills",
+	"slash_commands",
+	"modelUsage",
+	"usage",
+	"permission_denials",
+];
+
+// Fields to skip entirely (internal/noisy)
+const SKIP_FIELDS = ["uuid", "is_error"];
+
+function isJsonObject(value: unknown): value is JsonObject {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function CollapsibleArray({
+	label,
+	items,
+}: {
+	label: string;
+	items: unknown[];
+}) {
+	const [isExpanded, setIsExpanded] = useState(false);
+
+	return (
+		<div className="border-t border-border/50 pt-2 mt-2">
+			<button
+				type="button"
+				onClick={() => setIsExpanded(!isExpanded)}
+				className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+			>
+				{isExpanded ? (
+					<ChevronDown className="h-3 w-3" />
+				) : (
+					<ChevronRight className="h-3 w-3" />
+				)}
+				<span className="font-medium">{label}</span>
+				<span className="text-muted-foreground/70">({items.length} items)</span>
+			</button>
+			{isExpanded && (
+				<pre className="mt-2 text-xs font-mono text-muted-foreground bg-muted/30 rounded p-2 overflow-x-auto">
+					{JSON.stringify(items, null, 2)}
+				</pre>
+			)}
+		</div>
+	);
+}
+
+function JsonMessageCard({ data }: { data: JsonObject }) {
+	// Extract badges
+	const badges: Array<{ key: string; value: string }> = [];
+	for (const field of BADGE_FIELDS) {
+		if (data[field] && typeof data[field] === "string") {
+			badges.push({ key: field, value: data[field] as string });
+		}
+	}
+
+	// Extract main text
+	let mainText: string | null = null;
+	for (const field of TEXT_FIELDS) {
+		if (data[field] && typeof data[field] === "string") {
+			mainText = data[field] as string;
+			break;
+		}
+	}
+
+	// Extract key-value pairs
+	const keyValues: Array<{ key: string; value: string }> = [];
+	const collapsibles: Array<{ key: string; items: unknown[] }> = [];
+
+	for (const [key, value] of Object.entries(data)) {
+		if (SKIP_FIELDS.includes(key)) continue;
+		if (BADGE_FIELDS.includes(key)) continue;
+		if (TEXT_FIELDS.includes(key) && key === mainText) continue;
+
+		if (COLLAPSIBLE_FIELDS.includes(key) && Array.isArray(value)) {
+			if (value.length > 0) {
+				collapsibles.push({ key, items: value });
+			}
+			continue;
+		}
+
+		// Format the value
+		if (typeof value === "string") {
+			keyValues.push({ key, value });
+		} else if (typeof value === "number" || typeof value === "boolean") {
+			keyValues.push({ key, value: String(value) });
+		} else if (value === null) {
+			keyValues.push({ key, value: "null" });
+		} else if (Array.isArray(value) && value.length === 0) {
+			// Skip empty arrays
+			continue;
+		} else if (isJsonObject(value) && Object.keys(value).length === 0) {
+			// Skip empty objects
+			continue;
+		} else {
+			// For other complex values, stringify them
+			keyValues.push({ key, value: JSON.stringify(value) });
+		}
+	}
+
+	return (
+		<div className="bg-muted/20 rounded-lg p-3 space-y-2">
+			{/* Badges row */}
+			{badges.length > 0 && (
+				<div className="flex flex-wrap gap-1.5">
+					{badges.map(({ key, value }) => (
+						<Badge key={key} variant="secondary" className="text-xs">
+							{value}
+						</Badge>
+					))}
+				</div>
+			)}
+
+			{/* Main text */}
+			{mainText && (
+				<div className="text-sm text-foreground whitespace-pre-wrap">
+					{mainText}
+				</div>
+			)}
+
+			{/* Key-value table */}
+			{keyValues.length > 0 && (
+				<div className="grid gap-1 text-xs">
+					{keyValues.map(({ key, value }) => (
+						<div key={key} className="flex gap-2">
+							<span className="text-muted-foreground min-w-[120px] shrink-0">
+								{key}:
+							</span>
+							<span className="font-mono text-foreground/80 break-all">
+								{value}
+							</span>
+						</div>
+					))}
+				</div>
+			)}
+
+			{/* Collapsible sections */}
+			{collapsibles.map(({ key, items }) => (
+				<CollapsibleArray key={key} label={key} items={items} />
+			))}
+		</div>
+	);
+}
+
+export function JsonMessageRenderer({ content }: JsonMessageRendererProps) {
+	if (!content) return null;
+
+	const lines = content.split("\n");
+	const messages: Array<
+		{ type: "json"; data: JsonObject } | { type: "text"; text: string }
+	> = [];
+
+	for (const line of lines) {
+		const trimmed = line.trim();
+		if (!trimmed) continue;
+
+		if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+			try {
+				const parsed = JSON.parse(trimmed) as JsonObject;
+				messages.push({ type: "json", data: parsed });
+				continue;
+			} catch {
+				// Not valid JSON, fall through to text
+			}
+		}
+		messages.push({ type: "text", text: line });
+	}
+
+	if (messages.length === 0) return null;
+
+	// Check if we have any JSON messages
+	const hasJson = messages.some((m) => m.type === "json");
+
+	// If no JSON, just show as plain text
+	if (!hasJson) {
+		return (
+			<pre className="font-mono text-sm whitespace-pre-wrap break-words text-foreground/80">
+				{content}
+			</pre>
+		);
+	}
+
+	return (
+		<div className="space-y-2">
+			{messages.map((msg, index) => {
+				if (msg.type === "json") {
+					return <JsonMessageCard key={index} data={msg.data} />;
+				}
+				return (
+					<pre
+						key={index}
+						className="font-mono text-sm whitespace-pre-wrap break-words text-foreground/80"
+					>
+						{msg.text}
+					</pre>
+				);
+			})}
+		</div>
+	);
+}
