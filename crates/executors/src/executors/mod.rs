@@ -80,6 +80,7 @@ pub enum ExecutorError {
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 #[strum_discriminants(
     name(BaseCodingAgent),
+    vis(pub),
     // Only add Hash; Eq/PartialEq are already provided by EnumDiscriminants.
     derive(EnumString, Hash, strum_macros::Display, Serialize, Deserialize, TS, Type),
     strum(serialize_all = "SCREAMING_SNAKE_CASE"),
