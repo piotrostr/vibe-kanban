@@ -67,6 +67,24 @@ function CollapsibleArray({
 	);
 }
 
+// Extract text content from a value - handles nested objects like message.content
+function extractTextContent(value: unknown): string | null {
+	if (typeof value === "string") {
+		return value;
+	}
+	if (isJsonObject(value)) {
+		// Look for content field in nested objects (e.g., message.content)
+		if (typeof value.content === "string") {
+			return value.content;
+		}
+		// Also check for text field
+		if (typeof value.text === "string") {
+			return value.text;
+		}
+	}
+	return null;
+}
+
 function JsonMessageCard({ data }: { data: JsonObject }) {
 	// Extract badges
 	const badges: Array<{ key: string; value: string }> = [];
@@ -76,11 +94,14 @@ function JsonMessageCard({ data }: { data: JsonObject }) {
 		}
 	}
 
-	// Extract main text
+	// Extract main text - check for nested content in objects
 	let mainText: string | null = null;
+	let mainTextField: string | null = null;
 	for (const field of TEXT_FIELDS) {
-		if (data[field] && typeof data[field] === "string") {
-			mainText = data[field] as string;
+		const extracted = extractTextContent(data[field]);
+		if (extracted) {
+			mainText = extracted;
+			mainTextField = field;
 			break;
 		}
 	}
@@ -92,7 +113,8 @@ function JsonMessageCard({ data }: { data: JsonObject }) {
 	for (const [key, value] of Object.entries(data)) {
 		if (SKIP_FIELDS.includes(key)) continue;
 		if (BADGE_FIELDS.includes(key)) continue;
-		if (TEXT_FIELDS.includes(key) && key === mainText) continue;
+		// Skip the field we extracted main text from
+		if (key === mainTextField) continue;
 
 		if (COLLAPSIBLE_FIELDS.includes(key) && Array.isArray(value)) {
 			if (value.length > 0) {
