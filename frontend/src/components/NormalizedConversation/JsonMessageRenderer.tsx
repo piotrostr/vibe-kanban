@@ -205,29 +205,64 @@ function JsonMessageCard({ data }: { data: JsonObject }) {
 	);
 }
 
-export function JsonMessageRenderer({ content }: JsonMessageRendererProps) {
-	if (!content) return null;
-
-	const lines = content.split("\n");
+// Try to parse JSON that may span multiple lines
+function parseJsonLines(
+	content: string,
+): Array<{ type: "json"; data: JsonObject } | { type: "text"; text: string }> {
 	const messages: Array<
 		{ type: "json"; data: JsonObject } | { type: "text"; text: string }
 	> = [];
+	const lines = content.split("\n");
+	let jsonBuffer = "";
+	let braceCount = 0;
 
 	for (const line of lines) {
 		const trimmed = line.trim();
 		if (!trimmed) continue;
 
-		if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-			try {
-				const parsed = JSON.parse(trimmed) as JsonObject;
-				messages.push({ type: "json", data: parsed });
-				continue;
-			} catch {
-				// Not valid JSON, fall through to text
+		// If we're accumulating JSON, continue until balanced braces
+		if (jsonBuffer || trimmed.startsWith("{")) {
+			jsonBuffer += (jsonBuffer ? "\n" : "") + line;
+
+			// Count braces (simple approach, doesn't handle strings perfectly)
+			for (const char of trimmed) {
+				if (char === "{") braceCount++;
+				else if (char === "}") braceCount--;
 			}
+
+			if (braceCount === 0 && jsonBuffer) {
+				// Try to parse the accumulated JSON
+				try {
+					const parsed = JSON.parse(jsonBuffer) as JsonObject;
+					messages.push({ type: "json", data: parsed });
+				} catch {
+					// Failed to parse, treat as text
+					messages.push({ type: "text", text: jsonBuffer });
+				}
+				jsonBuffer = "";
+			}
+		} else {
+			messages.push({ type: "text", text: line });
 		}
-		messages.push({ type: "text", text: line });
 	}
+
+	// Handle any remaining buffer
+	if (jsonBuffer) {
+		try {
+			const parsed = JSON.parse(jsonBuffer) as JsonObject;
+			messages.push({ type: "json", data: parsed });
+		} catch {
+			messages.push({ type: "text", text: jsonBuffer });
+		}
+	}
+
+	return messages;
+}
+
+export function JsonMessageRenderer({ content }: JsonMessageRendererProps) {
+	if (!content) return null;
+
+	const messages = parseJsonLines(content);
 
 	if (messages.length === 0) return null;
 
