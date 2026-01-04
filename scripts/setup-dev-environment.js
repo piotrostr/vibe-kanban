@@ -125,7 +125,7 @@ async function allocatePorts() {
 	}
 
 	// Find new free ports
-	const frontendPort = await findFreePort(6769);
+	const frontendPort = await findFreePort(3067);
 	const backendPort = await findFreePort(frontendPort + 1);
 
 	const ports = {
