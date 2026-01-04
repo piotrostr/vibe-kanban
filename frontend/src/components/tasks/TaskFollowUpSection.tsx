@@ -60,8 +60,11 @@ import { useInputHistory } from "@/hooks/useInputHistory";
 import { useQueueStatus } from "@/hooks/useQueueStatus";
 import { imagesApi, attemptsApi } from "@/lib/api";
 import { GitHubCommentsDialog } from "@/components/dialogs/tasks/GitHubCommentsDialog";
+import { SetSetupScriptDialog } from "@/components/dialogs/projects/SetSetupScriptDialog";
 import type { NormalizedComment } from "@/components/ui/wysiwyg/nodes/github-comment-node";
 import type { Session } from "shared/types";
+import { useQuery } from "@tanstack/react-query";
+import { projectsApi } from "@/lib/api";
 
 interface TaskFollowUpSectionProps {
 	task: TaskWithAttemptStatus;
@@ -89,6 +92,19 @@ export function TaskFollowUpSection({
 	const getSelectedRepoId = useCallback(() => {
 		return selectedRepoId ?? repos[0]?.id;
 	}, [selectedRepoId, repos]);
+
+	// Get the currently selected repo object for its name
+	const selectedRepo = useMemo(() => {
+		const repoId = selectedRepoId ?? repos[0]?.id;
+		return repos.find((r) => r.id === repoId);
+	}, [selectedRepoId, repos]);
+
+	// Fetch the ProjectRepo to check if setup script exists
+	const { data: projectRepo } = useQuery({
+		queryKey: ["projectRepo", projectId, selectedRepo?.id],
+		queryFn: () => projectsApi.getRepository(projectId!, selectedRepo!.id),
+		enabled: !!projectId && !!selectedRepo?.id,
+	});
 
 	const repoWithConflicts = useMemo(
 		() =>
@@ -382,12 +398,23 @@ export function TaskFollowUpSection({
 
 	const handleRunSetupScript = useCallback(async () => {
 		if (!workspaceId || isAttemptRunning) return;
+
+		// If no setup script configured, show the dialog to set it
+		if (!projectRepo?.setup_script && projectId && selectedRepo) {
+			SetSetupScriptDialog.show({
+				projectId,
+				repoId: selectedRepo.id,
+				repoName: selectedRepo.name,
+			});
+			return;
+		}
+
 		try {
 			await attemptsApi.runSetupScript(workspaceId);
 		} catch (error) {
 			console.error("Failed to run setup script:", error);
 		}
-	}, [workspaceId, isAttemptRunning]);
+	}, [workspaceId, isAttemptRunning, projectRepo, projectId, selectedRepo]);
 
 	const handleRunCleanupScript = useCallback(async () => {
 		if (!workspaceId || isAttemptRunning) return;

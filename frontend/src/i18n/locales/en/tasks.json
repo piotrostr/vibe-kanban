@@ -173,7 +173,17 @@
 		"runCleanupScript": "Run cleanup script",
 		"noSetupScript": "No setup script configured for this project",
 		"noCleanupScript": "No cleanup script configured for this project",
-		"scriptsDisabledWhileRunning": "Cannot run scripts while a process is running"
+		"scriptsDisabledWhileRunning": "Cannot run scripts while a process is running",
+		"setSetupScript": {
+			"title": "Set Setup Script",
+			"description": "Configure a setup script for {{repoName}}",
+			"label": "Setup Script"
+		},
+		"setCleanupScript": {
+			"title": "Set Cleanup Script",
+			"description": "Configure a cleanup script for {{repoName}}",
+			"label": "Cleanup Script"
+		}
 	},
 	"todos": {
 		"title_one": "Todos ({{count}})",

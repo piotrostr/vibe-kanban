@@ -110,6 +110,11 @@ tasks:
     cmds:
       - cargo run --bin generate_types
 
+  prebuild:
+    desc: Build for production
+    cmds:
+      - cargo build
+
   build:
     desc: Build for production
     cmds:
