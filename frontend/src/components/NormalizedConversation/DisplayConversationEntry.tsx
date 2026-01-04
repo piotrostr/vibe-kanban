@@ -596,6 +596,25 @@ const LoadingCard = () => {
 	);
 };
 
+// Try to pretty-print JSON lines in command output
+const formatCommandOutput = (content: string): string => {
+	const lines = content.split("\n");
+	return lines
+		.map((line) => {
+			const trimmed = line.trim();
+			if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+				try {
+					const parsed = JSON.parse(trimmed);
+					return JSON.stringify(parsed, null, 2);
+				} catch {
+					return line;
+				}
+			}
+			return line;
+		})
+		.join("\n");
+};
+
 const QuickCommandOutput: React.FC<{
 	content: string;
 	executionProcessId: string;
@@ -616,6 +635,8 @@ const QuickCommandOutput: React.FC<{
 		}
 	};
 
+	const formattedContent = content ? formatCommandOutput(content) : "";
+
 	return (
 		<div className="px-4 py-2">
 			{isRunning && (
@@ -630,9 +651,9 @@ const QuickCommandOutput: React.FC<{
 					</button>
 				</div>
 			)}
-			{content ? (
+			{formattedContent ? (
 				<pre className="font-mono text-sm whitespace-pre-wrap break-words text-foreground/80">
-					{content}
+					{formattedContent}
 				</pre>
 			) : isRunning ? (
 				<div className="text-sm text-muted-foreground italic">Running...</div>
