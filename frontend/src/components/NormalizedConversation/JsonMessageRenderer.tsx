@@ -34,12 +34,14 @@ function isJsonObject(value: unknown): value is JsonObject {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function CollapsibleArray({
+function CollapsibleSection({
 	label,
-	items,
+	data,
+	itemCount,
 }: {
 	label: string;
-	items: unknown[];
+	data: unknown;
+	itemCount?: number;
 }) {
 	const [isExpanded, setIsExpanded] = useState(false);
 
@@ -56,11 +58,13 @@ function CollapsibleArray({
 					<ChevronRight className="h-3 w-3" />
 				)}
 				<span className="font-medium">{label}</span>
-				<span className="text-muted-foreground/70">({items.length} items)</span>
+				{itemCount !== undefined && (
+					<span className="text-muted-foreground/70">({itemCount} items)</span>
+				)}
 			</button>
 			{isExpanded && (
 				<pre className="mt-2 text-xs font-mono text-muted-foreground bg-muted/30 rounded p-2 overflow-x-auto">
-					{JSON.stringify(items, null, 2)}
+					{JSON.stringify(data, null, 2)}
 				</pre>
 			)}
 		</div>
@@ -108,7 +112,11 @@ function JsonMessageCard({ data }: { data: JsonObject }) {
 
 	// Extract key-value pairs
 	const keyValues: Array<{ key: string; value: string }> = [];
-	const collapsibles: Array<{ key: string; items: unknown[] }> = [];
+	const collapsibles: Array<{
+		key: string;
+		data: unknown;
+		itemCount?: number;
+	}> = [];
 
 	for (const [key, value] of Object.entries(data)) {
 		if (SKIP_FIELDS.includes(key)) continue;
@@ -116,20 +124,26 @@ function JsonMessageCard({ data }: { data: JsonObject }) {
 		// Skip the field we extracted main text from
 		if (key === mainTextField) continue;
 
-		if (COLLAPSIBLE_FIELDS.includes(key) && Array.isArray(value)) {
-			if (value.length > 0) {
-				collapsibles.push({ key, items: value });
+		// Handle collapsible fields (both arrays and objects)
+		if (COLLAPSIBLE_FIELDS.includes(key)) {
+			if (Array.isArray(value) && value.length > 0) {
+				collapsibles.push({ key, data: value, itemCount: value.length });
+			} else if (isJsonObject(value) && Object.keys(value).length > 0) {
+				collapsibles.push({ key, data: value });
 			}
 			continue;
 		}
 
 		// Format the value
 		if (typeof value === "string") {
+			// Skip empty strings
+			if (value === "") continue;
 			keyValues.push({ key, value });
 		} else if (typeof value === "number" || typeof value === "boolean") {
 			keyValues.push({ key, value: String(value) });
 		} else if (value === null) {
-			keyValues.push({ key, value: "null" });
+			// Skip null values
+			continue;
 		} else if (Array.isArray(value) && value.length === 0) {
 			// Skip empty arrays
 			continue;
@@ -179,8 +193,13 @@ function JsonMessageCard({ data }: { data: JsonObject }) {
 			)}
 
 			{/* Collapsible sections */}
-			{collapsibles.map(({ key, items }) => (
-				<CollapsibleArray key={key} label={key} items={items} />
+			{collapsibles.map(({ key, data, itemCount }) => (
+				<CollapsibleSection
+					key={key}
+					label={key}
+					data={data}
+					itemCount={itemCount}
+				/>
 			))}
 		</div>
 	);
