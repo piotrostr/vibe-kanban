@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { KanbanCard } from "@/components/ui/shadcn-io/kanban";
-import { ExternalLink, Link, Loader2, XCircle } from "lucide-react";
+import { Link, Loader2, XCircle } from "lucide-react";
+import { LinearIcon } from "@/components/icons/LinearIcon";
 import type { TaskWithAttemptStatus } from "shared/types";
 import { ActionsDropdown } from "@/components/ui/actions-dropdown";
 import { Button } from "@/components/ui/button";
@@ -143,7 +144,7 @@ export function TaskCard({
 									onMouseDown={(e) => e.stopPropagation()}
 									title="View in Linear"
 								>
-									<ExternalLink className="h-4 w-4" />
+									<LinearIcon className="h-4 w-4" />
 								</Button>
 							)}
 							<ActionsDropdown task={task} sharedTask={sharedTask} />
