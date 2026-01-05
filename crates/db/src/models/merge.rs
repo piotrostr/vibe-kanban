@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, SqlitePool, Type};
+use sqlx::{Executor, FromRow, Sqlite, SqlitePool, Type};
 use ts_rs::TS;
 use uuid::Uuid;
 
@@ -89,9 +89,12 @@ impl Merge {
         }
     }
 
-    pub async fn delete(pool: &SqlitePool, id: Uuid) -> Result<(), sqlx::Error> {
+    pub async fn delete<'e, E>(executor: E, id: Uuid) -> Result<(), sqlx::Error>
+    where
+        E: Executor<'e, Database = Sqlite>,
+    {
         sqlx::query!("DELETE FROM merges WHERE id = $1", id)
-            .execute(pool)
+            .execute(executor)
             .await?;
         Ok(())
     }
@@ -271,11 +274,14 @@ impl Merge {
     }
 
     /// Find all merges for a workspace and specific repo
-    pub async fn find_by_workspace_and_repo_id(
-        pool: &SqlitePool,
+    pub async fn find_by_workspace_and_repo_id<'e, E>(
+        executor: E,
         workspace_id: Uuid,
         repo_id: Uuid,
-    ) -> Result<Vec<Self>, sqlx::Error> {
+    ) -> Result<Vec<Self>, sqlx::Error>
+    where
+        E: Executor<'e, Database = Sqlite>,
+    {
         let rows = sqlx::query_as!(
             MergeRow,
             r#"SELECT
@@ -297,10 +303,90 @@ impl Merge {
             workspace_id,
             repo_id
         )
-        .fetch_all(pool)
+        .fetch_all(executor)
         .await?;
 
         Ok(rows.into_iter().map(Into::into).collect())
+    }
+
+    /// Create a new PR record with transaction support
+    pub async fn create_pr_tx<'e, E>(
+        executor: E,
+        workspace_id: Uuid,
+        repo_id: Uuid,
+        target_branch_name: &str,
+        pr_number: i64,
+        pr_url: &str,
+    ) -> Result<PrMerge, sqlx::Error>
+    where
+        E: Executor<'e, Database = Sqlite>,
+    {
+        let id = Uuid::new_v4();
+        let now = Utc::now();
+
+        sqlx::query_as!(
+            MergeRow,
+            r#"INSERT INTO merges (
+                id, workspace_id, repo_id, merge_type, pr_number, pr_url, pr_status, created_at, target_branch_name
+            ) VALUES ($1, $2, $3, 'pr', $4, $5, 'open', $6, $7)
+            RETURNING
+                id as "id!: Uuid",
+                workspace_id as "workspace_id!: Uuid",
+                repo_id as "repo_id!: Uuid",
+                merge_type as "merge_type!: MergeType",
+                merge_commit,
+                pr_number,
+                pr_url,
+                pr_status as "pr_status?: MergeStatus",
+                pr_merged_at as "pr_merged_at?: DateTime<Utc>",
+                pr_merge_commit_sha,
+                created_at as "created_at!: DateTime<Utc>",
+                target_branch_name as "target_branch_name!: String"
+            "#,
+            id,
+            workspace_id,
+            repo_id,
+            pr_number,
+            pr_url,
+            now,
+            target_branch_name
+        )
+        .fetch_one(executor)
+        .await
+        .map(Into::into)
+    }
+
+    /// Update PR status with transaction support
+    pub async fn update_status_tx<'e, E>(
+        executor: E,
+        merge_id: Uuid,
+        pr_status: MergeStatus,
+        merge_commit_sha: Option<String>,
+    ) -> Result<(), sqlx::Error>
+    where
+        E: Executor<'e, Database = Sqlite>,
+    {
+        let merged_at = if matches!(pr_status, MergeStatus::Merged) {
+            Some(Utc::now())
+        } else {
+            None
+        };
+
+        sqlx::query!(
+            r#"UPDATE merges
+            SET pr_status = $1,
+                pr_merge_commit_sha = $2,
+                pr_merged_at = $3
+            WHERE id = $4"#,
+            pr_status,
+            merge_commit_sha,
+            merged_at,
+            merge_id
+        )
+        .execute(executor)
+        .await?;
+
+        Ok(())
     }
 }
 

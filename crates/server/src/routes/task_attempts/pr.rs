@@ -77,7 +77,7 @@ pub struct BindPrByNumberRequest {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[ts(tag = "type", rename_all = "snake_case")]
 pub enum BindPrError {
-    PrNotFound { pr_number: i64 },
+    PrNotFoundOrNoAccess { pr_number: i64 },
     GithubCliNotInstalled,
     GithubCliNotLoggedIn,
 }
@@ -555,72 +555,16 @@ pub async fn bind_pr_by_number(
         .await?
         .ok_or(RepoError::NotFound)?;
 
-    // Check if PR already attached for this repo - if so, remove it first
-    let existing_merges =
-        Merge::find_by_workspace_and_repo_id(pool, workspace.id, request.repo_id).await?;
-    for merge in existing_merges {
-        Merge::delete(pool, merge.id()).await?;
-    }
-
     let github_service = GitHubService::new()?;
     let repo_info = deployment.git().get_github_repo_info(&repo.path)?;
 
     // Fetch the PR by number using update_pr_status (which calls view_pr)
-    match github_service
+    // Do this before the transaction so we don't hold a lock while waiting on GitHub
+    let pr_info = match github_service
         .update_pr_status(&repo_info, request.pr_number)
         .await
     {
-        Ok(pr_info) => {
-            // Save PR info to database
-            let merge = Merge::create_pr(
-                pool,
-                workspace.id,
-                workspace_repo.repo_id,
-                &workspace_repo.target_branch,
-                pr_info.number,
-                &pr_info.url,
-            )
-            .await?;
-
-            // Update status if not open
-            if !matches!(pr_info.status, MergeStatus::Open) {
-                Merge::update_status(
-                    pool,
-                    merge.id,
-                    pr_info.status.clone(),
-                    pr_info.merge_commit_sha.clone(),
-                )
-                .await?;
-            }
-
-            // If PR is merged, mark task as done
-            if matches!(pr_info.status, MergeStatus::Merged) {
-                Task::update_status(pool, task.id, TaskStatus::Done).await?;
-
-                // Try broadcast update to other users in organization
-                if let Ok(publisher) = deployment.share_publisher() {
-                    if let Err(err) = publisher.update_shared_task_by_id(task.id).await {
-                        tracing::warn!(
-                            ?err,
-                            "Failed to propagate shared task update for {}",
-                            task.id
-                        );
-                    }
-                } else {
-                    tracing::debug!(
-                        "Share publisher unavailable; skipping remote update for {}",
-                        task.id
-                    );
-                }
-            }
-
-            Ok(ResponseJson(ApiResponse::success(AttachPrResponse {
-                pr_attached: true,
-                pr_url: Some(pr_info.url),
-                pr_number: Some(pr_info.number),
-                pr_status: Some(pr_info.status),
-            })))
-        }
+        Ok(info) => info,
         Err(e) => {
             tracing::error!(
                 "Failed to fetch PR #{} for attempt {}: {}",
@@ -628,7 +572,7 @@ pub async fn bind_pr_by_number(
                 workspace.id,
                 e
             );
-            match &e {
+            return match &e {
                 GitHubServiceError::GhCliNotInstalled(_) => Ok(ResponseJson(
                     ApiResponse::error_with_data(BindPrError::GithubCliNotInstalled),
                 )),
@@ -636,12 +580,77 @@ pub async fn bind_pr_by_number(
                     ApiResponse::error_with_data(BindPrError::GithubCliNotLoggedIn),
                 )),
                 GitHubServiceError::RepoNotFoundOrNoAccess(_) => Ok(ResponseJson(
-                    ApiResponse::error_with_data(BindPrError::PrNotFound {
+                    ApiResponse::error_with_data(BindPrError::PrNotFoundOrNoAccess {
                         pr_number: request.pr_number,
                     }),
                 )),
                 _ => Err(ApiError::GitHubService(e)),
+            };
+        }
+    };
+
+    // Use a transaction to ensure atomicity of delete + create
+    let mut tx = pool.begin().await?;
+
+    // Delete existing merges for this repo within the transaction
+    let existing_merges =
+        Merge::find_by_workspace_and_repo_id(&mut *tx, workspace.id, request.repo_id).await?;
+    for merge in existing_merges {
+        Merge::delete(&mut *tx, merge.id()).await?;
+    }
+
+    // Create the new PR merge record
+    let merge = Merge::create_pr_tx(
+        &mut *tx,
+        workspace.id,
+        workspace_repo.repo_id,
+        &workspace_repo.target_branch,
+        pr_info.number,
+        &pr_info.url,
+    )
+    .await?;
+
+    // Update status if not open
+    if !matches!(pr_info.status, MergeStatus::Open) {
+        Merge::update_status_tx(
+            &mut *tx,
+            merge.id,
+            pr_info.status.clone(),
+            pr_info.merge_commit_sha.clone(),
+        )
+        .await?;
+    }
+
+    // If PR is merged, mark task as done
+    if matches!(pr_info.status, MergeStatus::Merged) {
+        Task::update_status(&mut *tx, task.id, TaskStatus::Done).await?;
+    }
+
+    // Commit the transaction
+    tx.commit().await?;
+
+    // Broadcast update outside of transaction (non-critical)
+    if matches!(pr_info.status, MergeStatus::Merged) {
+        if let Ok(publisher) = deployment.share_publisher() {
+            if let Err(err) = publisher.update_shared_task_by_id(task.id).await {
+                tracing::warn!(
+                    ?err,
+                    "Failed to propagate shared task update for {}",
+                    task.id
+                );
             }
+        } else {
+            tracing::debug!(
+                "Share publisher unavailable; skipping remote update for {}",
+                task.id
+            );
         }
     }
+
+    Ok(ResponseJson(ApiResponse::success(AttachPrResponse {
+        pr_attached: true,
+        pr_url: Some(pr_info.url),
+        pr_number: Some(pr_info.number),
+        pr_status: Some(pr_info.status),
+    })))
 }

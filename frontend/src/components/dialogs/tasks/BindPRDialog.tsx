@@ -64,9 +64,9 @@ const BindPRDialogImpl = NiceModal.create<BindPRDialogProps>(
 
 			if (result.error) {
 				switch (result.error.type) {
-					case "pr_not_found":
+					case "pr_not_found_or_no_access":
 						setError(
-							t("bindPrDialog.errors.prNotFound", {
+							t("bindPrDialog.errors.prNotFoundOrNoAccess", {
 								number: Number(result.error.pr_number),
 							}),
 						);

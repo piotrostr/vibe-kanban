@@ -429,7 +429,7 @@
 		"bindButton": "Bind PR",
 		"errors": {
 			"invalidNumber": "Please enter a valid PR number",
-			"prNotFound": "PR #{{number}} was not found in this repository",
+			"prNotFoundOrNoAccess": "PR #{{number}} was not found or you don't have access to this repository",
 			"githubCliNotInstalled": "GitHub CLI is not installed. Install it from https://cli.github.com/",
 			"githubCliNotLoggedIn": "GitHub CLI is not authenticated. Run \"gh auth login\" and try again.",
 			"failedToBind": "Failed to bind pull request"

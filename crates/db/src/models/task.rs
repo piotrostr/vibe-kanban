@@ -365,17 +365,20 @@ ORDER BY t.created_at DESC"#,
         .await
     }
 
-    pub async fn update_status(
-        pool: &SqlitePool,
+    pub async fn update_status<'e, E>(
+        executor: E,
         id: Uuid,
         status: TaskStatus,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<(), sqlx::Error>
+    where
+        E: Executor<'e, Database = Sqlite>,
+    {
         sqlx::query!(
             "UPDATE tasks SET status = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
             id,
             status
         )
-        .execute(pool)
+        .execute(executor)
         .await?;
         Ok(())
     }
