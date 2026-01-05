@@ -120,3 +120,13 @@ tasks:
     cmds:
       - cargo build --release
       - cd frontend && pnpm run build
+
+  start:
+    desc: Run production build with PWA on port 4067
+    deps: [build]
+    env:
+      BACKEND_PORT: '4067'
+    cmds:
+      - |
+        echo "Starting production server on http://localhost:4067"
+      - cargo run --release --bin server
