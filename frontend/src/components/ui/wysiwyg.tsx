@@ -35,12 +35,31 @@ import { ListPlugin } from "@lexical/react/LexicalListPlugin";
 import { CodeNode, CodeHighlightNode } from "@lexical/code";
 import { CodeHighlightPlugin } from "./wysiwyg/plugins/code-highlight-plugin";
 import { CODE_HIGHLIGHT_CLASSES } from "./wysiwyg/lib/code-highlight-theme";
-import { LinkNode } from "@lexical/link";
+import { AutoLinkNode, LinkNode } from "@lexical/link";
+import { AutoLinkPlugin } from "@lexical/react/LexicalAutoLinkPlugin";
 import { EditorState } from "lexical";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Check, Clipboard, Pencil, Trash2 } from "lucide-react";
 import { writeClipboardViaBridge } from "@/vscode/bridge";
+
+// URL matcher for AutoLinkPlugin - matches http:// and https:// URLs
+const URL_MATCHER =
+	/https?:\/\/(?:www\.)?[-\w@:%.+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b[-\w()@:%+.~#?&/=]*/;
+
+const MATCHERS = [
+	(text: string) => {
+		const match = URL_MATCHER.exec(text);
+		if (match === null) return null;
+		const fullMatch = match[0];
+		return {
+			index: match.index,
+			length: fullMatch.length,
+			text: fullMatch,
+			url: fullMatch,
+		};
+	},
+];
 
 /** Markdown string representing the editor content */
 export type SerializedEditorState = string;
@@ -154,6 +173,7 @@ function WYSIWYGEditor({
 				CodeNode,
 				CodeHighlightNode,
 				LinkNode,
+				AutoLinkNode,
 				ImageNode,
 				GitHubCommentNode,
 			],
@@ -239,6 +259,7 @@ function WYSIWYGEditor({
 
 							<ListPlugin />
 							<CodeHighlightPlugin />
+							<AutoLinkPlugin matchers={MATCHERS} />
 							{/* Only include editing plugins when not in read-only mode */}
 							{!disabled && (
 								<>
