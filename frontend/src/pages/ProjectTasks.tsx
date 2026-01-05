@@ -688,12 +688,20 @@ export function ProjectTasks() {
 	const handleViewSharedTask = useCallback(
 		(sharedTask: SharedTaskRecord) => {
 			setSelectedSharedTaskId(sharedTask.id);
-			setMode(null);
 			if (projectId) {
-				navigateWithSearch(paths.projectTasks(projectId), { replace: true });
+				// Clear view mode and navigate in a single URL update to avoid race conditions
+				const params = new URLSearchParams(searchParams);
+				params.delete("view");
+				navigate(
+					{
+						pathname: paths.projectTasks(projectId),
+						search: params.toString() ? `?${params.toString()}` : "",
+					},
+					{ replace: true },
+				);
 			}
 		},
-		[navigateWithSearch, projectId, setMode],
+		[navigate, projectId, searchParams],
 	);
 
 	const selectNextTask = useCallback(() => {

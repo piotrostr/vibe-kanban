@@ -4,8 +4,14 @@ import { X, Upload, Download, Loader2 } from "lucide-react";
 import type { TaskWithAttemptStatus } from "shared/types";
 import { ActionsDropdown } from "../ui/actions-dropdown";
 import type { SharedTaskRecord } from "@/hooks/useProjectTasks";
+import { GitHubIcon } from "../icons/GitHubIcon";
 import { LinearIcon } from "../icons/LinearIcon";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "../ui/tooltip";
 import { tasksApi } from "@/lib/api";
 import {
 	Dialog,
@@ -148,7 +154,21 @@ export const TaskPanelHeaderActions = ({
 	const hasLinear = !!task.linear_issue_id;
 
 	return (
-		<>
+		<TooltipProvider>
+			{task.pr_url && (
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant="icon"
+							aria-label="View Pull Request"
+							onClick={() => window.open(task.pr_url!, "_blank")}
+						>
+							<GitHubIcon className="h-4 w-4" />
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>View Pull Request</TooltipContent>
+				</Tooltip>
+			)}
 			{task.linear_url && (
 				<Tooltip>
 					<TooltipTrigger asChild>
@@ -261,6 +281,6 @@ export const TaskPanelHeaderActions = ({
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
-		</>
+		</TooltipProvider>
 	);
 };
