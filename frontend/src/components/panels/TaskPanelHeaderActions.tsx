@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Button } from "../ui/button";
-import { X, Upload, Download, Loader2 } from "lucide-react";
+import { GitPullRequest, X, Upload, Download, Loader2 } from "lucide-react";
 import type { TaskWithAttemptStatus } from "shared/types";
 import { ActionsDropdown } from "../ui/actions-dropdown";
 import type { SharedTaskRecord } from "@/hooks/useProjectTasks";
-import { GitHubIcon } from "../icons/GitHubIcon";
 import { LinearIcon } from "../icons/LinearIcon";
 import {
 	Tooltip,
@@ -163,7 +162,7 @@ export const TaskPanelHeaderActions = ({
 							aria-label="View Pull Request"
 							onClick={() => window.open(task.pr_url!, "_blank")}
 						>
-							<GitHubIcon className="h-4 w-4" />
+							<GitPullRequest className="h-4 w-4" />
 						</Button>
 					</TooltipTrigger>
 					<TooltipContent>View Pull Request</TooltipContent>

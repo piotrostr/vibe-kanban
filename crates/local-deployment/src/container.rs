@@ -747,7 +747,7 @@ impl LocalContainerService {
             let workspace_config_path = workspace_dir.join(config_file);
 
             if workspace_config_path.exists() {
-                tracing::debug!(
+                tracing::trace!(
                     "Workspace config file {} already exists, skipping",
                     config_file
                 );
@@ -763,7 +763,7 @@ impl LocalContainerService {
             }
 
             if import_lines.is_empty() {
-                tracing::debug!(
+                tracing::trace!(
                     "No repos have {}, skipping workspace config creation",
                     config_file
                 );
