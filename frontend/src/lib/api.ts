@@ -380,6 +380,26 @@ export const projectsApi = {
 		);
 		return handleApiResponse<ProjectRepo>(response);
 	},
+
+	syncLinearBacklog: async (
+		projectId: string,
+	): Promise<{
+		synced_count: number;
+		created_count: number;
+		updated_count: number;
+	}> => {
+		const response = await makeRequest(
+			`/api/projects/${projectId}/linear/sync`,
+			{
+				method: "POST",
+			},
+		);
+		return handleApiResponse<{
+			synced_count: number;
+			created_count: number;
+			updated_count: number;
+		}>(response);
+	},
 };
 
 // Task Management APIs

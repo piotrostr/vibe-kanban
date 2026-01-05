@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT p.id as \"id!: Uuid\", p.name, p.dev_script, p.dev_script_working_dir,\n                   p.default_agent_working_dir,\n                   p.remote_project_id as \"remote_project_id: Uuid\",\n                   p.created_at as \"created_at!: DateTime<Utc>\", p.updated_at as \"updated_at!: DateTime<Utc>\"\n            FROM projects p\n            WHERE p.id IN (\n                SELECT DISTINCT t.project_id\n                FROM tasks t\n                INNER JOIN workspaces w ON w.task_id = t.id\n                ORDER BY w.updated_at DESC\n            )\n            LIMIT $1\n            ",
+  "query": "UPDATE projects\n               SET name = $2, dev_script = $3, dev_script_working_dir = $4, default_agent_working_dir = $5, linear_api_key = $6\n               WHERE id = $1\n               RETURNING id as \"id!: Uuid\",\n                         name,\n                         dev_script,\n                         dev_script_working_dir,\n                         default_agent_working_dir,\n                         remote_project_id as \"remote_project_id: Uuid\",\n                         linear_api_key,\n                         created_at as \"created_at!: DateTime<Utc>\",\n                         updated_at as \"updated_at!: DateTime<Utc>\"",
   "describe": {
     "columns": [
       {
@@ -34,18 +34,23 @@
         "type_info": "Blob"
       },
       {
-        "name": "created_at!: DateTime<Utc>",
+        "name": "linear_api_key",
         "ordinal": 6,
         "type_info": "Text"
       },
       {
-        "name": "updated_at!: DateTime<Utc>",
+        "name": "created_at!: DateTime<Utc>",
         "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at!: DateTime<Utc>",
+        "ordinal": 8,
         "type_info": "Text"
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 6
     },
     "nullable": [
       true,
@@ -54,9 +59,10 @@
       true,
       true,
       true,
+      true,
       false,
       false
     ]
   },
-  "hash": "368d9be9608fea5002627625bf8abd3e9073e06bb72fc75f11c2af13f1d43a10"
+  "hash": "4c1b0bf3f38c1289f4b655c95e0ef5a63f062bd4aaec494dd5d8d19cadde8fe1"
 }
