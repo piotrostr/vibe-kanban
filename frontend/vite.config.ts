@@ -58,6 +58,7 @@ export default defineConfig({
 			includeAssets: ["vibe-192.png", "vibe-512.png", "vibe-apple-touch.png"],
 			manifest: false, // Use existing site.webmanifest
 			workbox: {
+				maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MiB
 				globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
 				runtimeCaching: [
 					{
