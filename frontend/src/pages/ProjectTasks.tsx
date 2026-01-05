@@ -73,6 +73,10 @@ import { AttemptHeaderActions } from "@/components/panels/AttemptHeaderActions";
 import { TaskPanelHeaderActions } from "@/components/panels/TaskPanelHeaderActions";
 
 import type { TaskWithAttemptStatus, TaskStatus } from "shared/types";
+import {
+	LinearSyncConfirmDialog,
+	type LinearSyncConfirmResult,
+} from "@/components/dialogs/tasks/LinearSyncConfirmDialog";
 
 type Task = TaskWithAttemptStatus;
 
@@ -792,6 +796,24 @@ export function ProjectTasks() {
 			const task = tasksById[draggedTaskId];
 			if (!task || task.status === newStatus) return;
 
+			let syncToLinear = false;
+
+			// If task is linked to Linear, ask user whether to sync
+			if (task.linear_issue_id) {
+				const result: LinearSyncConfirmResult =
+					await LinearSyncConfirmDialog.show({
+						taskTitle: task.title,
+						fromStatus: task.status,
+						toStatus: newStatus,
+					});
+
+				if (result === "cancelled") {
+					return; // User cancelled, don't update
+				}
+
+				syncToLinear = result === "sync";
+			}
+
 			try {
 				await tasksApi.update(draggedTaskId, {
 					title: task.title,
@@ -799,6 +821,7 @@ export function ProjectTasks() {
 					status: newStatus,
 					parent_workspace_id: task.parent_workspace_id,
 					image_ids: null,
+					sync_to_linear: syncToLinear,
 				});
 			} catch (err) {
 				console.error("Failed to update task status:", err);

@@ -133,6 +133,7 @@ impl ProjectService {
                     dev_script_working_dir: None,
                     default_agent_working_dir: Some(repo.name),
                     linear_api_key: None,
+                    linear_assignee_id: None,
                 },
             )
             .await?;

@@ -410,6 +410,7 @@ pub trait ContainerService {
                                     project.default_agent_working_dir.clone()
                                 },
                                 linear_api_key: None,
+                                linear_assignee_id: None,
                             },
                         )
                         .await?;

@@ -148,6 +148,9 @@ pub struct UpdateTask {
     pub status: Option<TaskStatus>,
     pub parent_workspace_id: Option<Uuid>,
     pub image_ids: Option<Vec<Uuid>>,
+    /// If true, sync the status change to Linear (for tasks with linear_issue_id)
+    #[serde(default)]
+    pub sync_to_linear: bool,
 }
 
 impl Task {

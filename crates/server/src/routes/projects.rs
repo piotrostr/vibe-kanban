@@ -591,6 +591,50 @@ pub struct LinearSyncResponse {
     pub updated_count: usize,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ValidateLinearAssigneeRequest {
+    pub assignee_id: String,
+}
+
+#[derive(Debug, Serialize, TS)]
+pub struct ValidateLinearAssigneeResponse {
+    pub valid: bool,
+    pub name: Option<String>,
+}
+
+/// Validate that a Linear user ID exists
+pub async fn validate_linear_assignee(
+    Extension(project): Extension<Project>,
+    Json(payload): Json<ValidateLinearAssigneeRequest>,
+) -> Result<ResponseJson<ApiResponse<ValidateLinearAssigneeResponse>>, ApiError> {
+    let api_key = project.linear_api_key.ok_or_else(|| {
+        ApiError::BadRequest("Linear API key not configured for this project".to_string())
+    })?;
+
+    let client = LinearClient::new(api_key);
+    match client.validate_user(&payload.assignee_id).await {
+        Ok(Some(user)) => Ok(ResponseJson(ApiResponse::success(
+            ValidateLinearAssigneeResponse {
+                valid: true,
+                name: Some(user.name),
+            },
+        ))),
+        Ok(None) => Ok(ResponseJson(ApiResponse::success(
+            ValidateLinearAssigneeResponse {
+                valid: false,
+                name: None,
+            },
+        ))),
+        Err(e) => {
+            tracing::error!("Failed to validate Linear user: {}", e);
+            Err(ApiError::BadRequest(format!(
+                "Failed to validate user: {}",
+                e
+            )))
+        }
+    }
+}
+
 /// Sync backlog issues from Linear into the project's Backlog column
 pub async fn sync_linear_backlog(
     Extension(project): Extension<Project>,
@@ -601,7 +645,16 @@ pub async fn sync_linear_backlog(
     })?;
 
     let client = LinearClient::new(api_key);
-    let issues = client.fetch_backlog_issues().await.map_err(|e| {
+
+    // Fetch issues - use assignee filter if configured, otherwise use viewer's issues
+    let issues = if let Some(ref assignee_id) = project.linear_assignee_id {
+        client
+            .fetch_issues_by_assignee(assignee_id, Some("backlog"))
+            .await
+    } else {
+        client.fetch_backlog_issues().await
+    }
+    .map_err(|e| {
         tracing::error!("Failed to fetch Linear issues: {}", e);
         ApiError::BadRequest(format!("Failed to fetch Linear issues: {}", e))
     })?;
@@ -676,6 +729,10 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
             get(get_project_repositories).post(add_project_repository),
         )
         .route("/linear/sync", post(sync_linear_backlog))
+        .route(
+            "/linear/validate-assignee",
+            post(validate_linear_assignee),
+        )
         .layer(from_fn_with_state(
             deployment.clone(),
             load_project_middleware,
