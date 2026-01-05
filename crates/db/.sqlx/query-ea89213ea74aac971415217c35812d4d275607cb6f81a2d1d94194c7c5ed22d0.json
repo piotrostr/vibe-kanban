@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE merges\n            SET pr_status = $1,\n                pr_merge_commit_sha = $2,\n                pr_merged_at = $3,\n                pr_is_draft = $4,\n                pr_review_decision = $5,\n                pr_checks_status = $6\n            WHERE id = $7",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "ea89213ea74aac971415217c35812d4d275607cb6f81a2d1d94194c7c5ed22d0"
+}

@@ -298,8 +298,7 @@ pub async fn create_github_pr(
                 workspace.id,
                 workspace_repo.repo_id,
                 &norm_target_branch_name,
-                pr_info.number,
-                &pr_info.url,
+                &pr_info,
             )
             .await
             {
@@ -391,26 +390,14 @@ pub async fn attach_existing_pr(
     // Take the first PR (prefer open, but also accept merged/closed)
     if let Some(pr_info) = prs.into_iter().next() {
         // Save PR info to database
-        let merge = Merge::create_pr(
+        let _merge = Merge::create_pr(
             pool,
             workspace.id,
             workspace_repo.repo_id,
             &workspace_repo.target_branch,
-            pr_info.number,
-            &pr_info.url,
+            &pr_info,
         )
         .await?;
-
-        // Update status if not open
-        if !matches!(pr_info.status, MergeStatus::Open) {
-            Merge::update_status(
-                pool,
-                merge.id,
-                pr_info.status.clone(),
-                pr_info.merge_commit_sha.clone(),
-            )
-            .await?;
-        }
 
         // If PR is merged, mark task as done
         if matches!(pr_info.status, MergeStatus::Merged) {

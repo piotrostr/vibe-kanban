@@ -1,8 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { KanbanCard } from "@/components/ui/shadcn-io/kanban";
-import { GitPullRequest, Link, Loader2, XCircle } from "lucide-react";
+import {
+	Check,
+	CircleDot,
+	GitPullRequest,
+	Link,
+	Loader2,
+	X,
+	XCircle,
+} from "lucide-react";
 import { LinearIcon } from "@/components/icons/LinearIcon";
-import type { TaskWithAttemptStatus } from "shared/types";
+import type {
+	ChecksStatus,
+	ReviewDecision,
+	TaskWithAttemptStatus,
+} from "shared/types";
 import { ActionsDropdown } from "@/components/ui/actions-dropdown";
 import { Button } from "@/components/ui/button";
 import { useNavigateWithSearch } from "@/hooks";
@@ -12,6 +24,54 @@ import type { SharedTaskRecord } from "@/hooks/useProjectTasks";
 import { TaskCardHeader } from "./TaskCardHeader";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks";
+import { cn } from "@/lib/utils";
+
+function getChecksIcon(status: ChecksStatus | null | undefined) {
+	if (!status || status === "pending") {
+		return (
+			<CircleDot
+				className="h-2.5 w-2.5 text-yellow-500"
+				aria-label="Checks pending"
+			/>
+		);
+	}
+	if (status === "success") {
+		return (
+			<Check
+				className="h-2.5 w-2.5 text-green-500"
+				aria-label="Checks passed"
+			/>
+		);
+	}
+	return <X className="h-2.5 w-2.5 text-red-500" aria-label="Checks failed" />;
+}
+
+function getReviewBadge(decision: ReviewDecision | null | undefined) {
+	if (!decision || decision === "pending") return null;
+
+	const styles: Record<string, string> = {
+		approved: "bg-green-500/20 text-green-600 dark:text-green-400",
+		changes_requested: "bg-red-500/20 text-red-600 dark:text-red-400",
+		review_required: "bg-yellow-500/20 text-yellow-600 dark:text-yellow-400",
+	};
+
+	const labels: Record<string, string> = {
+		approved: "Approved",
+		changes_requested: "Changes",
+		review_required: "Review",
+	};
+
+	return (
+		<span
+			className={cn(
+				"text-[10px] font-medium px-1 py-0.5 rounded",
+				styles[decision],
+			)}
+		>
+			{labels[decision]}
+		</span>
+	);
+}
 
 type Task = TaskWithAttemptStatus;
 
@@ -130,18 +190,34 @@ export function TaskCard({
 								</Button>
 							)}
 							{task.pr_url && (
-								<Button
-									variant="icon"
-									onClick={(e) => {
-										e.stopPropagation();
-										window.open(task.pr_url!, "_blank", "noopener,noreferrer");
-									}}
-									onPointerDown={(e) => e.stopPropagation()}
-									onMouseDown={(e) => e.stopPropagation()}
-									title="View Pull Request"
-								>
-									<GitPullRequest className="h-4 w-4" />
-								</Button>
+								<div className="flex items-center gap-1">
+									{getReviewBadge(task.pr_review_decision)}
+									<Button
+										variant="icon"
+										onClick={(e) => {
+											e.stopPropagation();
+											window.open(
+												task.pr_url!,
+												"_blank",
+												"noopener,noreferrer",
+											);
+										}}
+										onPointerDown={(e) => e.stopPropagation()}
+										onMouseDown={(e) => e.stopPropagation()}
+										title={`View Pull Request${task.pr_is_draft ? " (Draft)" : ""}`}
+										className="relative"
+									>
+										<GitPullRequest
+											className={cn(
+												"h-4 w-4",
+												task.pr_is_draft && "text-muted-foreground",
+											)}
+										/>
+										<span className="absolute -bottom-0.5 -right-0.5">
+											{getChecksIcon(task.pr_checks_status)}
+										</span>
+									</Button>
+								</div>
 							)}
 							{task.linear_url && (
 								<Button

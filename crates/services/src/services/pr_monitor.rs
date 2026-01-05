@@ -99,20 +99,22 @@ impl PrMonitorService {
             .await?;
 
         debug!(
-            "PR #{} status: {:?} (was open)",
-            pr_merge.pr_info.number, pr_status.status
+            "PR #{} status: {:?}, review: {:?}, checks: {:?}",
+            pr_merge.pr_info.number,
+            pr_status.status,
+            pr_status.review_decision,
+            pr_status.checks_status
         );
 
-        // Update the PR status in the database
-        if !matches!(&pr_status.status, MergeStatus::Open) {
+        // Check if any field has changed
+        let status_changed = pr_status.status != pr_merge.pr_info.status
+            || pr_status.is_draft != pr_merge.pr_info.is_draft
+            || pr_status.review_decision != pr_merge.pr_info.review_decision
+            || pr_status.checks_status != pr_merge.pr_info.checks_status;
+
+        if status_changed {
             // Update merge status with the latest information from GitHub
-            Merge::update_status(
-                &self.db.pool,
-                pr_merge.id,
-                pr_status.status.clone(),
-                pr_status.merge_commit_sha,
-            )
-            .await?;
+            Merge::update_status(&self.db.pool, pr_merge.id, &pr_status).await?;
 
             // If the PR was merged, update the task status to done
             if matches!(&pr_status.status, MergeStatus::Merged)

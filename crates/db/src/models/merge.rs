@@ -4,7 +4,7 @@ use sqlx::{FromRow, SqlitePool, Type};
 use ts_rs::TS;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS, Type, PartialEq)]
 #[sqlx(type_name = "merge_status", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum MergeStatus {
@@ -49,6 +49,33 @@ pub struct PullRequestInfo {
     pub status: MergeStatus,
     pub merged_at: Option<chrono::DateTime<chrono::Utc>>,
     pub merge_commit_sha: Option<String>,
+    #[serde(default)]
+    pub is_draft: bool,
+    #[serde(default)]
+    pub review_decision: ReviewDecision,
+    #[serde(default)]
+    pub checks_status: ChecksStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, Type, Default, PartialEq)]
+#[sqlx(type_name = "review_decision", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewDecision {
+    Approved,
+    ChangesRequested,
+    ReviewRequired,
+    #[default]
+    Pending,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, Type, Default, PartialEq)]
+#[sqlx(type_name = "checks_status", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum ChecksStatus {
+    Success,
+    Failure,
+    #[default]
+    Pending,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -71,6 +98,9 @@ struct MergeRow {
     pr_status: Option<MergeStatus>,
     pr_merged_at: Option<DateTime<Utc>>,
     pr_merge_commit_sha: Option<String>,
+    pr_is_draft: Option<bool>,
+    pr_review_decision: Option<ReviewDecision>,
+    pr_checks_status: Option<ChecksStatus>,
     created_at: DateTime<Utc>,
 }
 
@@ -109,6 +139,9 @@ impl Merge {
                 pr_status as "pr_status?: MergeStatus",
                 pr_merged_at as "pr_merged_at?: DateTime<Utc>",
                 pr_merge_commit_sha,
+                pr_is_draft,
+                pr_review_decision as "pr_review_decision?: ReviewDecision",
+                pr_checks_status as "pr_checks_status?: ChecksStatus",
                 created_at as "created_at!: DateTime<Utc>",
                 target_branch_name as "target_branch_name!: String"
             "#,
@@ -129,8 +162,7 @@ impl Merge {
         workspace_id: Uuid,
         repo_id: Uuid,
         target_branch_name: &str,
-        pr_number: i64,
-        pr_url: &str,
+        pr_info: &PullRequestInfo,
     ) -> Result<PrMerge, sqlx::Error> {
         let id = Uuid::new_v4();
         let now = Utc::now();
@@ -138,8 +170,9 @@ impl Merge {
         sqlx::query_as!(
             MergeRow,
             r#"INSERT INTO merges (
-                id, workspace_id, repo_id, merge_type, pr_number, pr_url, pr_status, created_at, target_branch_name
-            ) VALUES ($1, $2, $3, 'pr', $4, $5, 'open', $6, $7)
+                id, workspace_id, repo_id, merge_type, pr_number, pr_url, pr_status,
+                pr_is_draft, pr_review_decision, pr_checks_status, created_at, target_branch_name
+            ) VALUES ($1, $2, $3, 'pr', $4, $5, $6, $7, $8, $9, $10, $11)
             RETURNING
                 id as "id!: Uuid",
                 workspace_id as "workspace_id!: Uuid",
@@ -151,14 +184,21 @@ impl Merge {
                 pr_status as "pr_status?: MergeStatus",
                 pr_merged_at as "pr_merged_at?: DateTime<Utc>",
                 pr_merge_commit_sha,
+                pr_is_draft,
+                pr_review_decision as "pr_review_decision?: ReviewDecision",
+                pr_checks_status as "pr_checks_status?: ChecksStatus",
                 created_at as "created_at!: DateTime<Utc>",
                 target_branch_name as "target_branch_name!: String"
             "#,
             id,
             workspace_id,
             repo_id,
-            pr_number,
-            pr_url,
+            pr_info.number,
+            pr_info.url,
+            pr_info.status,
+            pr_info.is_draft,
+            pr_info.review_decision,
+            pr_info.checks_status,
             now,
             target_branch_name
         )
@@ -182,6 +222,9 @@ impl Merge {
                 pr_status as "pr_status?: MergeStatus",
                 pr_merged_at as "pr_merged_at?: DateTime<Utc>",
                 pr_merge_commit_sha,
+                pr_is_draft,
+                pr_review_decision as "pr_review_decision?: ReviewDecision",
+                pr_checks_status as "pr_checks_status?: ChecksStatus",
                 created_at as "created_at!: DateTime<Utc>",
                 target_branch_name as "target_branch_name!: String"
                FROM merges
@@ -198,10 +241,9 @@ impl Merge {
     pub async fn update_status(
         pool: &SqlitePool,
         merge_id: Uuid,
-        pr_status: MergeStatus,
-        merge_commit_sha: Option<String>,
+        pr_info: &PullRequestInfo,
     ) -> Result<(), sqlx::Error> {
-        let merged_at = if matches!(pr_status, MergeStatus::Merged) {
+        let merged_at = if matches!(pr_info.status, MergeStatus::Merged) {
             Some(Utc::now())
         } else {
             None
@@ -211,11 +253,17 @@ impl Merge {
             r#"UPDATE merges
             SET pr_status = $1,
                 pr_merge_commit_sha = $2,
-                pr_merged_at = $3
-            WHERE id = $4"#,
-            pr_status,
-            merge_commit_sha,
+                pr_merged_at = $3,
+                pr_is_draft = $4,
+                pr_review_decision = $5,
+                pr_checks_status = $6
+            WHERE id = $7"#,
+            pr_info.status,
+            pr_info.merge_commit_sha,
             merged_at,
+            pr_info.is_draft,
+            pr_info.review_decision,
+            pr_info.checks_status,
             merge_id
         )
         .execute(pool)
@@ -242,6 +290,9 @@ impl Merge {
                 pr_status as "pr_status?: MergeStatus",
                 pr_merged_at as "pr_merged_at?: DateTime<Utc>",
                 pr_merge_commit_sha,
+                pr_is_draft,
+                pr_review_decision as "pr_review_decision?: ReviewDecision",
+                pr_checks_status as "pr_checks_status?: ChecksStatus",
                 target_branch_name as "target_branch_name!: String",
                 created_at as "created_at!: DateTime<Utc>"
             FROM merges
@@ -275,6 +326,9 @@ impl Merge {
                 pr_status as "pr_status?: MergeStatus",
                 pr_merged_at as "pr_merged_at?: DateTime<Utc>",
                 pr_merge_commit_sha,
+                pr_is_draft,
+                pr_review_decision as "pr_review_decision?: ReviewDecision",
+                pr_checks_status as "pr_checks_status?: ChecksStatus",
                 target_branch_name as "target_branch_name!: String",
                 created_at as "created_at!: DateTime<Utc>"
             FROM merges
@@ -319,6 +373,9 @@ impl From<MergeRow> for PrMerge {
                 status: row.pr_status.expect("pr merge must have status"),
                 merged_at: row.pr_merged_at,
                 merge_commit_sha: row.pr_merge_commit_sha,
+                is_draft: row.pr_is_draft.unwrap_or(false),
+                review_decision: row.pr_review_decision.unwrap_or_default(),
+                checks_status: row.pr_checks_status.unwrap_or_default(),
             },
             created_at: row.created_at,
         }
