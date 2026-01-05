@@ -21,7 +21,7 @@ import {
 import { type ReactNode, type Ref, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw, Eye, EyeOff } from "lucide-react";
 import type { ClientRect } from "@dnd-kit/core";
 import type { Transform } from "@dnd-kit/utilities";
 import { Button } from "../../button";
@@ -53,7 +53,7 @@ export const KanbanBoard = ({ id, children, className }: KanbanBoardProps) => {
 	return (
 		<div
 			className={cn(
-				"flex min-h-40 flex-col",
+				"flex min-h-40 flex-col min-w-[200px] max-w-[400px] w-[300px]",
 				isOver ? "outline-primary" : "outline-black",
 				className,
 			)}
@@ -152,9 +152,11 @@ export type KanbanHeaderProps =
 			name: Status["name"];
 			color: Status["color"];
 			className?: string;
+			count?: number;
 			onAddTask?: () => void;
 			onRefresh?: () => void;
 			isRefreshing?: boolean;
+			onToggleCollapse?: () => void;
 	  };
 
 export const KanbanHeader = (props: KanbanHeaderProps) => {
@@ -167,7 +169,7 @@ export const KanbanHeader = (props: KanbanHeaderProps) => {
 	return (
 		<Card
 			className={cn(
-				"sticky top-0 z-20 flex shrink-0 items-center gap-2 p-3 border-b border-dashed flex gap-2",
+				"sticky top-0 z-20 flex shrink-0 items-center gap-2 p-3 border-b border-dashed flex gap-2 group/header",
 				"bg-background",
 				props.className,
 			)}
@@ -181,8 +183,32 @@ export const KanbanHeader = (props: KanbanHeaderProps) => {
 					style={{ backgroundColor: `hsl(var(${props.color}))` }}
 				/>
 
-				<p className="m-0 text-sm">{props.name}</p>
+				<p className="m-0 text-sm">
+					{props.name}
+					{props.count !== undefined && (
+						<span className="ml-1 text-muted-foreground">({props.count})</span>
+					)}
+				</p>
 			</span>
+			{props.onToggleCollapse && (
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="ghost"
+								className="m-0 p-0 h-0 text-foreground/50 hover:text-foreground opacity-0 group-hover/header:opacity-100 transition-opacity"
+								onClick={props.onToggleCollapse}
+								aria-label={t("actions.collapseColumn")}
+							>
+								<EyeOff className="h-4 w-4" />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent side="top">
+							{t("actions.collapseColumn")}
+						</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+			)}
 			{props.onRefresh && (
 				<TooltipProvider>
 					<Tooltip>
@@ -224,6 +250,67 @@ export const KanbanHeader = (props: KanbanHeaderProps) => {
 				</Tooltip>
 			</TooltipProvider>
 		</Card>
+	);
+};
+
+export type KanbanBoardCollapsedProps = {
+	id: Status["id"];
+	name: Status["name"];
+	color: Status["color"];
+	count?: number;
+	onExpand: () => void;
+};
+
+export const KanbanBoardCollapsed = ({
+	id,
+	name,
+	color,
+	count,
+	onExpand,
+}: KanbanBoardCollapsedProps) => {
+	const { setNodeRef } = useDroppable({ id });
+	const { t } = useTranslation("tasks");
+
+	return (
+		<TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<div
+						ref={setNodeRef}
+						className="flex flex-col items-center justify-start w-10 min-h-40 cursor-pointer hover:bg-accent/50 transition-colors border-r"
+						onClick={onExpand}
+						style={{
+							backgroundImage: `linear-gradient(hsl(var(${color}) / 0.05), hsl(var(${color}) / 0.05))`,
+						}}
+					>
+						<div className="pt-3 pb-2">
+							<div
+								className="h-2 w-2 rounded-full"
+								style={{ backgroundColor: `hsl(var(${color}))` }}
+							/>
+						</div>
+						<div className="flex-1 flex items-start">
+							<span
+								className="text-sm text-muted-foreground whitespace-nowrap"
+								style={{
+									writingMode: "vertical-rl",
+									textOrientation: "mixed",
+								}}
+							>
+								{name}
+								{count !== undefined && ` (${count})`}
+							</span>
+						</div>
+						<div className="pb-3">
+							<Eye className="h-4 w-4 text-muted-foreground" />
+						</div>
+					</div>
+				</TooltipTrigger>
+				<TooltipContent side="right">
+					{t("actions.expandColumn")}
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };
 
@@ -312,7 +399,7 @@ export const KanbanProvider = ({
 		>
 			<div
 				className={cn(
-					"inline-grid grid-flow-col auto-cols-[minmax(200px,400px)] divide-x border-x items-stretch min-h-full",
+					"inline-flex divide-x border-x items-stretch min-h-full",
 					className,
 				)}
 			>

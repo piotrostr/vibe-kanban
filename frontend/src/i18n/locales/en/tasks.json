@@ -7,7 +7,9 @@
 	},
 	"actions": {
 		"addTask": "Add task",
-		"refreshBacklog": "Sync backlog from Linear"
+		"refreshBacklog": "Sync backlog from Linear",
+		"collapseColumn": "Collapse column",
+		"expandColumn": "Expand column"
 	},
 	"filters": {
 		"sharedToggleAria": "Toggle shared tasks",

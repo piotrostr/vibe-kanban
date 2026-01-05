@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { AlertTriangle, Plus, X } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 import { Loader } from "@/components/ui/loader";
 import { tasksApi, projectsApi } from "@/lib/api";
 import type { RepoBranchStatus, Workspace } from "shared/types";
@@ -146,7 +146,22 @@ export function ProjectTasks() {
 		string | null
 	>(null);
 	const [isRefreshingBacklog, setIsRefreshingBacklog] = useState(false);
+	const [collapsedColumns, setCollapsedColumns] = useState<Set<TaskStatus>>(
+		new Set(),
+	);
 	const { userId } = useAuth();
+
+	const handleToggleColumn = useCallback((status: TaskStatus) => {
+		setCollapsedColumns((prev) => {
+			const next = new Set(prev);
+			if (next.has(status)) {
+				next.delete(status);
+			} else {
+				next.add(status);
+			}
+			return next;
+		});
+	}, []);
 
 	const {
 		projectId,
@@ -803,15 +818,6 @@ export function ProjectTasks() {
 		[sharedTasksById],
 	);
 
-	const hasSharedTasks = useMemo(() => {
-		return Object.values(kanbanColumns).some((items) =>
-			items.some((item) => {
-				if (item.type === "shared") return true;
-				return Boolean(item.sharedTask);
-			}),
-		);
-	}, [kanbanColumns]);
-
 	const isInitialTasksLoad = isLoading && tasks.length === 0;
 
 	if (projectError) {
@@ -847,19 +853,7 @@ export function ProjectTasks() {
 	};
 
 	const kanbanContent =
-		tasks.length === 0 && !hasSharedTasks ? (
-			<div className="max-w-7xl mx-auto mt-8">
-				<Card>
-					<CardContent className="text-center py-8">
-						<p className="text-muted-foreground">{t("empty.noTasks")}</p>
-						<Button className="mt-4" onClick={handleCreateNewTask}>
-							<Plus className="h-4 w-4 mr-2" />
-							{t("empty.createFirst")}
-						</Button>
-					</CardContent>
-				</Card>
-			</div>
-		) : !hasVisibleLocalTasks && !hasVisibleSharedTasks ? (
+		searchQuery && !hasVisibleLocalTasks && !hasVisibleSharedTasks ? (
 			<div className="max-w-7xl mx-auto mt-8">
 				<Card>
 					<CardContent className="text-center py-8">
@@ -882,6 +876,8 @@ export function ProjectTasks() {
 					projectId={projectId!}
 					onRefreshBacklog={handleRefreshBacklog}
 					isRefreshingBacklog={isRefreshingBacklog}
+					collapsedColumns={collapsedColumns}
+					onToggleColumn={handleToggleColumn}
 				/>
 			</div>
 		);
