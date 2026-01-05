@@ -23,6 +23,10 @@ interface TaskCardProps {
 	isOpen?: boolean;
 	projectId: string;
 	sharedTask?: SharedTaskRecord;
+	/** Project color for unified "Show All" view */
+	projectColor?: string;
+	/** Project name for unified "Show All" view */
+	projectName?: string;
 }
 
 export function TaskCard({
@@ -33,6 +37,8 @@ export function TaskCard({
 	isOpen,
 	projectId,
 	sharedTask,
+	projectColor,
+	projectName,
 }: TaskCardProps) {
 	const { t } = useTranslation("tasks");
 	const navigate = useNavigateWithSearch();
@@ -80,6 +86,11 @@ export function TaskCard({
 		});
 	}, [isOpen]);
 
+	// Determine left border styling: project color takes precedence, then shared task indicator
+	const hasProjectColor = !!projectColor;
+	const hasSharedIndicator =
+		(sharedTask || task.shared_task_id) && !hasProjectColor;
+
 	return (
 		<KanbanCard
 			key={task.id}
@@ -92,12 +103,33 @@ export function TaskCard({
 			forwardedRef={localRef}
 			dragDisabled={(!!sharedTask || !!task.shared_task_id) && !isSignedIn}
 			className={
-				sharedTask || task.shared_task_id
+				hasSharedIndicator
 					? 'relative overflow-hidden pl-5 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[3px] before:bg-card-foreground before:content-[""]'
+					: hasProjectColor
+						? "relative overflow-hidden pl-5"
+						: undefined
+			}
+			style={
+				hasProjectColor
+					? {
+							borderLeft: `3px solid ${projectColor}`,
+						}
 					: undefined
 			}
 		>
 			<div className="flex flex-col gap-2">
+				{projectName && (
+					<div
+						className="flex items-center gap-1.5 text-xs text-muted-foreground"
+						title={projectName}
+					>
+						<span
+							className="h-2 w-2 rounded-full flex-shrink-0"
+							style={{ backgroundColor: projectColor }}
+						/>
+						<span className="truncate max-w-[150px]">{projectName}</span>
+					</div>
+				)}
 				<TaskCardHeader
 					title={task.title}
 					avatar={

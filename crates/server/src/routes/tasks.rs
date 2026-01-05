@@ -100,6 +100,50 @@ async fn handle_tasks_ws(
     Ok(())
 }
 
+/// WebSocket endpoint for streaming all tasks across all projects.
+/// Used for the unified "Show All Projects" view.
+pub async fn stream_all_tasks_ws(
+    ws: WebSocketUpgrade,
+    State(deployment): State<DeploymentImpl>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| async move {
+        if let Err(e) = handle_all_tasks_ws(socket, deployment).await {
+            tracing::warn!("all tasks WS closed: {}", e);
+        }
+    })
+}
+
+async fn handle_all_tasks_ws(socket: WebSocket, deployment: DeploymentImpl) -> anyhow::Result<()> {
+    // Get the raw stream and convert LogMsg to WebSocket messages
+    let mut stream = deployment
+        .events()
+        .stream_all_tasks_raw()
+        .await?
+        .map_ok(|msg| msg.to_ws_message_unchecked());
+
+    // Split socket into sender and receiver
+    let (mut sender, mut receiver) = socket.split();
+
+    // Drain (and ignore) any client->server messages so pings/pongs work
+    tokio::spawn(async move { while let Some(Ok(_)) = receiver.next().await {} });
+
+    // Forward server messages
+    while let Some(item) = stream.next().await {
+        match item {
+            Ok(msg) => {
+                if sender.send(msg).await.is_err() {
+                    break; // client disconnected
+                }
+            }
+            Err(e) => {
+                tracing::error!("stream error: {}", e);
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
 pub async fn get_task(
     Extension(task): Extension<Task>,
     State(_deployment): State<DeploymentImpl>,
@@ -477,6 +521,12 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
         .route("/create-and-start", post(create_task_and_start))
         .nest("/{task_id}", task_id_router);
 
-    // mount under /projects/:project_id/tasks
-    Router::new().nest("/tasks", inner)
+    // Top-level tasks routes (not scoped to a project)
+    let all_tasks_router = Router::new()
+        .route("/all/stream/ws", get(stream_all_tasks_ws));
+
+    // mount under /projects/:project_id/tasks and /tasks
+    Router::new()
+        .nest("/tasks", all_tasks_router)
+        .nest("/tasks", inner)
 }
