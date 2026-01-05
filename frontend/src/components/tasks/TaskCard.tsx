@@ -28,12 +28,22 @@ import { cn } from "@/lib/utils";
 
 function getChecksIcon(status: ChecksStatus | null | undefined) {
 	if (!status || status === "pending") {
-		return <CircleDot className="h-2.5 w-2.5 text-yellow-500" />;
+		return (
+			<CircleDot
+				className="h-2.5 w-2.5 text-yellow-500"
+				aria-label="Checks pending"
+			/>
+		);
 	}
 	if (status === "success") {
-		return <Check className="h-2.5 w-2.5 text-green-500" />;
+		return (
+			<Check
+				className="h-2.5 w-2.5 text-green-500"
+				aria-label="Checks passed"
+			/>
+		);
 	}
-	return <X className="h-2.5 w-2.5 text-red-500" />;
+	return <X className="h-2.5 w-2.5 text-red-500" aria-label="Checks failed" />;
 }
 
 function getReviewBadge(decision: ReviewDecision | null | undefined) {

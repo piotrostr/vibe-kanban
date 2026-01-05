@@ -391,7 +391,11 @@ impl GhCli {
                 "APPROVED" => ReviewDecision::Approved,
                 "CHANGES_REQUESTED" => ReviewDecision::ChangesRequested,
                 "REVIEW_REQUIRED" => ReviewDecision::ReviewRequired,
-                _ => ReviewDecision::Pending,
+                "" => ReviewDecision::Pending,
+                other => {
+                    tracing::warn!("Unknown GitHub review decision: {}", other);
+                    ReviewDecision::Pending
+                }
             })
             .unwrap_or(ReviewDecision::Pending);
 
@@ -450,5 +454,119 @@ impl GhCli {
         } else {
             ChecksStatus::Success
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_compute_checks_status_empty() {
+        let rollup = json!([]);
+        assert_eq!(
+            GhCli::compute_checks_status(Some(&rollup)),
+            ChecksStatus::Pending
+        );
+    }
+
+    #[test]
+    fn test_compute_checks_status_none() {
+        assert_eq!(GhCli::compute_checks_status(None), ChecksStatus::Pending);
+    }
+
+    #[test]
+    fn test_compute_checks_status_all_success() {
+        let rollup = json!([
+            {"conclusion": "SUCCESS", "status": "COMPLETED"},
+            {"conclusion": "SUCCESS", "status": "COMPLETED"}
+        ]);
+        assert_eq!(
+            GhCli::compute_checks_status(Some(&rollup)),
+            ChecksStatus::Success
+        );
+    }
+
+    #[test]
+    fn test_compute_checks_status_with_neutral_and_skipped() {
+        let rollup = json!([
+            {"conclusion": "SUCCESS", "status": "COMPLETED"},
+            {"conclusion": "NEUTRAL", "status": "COMPLETED"},
+            {"conclusion": "SKIPPED", "status": "COMPLETED"}
+        ]);
+        assert_eq!(
+            GhCli::compute_checks_status(Some(&rollup)),
+            ChecksStatus::Success
+        );
+    }
+
+    #[test]
+    fn test_compute_checks_status_failure() {
+        let rollup = json!([
+            {"conclusion": "SUCCESS", "status": "COMPLETED"},
+            {"conclusion": "FAILURE", "status": "COMPLETED"}
+        ]);
+        assert_eq!(
+            GhCli::compute_checks_status(Some(&rollup)),
+            ChecksStatus::Failure
+        );
+    }
+
+    #[test]
+    fn test_compute_checks_status_cancelled() {
+        let rollup = json!([
+            {"conclusion": "CANCELLED", "status": "COMPLETED"}
+        ]);
+        assert_eq!(
+            GhCli::compute_checks_status(Some(&rollup)),
+            ChecksStatus::Failure
+        );
+    }
+
+    #[test]
+    fn test_compute_checks_status_timed_out() {
+        let rollup = json!([
+            {"conclusion": "TIMED_OUT", "status": "COMPLETED"}
+        ]);
+        assert_eq!(
+            GhCli::compute_checks_status(Some(&rollup)),
+            ChecksStatus::Failure
+        );
+    }
+
+    #[test]
+    fn test_compute_checks_status_pending_queued() {
+        let rollup = json!([
+            {"conclusion": "", "status": "QUEUED"}
+        ]);
+        assert_eq!(
+            GhCli::compute_checks_status(Some(&rollup)),
+            ChecksStatus::Pending
+        );
+    }
+
+    #[test]
+    fn test_compute_checks_status_pending_in_progress() {
+        let rollup = json!([
+            {"conclusion": "SUCCESS", "status": "COMPLETED"},
+            {"conclusion": "", "status": "IN_PROGRESS"}
+        ]);
+        assert_eq!(
+            GhCli::compute_checks_status(Some(&rollup)),
+            ChecksStatus::Pending
+        );
+    }
+
+    #[test]
+    fn test_compute_checks_status_failure_takes_precedence() {
+        let rollup = json!([
+            {"conclusion": "", "status": "IN_PROGRESS"},
+            {"conclusion": "FAILURE", "status": "COMPLETED"}
+        ]);
+        assert_eq!(
+            GhCli::compute_checks_status(Some(&rollup)),
+            ChecksStatus::Failure
+        );
     }
 }
