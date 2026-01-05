@@ -87,6 +87,17 @@ impl LinearClient {
             .send()
             .await?;
 
+        // Check HTTP status before parsing JSON
+        let status = response.status();
+        if !status.is_success() {
+            let text = response.text().await.unwrap_or_default();
+            return Err(LinearError::Api(format!(
+                "HTTP {} - {}",
+                status.as_u16(),
+                text.chars().take(200).collect::<String>()
+            )));
+        }
+
         let result: GraphQLResponse = response.json().await?;
 
         if let Some(errors) = result.errors {

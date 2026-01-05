@@ -220,11 +220,8 @@ impl Project {
         let dev_script = payload.dev_script.clone();
         let dev_script_working_dir = payload.dev_script_working_dir.clone();
         let default_agent_working_dir = payload.default_agent_working_dir.clone();
-        // Use payload value if provided, otherwise keep existing
-        let linear_api_key = payload
-            .linear_api_key
-            .clone()
-            .or(existing.linear_api_key);
+        // Treat same as other optional fields - None clears it
+        let linear_api_key = payload.linear_api_key.clone();
 
         sqlx::query_as!(
             Project,
