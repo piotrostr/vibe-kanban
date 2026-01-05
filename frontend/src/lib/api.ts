@@ -90,6 +90,8 @@ import {
 	SlashCommand,
 	Workspace,
 	LinearIssueStateResponse,
+	ListRecentPrsResponse,
+	ListRecentPrsError,
 } from "shared/types";
 import type { WorkspaceWithSession } from "@/types/attempt";
 import { createWorkspaceWithSession } from "@/types/attempt";
@@ -903,6 +905,20 @@ export const repoApi = {
 			body: JSON.stringify(data),
 		});
 		return handleApiResponse<Repo>(response);
+	},
+
+	listRecentPrs: async (
+		repoId: string,
+		options?: { limit?: number; search?: string },
+	): Promise<ListRecentPrsResponse> => {
+		const params = new URLSearchParams();
+		if (options?.limit) params.set("limit", options.limit.toString());
+		if (options?.search) params.set("search", options.search);
+		const query = params.toString() ? `?${params.toString()}` : "";
+		const response = await makeRequest(`/api/repos/${repoId}/prs${query}`);
+		return handleApiResponse<ListRecentPrsResponse, ListRecentPrsError>(
+			response,
+		);
 	},
 };
 

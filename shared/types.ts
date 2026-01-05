@@ -46,7 +46,7 @@ export type TaskStatus = "backlog" | "todo" | "inprogress" | "inreview" | "done"
 
 export type Task = { id: string, project_id: string, title: string, description: string | null, status: TaskStatus, parent_workspace_id: string | null, shared_task_id: string | null, linear_issue_id: string | null, linear_url: string | null, created_at: string, updated_at: string, };
 
-export type TaskWithAttemptStatus = { has_in_progress_attempt: boolean, last_attempt_failed: boolean, executor: string, pr_url: string | null, pr_is_draft: boolean | null, pr_review_decision: ReviewDecision | null, pr_checks_status: ChecksStatus | null, id: string, project_id: string, title: string, description: string | null, status: TaskStatus, parent_workspace_id: string | null, shared_task_id: string | null, linear_issue_id: string | null, linear_url: string | null, created_at: string, updated_at: string, };
+export type TaskWithAttemptStatus = { has_in_progress_attempt: boolean, last_attempt_failed: boolean, executor: string, pr_url: string | null, pr_status: MergeStatus | null, pr_is_draft: boolean | null, pr_review_decision: ReviewDecision | null, pr_checks_status: ChecksStatus | null, id: string, project_id: string, title: string, description: string | null, status: TaskStatus, parent_workspace_id: string | null, shared_task_id: string | null, linear_issue_id: string | null, linear_url: string | null, created_at: string, updated_at: string, };
 
 export type TaskRelationships = { parent_task: Task | null, current_workspace: Workspace, children: Array<Task>, };
 
@@ -303,6 +303,16 @@ export type GetPrCommentsError = { "type": "no_pr_attached" } | { "type": "githu
 export type GetPrCommentsQuery = { repo_id: string, };
 
 export type UnifiedPrComment = { "comment_type": "general", id: string, author: string, author_association: string, body: string, created_at: string, url: string, } | { "comment_type": "review", id: bigint, author: string, author_association: string, body: string, created_at: string, url: string, path: string, line: bigint | null, diff_hunk: string, };
+
+export type ListRecentPrsQuery = { limit: number, search: string | null, };
+
+export type ListRecentPrsResponse = { prs: Array<PrListItem>, };
+
+export type ListRecentPrsError = { "type": "github_cli_not_installed" } | { "type": "github_cli_not_logged_in" };
+
+export type PrListItem = { number: bigint, url: string, state: string, title: string, author: PrListAuthor, createdAt: string, headRefName: string, };
+
+export type PrListAuthor = { login: string, };
 
 export type RepoBranchStatus = { repo_id: string, repo_name: string, commits_behind: number | null, commits_ahead: number | null, has_uncommitted_changes: boolean | null, head_oid: string | null, uncommitted_count: number | null, untracked_count: number | null, target_branch_name: string, remote_commits_behind: number | null, remote_commits_ahead: number | null, merges: Array<Merge>, 
 /**

@@ -58,6 +58,25 @@ pub struct PrReviewComment {
     pub author_association: String,
 }
 
+/// Author info from gh pr list JSON
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct PrListAuthor {
+    pub login: String,
+}
+
+/// A PR list item with summary info for display
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct PrListItem {
+    pub number: i64,
+    pub url: String,
+    pub state: String,
+    pub title: String,
+    pub author: PrListAuthor,
+    pub created_at: DateTime<Utc>,
+    pub head_ref_name: String,
+}
+
 /// High-level errors originating from the GitHub CLI.
 #[derive(Debug, Error)]
 pub enum GhCliError {
@@ -245,6 +264,38 @@ impl GhCli {
         ])?;
         Self::parse_pr_review_comments(&raw)
     }
+
+    /// List recent pull requests with optional search query.
+    pub fn list_recent_prs(
+        &self,
+        owner: &str,
+        repo: &str,
+        limit: u32,
+        search: Option<&str>,
+    ) -> Result<Vec<PrListItem>, GhCliError> {
+        let mut args = vec![
+            "pr".to_string(),
+            "list".to_string(),
+            "--repo".to_string(),
+            format!("{owner}/{repo}"),
+            "--state".to_string(),
+            "all".to_string(),
+            "--limit".to_string(),
+            limit.to_string(),
+            "--json".to_string(),
+            "number,url,state,title,author,createdAt,headRefName".to_string(),
+        ];
+
+        if let Some(query) = search {
+            if !query.is_empty() {
+                args.push("--search".to_string());
+                args.push(query.to_string());
+            }
+        }
+
+        let raw = self.run(args)?;
+        Self::parse_pr_list_items(&raw)
+    }
 }
 
 impl GhCli {
@@ -356,6 +407,14 @@ impl GhCli {
         serde_json::from_str(raw.trim()).map_err(|err| {
             GhCliError::UnexpectedOutput(format!(
                 "Failed to parse review comments API response: {err}; raw: {raw}"
+            ))
+        })
+    }
+
+    fn parse_pr_list_items(raw: &str) -> Result<Vec<PrListItem>, GhCliError> {
+        serde_json::from_str(raw.trim()).map_err(|err| {
+            GhCliError::UnexpectedOutput(format!(
+                "Failed to parse PR list response: {err}; raw: {raw}"
             ))
         })
     }

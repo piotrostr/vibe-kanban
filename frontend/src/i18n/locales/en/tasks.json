@@ -422,9 +422,10 @@
 	},
 	"bindPrDialog": {
 		"title": "Bind Pull Request",
-		"description": "Link an existing GitHub pull request to this task by entering its number.",
-		"prNumberLabel": "PR Number",
-		"prNumberPlaceholder": "123",
+		"description": "Select a pull request to link to this task.",
+		"searchPlaceholder": "Search pull requests...",
+		"noPrsFound": "No pull requests found",
+		"noSearchResults": "No matching pull requests",
 		"binding": "Binding...",
 		"bindButton": "Bind PR",
 		"errors": {
@@ -432,7 +433,8 @@
 			"prNotFoundOrNoAccess": "PR #{{number}} was not found or you don't have access to this repository",
 			"githubCliNotInstalled": "GitHub CLI is not installed. Install it from https://cli.github.com/",
 			"githubCliNotLoggedIn": "GitHub CLI is not authenticated. Run \"gh auth login\" and try again.",
-			"failedToBind": "Failed to bind pull request"
+			"failedToBind": "Failed to bind pull request",
+			"failedToFetchPrs": "Failed to fetch pull requests"
 		}
 	},
 	"showcases": {

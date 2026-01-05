@@ -12,6 +12,7 @@ import {
 import { LinearIcon } from "@/components/icons/LinearIcon";
 import type {
 	ChecksStatus,
+	MergeStatus,
 	ReviewDecision,
 	TaskWithAttemptStatus,
 } from "shared/types";
@@ -44,6 +45,31 @@ function getChecksIcon(status: ChecksStatus | null | undefined) {
 		);
 	}
 	return <X className="h-2.5 w-2.5 text-red-500" aria-label="Checks failed" />;
+}
+
+function getPrStatusBadge(status: MergeStatus | null | undefined) {
+	if (!status || status === "open") return null;
+
+	const styles: Record<string, string> = {
+		merged: "bg-purple-500/20 text-purple-600 dark:text-purple-400",
+		closed: "bg-gray-500/20 text-gray-600 dark:text-gray-400",
+	};
+
+	const labels: Record<string, string> = {
+		merged: "Merged",
+		closed: "Closed",
+	};
+
+	return (
+		<span
+			className={cn(
+				"text-[10px] font-medium px-1 py-0.5 rounded",
+				styles[status],
+			)}
+		>
+			{labels[status]}
+		</span>
+	);
 }
 
 function getReviewBadge(decision: ReviewDecision | null | undefined) {
@@ -223,7 +249,8 @@ export function TaskCard({
 							)}
 							{task.pr_url && (
 								<div className="flex items-center gap-1">
-									{getReviewBadge(task.pr_review_decision)}
+									{getPrStatusBadge(task.pr_status) ||
+										getReviewBadge(task.pr_review_decision)}
 									<Button
 										variant="icon"
 										onClick={(e) => {
@@ -236,18 +263,21 @@ export function TaskCard({
 										}}
 										onPointerDown={(e) => e.stopPropagation()}
 										onMouseDown={(e) => e.stopPropagation()}
-										title={`View Pull Request${task.pr_is_draft ? " (Draft)" : ""}`}
+										title={`View Pull Request${task.pr_is_draft ? " (Draft)" : ""}${task.pr_status === "merged" ? " (Merged)" : ""}`}
 										className="relative"
 									>
 										<GitPullRequest
 											className={cn(
 												"h-4 w-4",
 												task.pr_is_draft && "text-muted-foreground",
+												task.pr_status === "merged" && "text-purple-500",
 											)}
 										/>
-										<span className="absolute -bottom-0.5 -right-0.5">
-											{getChecksIcon(task.pr_checks_status)}
-										</span>
+										{task.pr_status === "open" && (
+											<span className="absolute -bottom-0.5 -right-0.5">
+												{getChecksIcon(task.pr_checks_status)}
+											</span>
+										)}
 									</Button>
 								</div>
 							)}

@@ -13,7 +13,7 @@ use ts_rs::TS;
 mod cli;
 
 use cli::{GhCli, GhCliError, PrComment, PrReviewComment};
-pub use cli::{PrCommentAuthor, ReviewCommentUser};
+pub use cli::{PrCommentAuthor, PrListAuthor, PrListItem, ReviewCommentUser};
 
 /// Unified PR comment that can be either a general comment or review comment
 #[derive(Debug, Clone, Serialize, TS)]
@@ -449,5 +449,29 @@ impl GitHubService {
             );
         })
         .await
+    }
+
+    /// List recent PRs with optional search query
+    pub async fn list_recent_prs(
+        &self,
+        repo_info: &GitHubRepoInfo,
+        limit: u32,
+        search: Option<&str>,
+    ) -> Result<Vec<PrListItem>, GitHubServiceError> {
+        let owner = repo_info.owner.clone();
+        let repo = repo_info.repo_name.clone();
+        let search_owned = search.map(|s| s.to_string());
+        let cli = self.gh_cli.clone();
+
+        task::spawn_blocking(move || {
+            cli.list_recent_prs(&owner, &repo, limit, search_owned.as_deref())
+        })
+        .await
+        .map_err(|err| {
+            GitHubServiceError::PullRequest(format!(
+                "Failed to execute GitHub CLI for listing recent PRs: {err}"
+            ))
+        })?
+        .map_err(GitHubServiceError::from)
     }
 }

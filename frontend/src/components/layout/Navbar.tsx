@@ -36,8 +36,13 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { OAuthDialog } from "@/components/dialogs/global/OAuthDialog";
+import {
+	OnboardingDialog,
+	type OnboardingResult,
+} from "@/components/dialogs/global/OnboardingDialog";
 import { useUserSystem } from "@/components/ConfigProvider";
 import { oauthApi } from "@/lib/api";
+import { HelpCircle } from "lucide-react";
 
 const INTERNAL_NAV = [
 	{ label: "Projects", icon: FolderOpen, to: "/projects" },
@@ -73,7 +78,7 @@ export function Navbar() {
 	const { projectId, project } = useProject();
 	const { query, setQuery, active, clear, registerInputRef } = useSearch();
 	const handleOpenInEditor = useOpenProjectInEditor(project || null);
-	const { loginStatus, reloadSystem } = useUserSystem();
+	const { loginStatus, reloadSystem, updateAndSaveConfig } = useUserSystem();
 
 	const { data: repos } = useProjectRepos(projectId);
 	const isSingleRepoProject = repos?.length === 1;
@@ -128,6 +133,17 @@ export function Navbar() {
 		} catch (err) {
 			console.error("Error logging out:", err);
 		}
+	};
+
+	const handleOpenOnboarding = async () => {
+		const result: OnboardingResult | undefined = await OnboardingDialog.show();
+		if (result) {
+			await updateAndSaveConfig({
+				executor_profile: result.profile,
+				editor: result.editor,
+			});
+		}
+		OnboardingDialog.hide();
 	};
 
 	const isOAuthLoggedIn = loginStatus?.status === "loggedin";
@@ -269,6 +285,11 @@ export function Navbar() {
 											</DropdownMenuItem>
 										);
 									})}
+
+									<DropdownMenuItem onSelect={handleOpenOnboarding}>
+										<HelpCircle className="mr-2 h-4 w-4" />
+										Setup
+									</DropdownMenuItem>
 
 									<DropdownMenuSeparator />
 

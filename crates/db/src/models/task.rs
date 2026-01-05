@@ -38,7 +38,7 @@ pub struct Task {
     pub updated_at: DateTime<Utc>,
 }
 
-use super::merge::{ChecksStatus, ReviewDecision};
+use super::merge::{ChecksStatus, MergeStatus, ReviewDecision};
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct TaskWithAttemptStatus {
@@ -49,6 +49,7 @@ pub struct TaskWithAttemptStatus {
     pub last_attempt_failed: bool,
     pub executor: String,
     pub pr_url: Option<String>,
+    pub pr_status: Option<MergeStatus>,
     pub pr_is_draft: Option<bool>,
     pub pr_review_decision: Option<ReviewDecision>,
     pub pr_checks_status: Option<ChecksStatus>,
@@ -226,17 +227,24 @@ impl Task {
       JOIN merges m ON m.workspace_id = w.id
      WHERE w.task_id = t.id
        AND m.merge_type = 'pr'
-       AND m.pr_status = 'open'
      ORDER BY m.created_at DESC
      LIMIT 1
   )                                 AS "pr_url: String",
+
+  ( SELECT m.pr_status
+      FROM workspaces w
+      JOIN merges m ON m.workspace_id = w.id
+     WHERE w.task_id = t.id
+       AND m.merge_type = 'pr'
+     ORDER BY m.created_at DESC
+     LIMIT 1
+  )                                 AS "pr_status: MergeStatus",
 
   ( SELECT m.pr_is_draft
       FROM workspaces w
       JOIN merges m ON m.workspace_id = w.id
      WHERE w.task_id = t.id
        AND m.merge_type = 'pr'
-       AND m.pr_status = 'open'
      ORDER BY m.created_at DESC
      LIMIT 1
   )                                 AS "pr_is_draft: bool",
@@ -246,7 +254,6 @@ impl Task {
       JOIN merges m ON m.workspace_id = w.id
      WHERE w.task_id = t.id
        AND m.merge_type = 'pr'
-       AND m.pr_status = 'open'
      ORDER BY m.created_at DESC
      LIMIT 1
   )                                 AS "pr_review_decision: ReviewDecision",
@@ -256,7 +263,6 @@ impl Task {
       JOIN merges m ON m.workspace_id = w.id
      WHERE w.task_id = t.id
        AND m.merge_type = 'pr'
-       AND m.pr_status = 'open'
      ORDER BY m.created_at DESC
      LIMIT 1
   )                                 AS "pr_checks_status: ChecksStatus"
@@ -289,6 +295,7 @@ ORDER BY t.created_at DESC"#,
                 last_attempt_failed: rec.last_attempt_failed != 0,
                 executor: rec.executor,
                 pr_url: rec.pr_url,
+                pr_status: rec.pr_status,
                 pr_is_draft: rec.pr_is_draft,
                 pr_review_decision: rec.pr_review_decision,
                 pr_checks_status: rec.pr_checks_status,
@@ -355,17 +362,24 @@ ORDER BY t.created_at DESC"#,
       JOIN merges m ON m.workspace_id = w.id
      WHERE w.task_id = t.id
        AND m.merge_type = 'pr'
-       AND m.pr_status = 'open'
      ORDER BY m.created_at DESC
      LIMIT 1
   )                                 AS "pr_url: String",
+
+  ( SELECT m.pr_status
+      FROM workspaces w
+      JOIN merges m ON m.workspace_id = w.id
+     WHERE w.task_id = t.id
+       AND m.merge_type = 'pr'
+     ORDER BY m.created_at DESC
+     LIMIT 1
+  )                                 AS "pr_status: MergeStatus",
 
   ( SELECT m.pr_is_draft
       FROM workspaces w
       JOIN merges m ON m.workspace_id = w.id
      WHERE w.task_id = t.id
        AND m.merge_type = 'pr'
-       AND m.pr_status = 'open'
      ORDER BY m.created_at DESC
      LIMIT 1
   )                                 AS "pr_is_draft: bool",
@@ -375,7 +389,6 @@ ORDER BY t.created_at DESC"#,
       JOIN merges m ON m.workspace_id = w.id
      WHERE w.task_id = t.id
        AND m.merge_type = 'pr'
-       AND m.pr_status = 'open'
      ORDER BY m.created_at DESC
      LIMIT 1
   )                                 AS "pr_review_decision: ReviewDecision",
@@ -385,7 +398,6 @@ ORDER BY t.created_at DESC"#,
       JOIN merges m ON m.workspace_id = w.id
      WHERE w.task_id = t.id
        AND m.merge_type = 'pr'
-       AND m.pr_status = 'open'
      ORDER BY m.created_at DESC
      LIMIT 1
   )                                 AS "pr_checks_status: ChecksStatus"
@@ -416,6 +428,7 @@ ORDER BY t.created_at DESC"#
                 last_attempt_failed: rec.last_attempt_failed != 0,
                 executor: rec.executor,
                 pr_url: rec.pr_url,
+                pr_status: rec.pr_status,
                 pr_is_draft: rec.pr_is_draft,
                 pr_review_decision: rec.pr_review_decision,
                 pr_checks_status: rec.pr_checks_status,
