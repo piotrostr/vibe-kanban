@@ -138,6 +138,8 @@ fn generate_types_content() -> String {
         server::routes::task_attempts::RunScriptError::decl(),
         server::routes::task_attempts::pr::AttachPrResponse::decl(),
         server::routes::task_attempts::pr::AttachExistingPrRequest::decl(),
+        server::routes::task_attempts::pr::BindPrByNumberRequest::decl(),
+        server::routes::task_attempts::pr::BindPrError::decl(),
         server::routes::task_attempts::pr::PrCommentsResponse::decl(),
         server::routes::task_attempts::pr::GetPrCommentsError::decl(),
         server::routes::task_attempts::pr::GetPrCommentsQuery::decl(),

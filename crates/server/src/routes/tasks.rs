@@ -26,7 +26,7 @@ use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use services::services::{
     container::ContainerService,
-    linear::{linear_state_type_to_task_status, LinearClient, LinearIssueWithState},
+    linear::{LinearClient, LinearIssueWithState, linear_state_type_to_task_status},
     share::ShareError,
     workspace_manager::WorkspaceManager,
 };
@@ -232,7 +232,10 @@ pub async fn update_task(
         Some(s) => Some(s),                     // Non-empty string = update description
         None => existing_task.description.clone(), // Field omitted = keep existing
     };
-    let new_status = payload.status.clone().unwrap_or(existing_task.status.clone());
+    let new_status = payload
+        .status
+        .clone()
+        .unwrap_or(existing_task.status.clone());
     let parent_workspace_id = payload
         .parent_workspace_id
         .or(existing_task.parent_workspace_id);
@@ -279,11 +282,7 @@ pub async fn update_task(
                         .await
                     {
                         // Log warning but don't fail the local update
-                        tracing::warn!(
-                            "Failed to sync task {} status to Linear: {}",
-                            task.id,
-                            e
-                        );
+                        tracing::warn!("Failed to sync task {} status to Linear: {}", task.id, e);
                     } else {
                         tracing::info!(
                             "Synced task {} status to Linear: {:?}",
@@ -459,9 +458,10 @@ pub async fn get_linear_issue_state(
     Extension(task): Extension<Task>,
     State(deployment): State<DeploymentImpl>,
 ) -> Result<ResponseJson<ApiResponse<LinearIssueStateResponse>>, ApiError> {
-    let linear_issue_id = task.linear_issue_id.as_ref().ok_or_else(|| {
-        ApiError::BadRequest("Task is not linked to a Linear issue".to_string())
-    })?;
+    let linear_issue_id = task
+        .linear_issue_id
+        .as_ref()
+        .ok_or_else(|| ApiError::BadRequest("Task is not linked to a Linear issue".to_string()))?;
 
     let project = Project::find_by_id(&deployment.db().pool, task.project_id)
         .await?
@@ -480,10 +480,12 @@ pub async fn get_linear_issue_state(
 
     let mapped_status = linear_state_type_to_task_status(&issue.state.state_type);
 
-    Ok(ResponseJson(ApiResponse::success(LinearIssueStateResponse {
-        issue,
-        mapped_status,
-    })))
+    Ok(ResponseJson(ApiResponse::success(
+        LinearIssueStateResponse {
+            issue,
+            mapped_status,
+        },
+    )))
 }
 
 /// Pull the latest state from Linear and update the local task
@@ -491,9 +493,10 @@ pub async fn pull_from_linear(
     Extension(existing_task): Extension<Task>,
     State(deployment): State<DeploymentImpl>,
 ) -> Result<ResponseJson<ApiResponse<Task>>, ApiError> {
-    let linear_issue_id = existing_task.linear_issue_id.as_ref().ok_or_else(|| {
-        ApiError::BadRequest("Task is not linked to a Linear issue".to_string())
-    })?;
+    let linear_issue_id = existing_task
+        .linear_issue_id
+        .as_ref()
+        .ok_or_else(|| ApiError::BadRequest("Task is not linked to a Linear issue".to_string()))?;
 
     let project = Project::find_by_id(&deployment.db().pool, existing_task.project_id)
         .await?
@@ -548,9 +551,10 @@ pub async fn push_to_linear(
     Extension(task): Extension<Task>,
     State(deployment): State<DeploymentImpl>,
 ) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
-    let linear_issue_id = task.linear_issue_id.as_ref().ok_or_else(|| {
-        ApiError::BadRequest("Task is not linked to a Linear issue".to_string())
-    })?;
+    let linear_issue_id = task
+        .linear_issue_id
+        .as_ref()
+        .ok_or_else(|| ApiError::BadRequest("Task is not linked to a Linear issue".to_string()))?;
 
     let project = Project::find_by_id(&deployment.db().pool, task.project_id)
         .await?

@@ -17,7 +17,8 @@ use db::models::{
 use deployment::Deployment;
 use executors::{
     actions::{
-        ExecutorAction, ExecutorActionType, coding_agent_follow_up::CodingAgentFollowUpRequest,
+        ExecutorAction, ExecutorActionType,
+        coding_agent_follow_up::CodingAgentFollowUpRequest,
         script::{ScriptContext, ScriptRequest, ScriptRequestLanguage},
     },
     executors::BaseCodingAgent,
@@ -165,19 +166,18 @@ pub async fn follow_up(
         }
 
         // Get executor profile - try from latest process, fall back to session or default
-        let executor = match ExecutionProcess::latest_executor_profile_for_session(pool, session.id)
-            .await
-        {
-            Ok(profile) => profile.executor,
-            Err(_) => {
-                // No previous process - use session executor or default to CLAUDE_CODE
-                session
-                    .executor
-                    .as_ref()
-                    .and_then(|e| e.parse::<BaseCodingAgent>().ok())
-                    .unwrap_or(BaseCodingAgent::ClaudeCode)
-            }
-        };
+        let executor =
+            match ExecutionProcess::latest_executor_profile_for_session(pool, session.id).await {
+                Ok(profile) => profile.executor,
+                Err(_) => {
+                    // No previous process - use session executor or default to CLAUDE_CODE
+                    session
+                        .executor
+                        .as_ref()
+                        .and_then(|e| e.parse::<BaseCodingAgent>().ok())
+                        .unwrap_or(BaseCodingAgent::ClaudeCode)
+                }
+            };
 
         let executor_profile_id = ExecutorProfileId {
             executor,

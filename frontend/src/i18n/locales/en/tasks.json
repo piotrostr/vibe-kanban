@@ -267,7 +267,8 @@
 			"forcePush": "Force Push",
 			"forcePushing": "Force Pushing...",
 			"creating": "Creating...",
-			"createPr": "Create PR"
+			"createPr": "Create PR",
+			"bindPr": "Bind PR"
 		},
 		"errors": {
 			"changeTargetBranch": "Failed to change target branch",
@@ -417,6 +418,21 @@
 			"title": "Sign in to create a pull request",
 			"description": "You need to sign in before you can open a pull request for this task. We'll take you to the sign-in page.",
 			"action": "Sign in"
+		}
+	},
+	"bindPrDialog": {
+		"title": "Bind Pull Request",
+		"description": "Link an existing GitHub pull request to this task by entering its number.",
+		"prNumberLabel": "PR Number",
+		"prNumberPlaceholder": "123",
+		"binding": "Binding...",
+		"bindButton": "Bind PR",
+		"errors": {
+			"invalidNumber": "Please enter a valid PR number",
+			"prNotFoundOrNoAccess": "PR #{{number}} was not found or you don't have access to this repository",
+			"githubCliNotInstalled": "GitHub CLI is not installed. Install it from https://cli.github.com/",
+			"githubCliNotLoggedIn": "GitHub CLI is not authenticated. Run \"gh auth login\" and try again.",
+			"failedToBind": "Failed to bind pull request"
 		}
 	},
 	"showcases": {

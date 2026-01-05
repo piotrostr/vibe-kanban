@@ -68,6 +68,9 @@ import {
 	OpenEditorResponse,
 	OpenEditorRequest,
 	CreatePrError,
+	BindPrByNumberRequest,
+	BindPrError,
+	AttachPrResponse,
 	Scratch,
 	ScratchType,
 	CreateScratch,
@@ -752,6 +755,20 @@ export const attemptsApi = {
 			body: JSON.stringify(data),
 		});
 		return handleApiResponseAsResult<string, CreatePrError>(response);
+	},
+
+	bindPR: async (
+		attemptId: string,
+		data: BindPrByNumberRequest,
+	): Promise<Result<AttachPrResponse, BindPrError>> => {
+		const response = await makeRequest(
+			`/api/task-attempts/${attemptId}/pr/bind`,
+			{
+				method: "POST",
+				body: JSON.stringify(data),
+			},
+		);
+		return handleApiResponseAsResult<AttachPrResponse, BindPrError>(response);
 	},
 
 	startDevServer: async (attemptId: string): Promise<void> => {

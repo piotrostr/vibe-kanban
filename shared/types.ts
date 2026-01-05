@@ -292,6 +292,10 @@ export type AttachPrResponse = { pr_attached: boolean, pr_url: string | null, pr
 
 export type AttachExistingPrRequest = { repo_id: string, };
 
+export type BindPrByNumberRequest = { repo_id: string, pr_number: bigint, };
+
+export type BindPrError = { "type": "pr_not_found_or_no_access", pr_number: bigint, } | { "type": "github_cli_not_installed" } | { "type": "github_cli_not_logged_in" };
+
 export type PrCommentsResponse = { comments: Array<UnifiedPrComment>, };
 
 export type GetPrCommentsError = { "type": "no_pr_attached" } | { "type": "github_cli_not_installed" } | { "type": "github_cli_not_logged_in" };
