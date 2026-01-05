@@ -136,6 +136,7 @@ export function NoServerContent({
 				image_ids: null,
 				shared_task_id: null,
 				linear_issue_id: null,
+				linear_url: null,
 			},
 			executor_profile_id: config.executor_profile,
 			repos,

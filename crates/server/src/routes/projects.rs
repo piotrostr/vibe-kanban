@@ -633,6 +633,7 @@ pub async fn sync_linear_backlog(
                 issue.title.clone(),
                 issue.description.clone(),
                 issue.id.clone(),
+                issue.url.clone(),
             );
             Task::create(pool, &create_task, Uuid::new_v4()).await?;
             created += 1;

@@ -17,6 +17,7 @@ pub struct LinearIssue {
     pub id: String,
     pub title: String,
     pub description: Option<String>,
+    pub url: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -71,6 +72,7 @@ impl LinearClient {
                             id
                             title
                             description
+                            url
                         }
                     }
                 }
@@ -117,7 +119,8 @@ mod tests {
                             {
                                 "id": "abc123",
                                 "title": "Test Issue",
-                                "description": "Some description"
+                                "description": "Some description",
+                                "url": "https://linear.app/team/issue/ABC-123"
                             }
                         ]
                     }
@@ -130,5 +133,6 @@ mod tests {
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].id, "abc123");
         assert_eq!(issues[0].title, "Test Issue");
+        assert_eq!(issues[0].url, "https://linear.app/team/issue/ABC-123");
     }
 }
