@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks";
 import {
 	type DragEndEvent,
 	KanbanBoard,
+	KanbanBoardCollapsed,
 	KanbanCards,
 	KanbanHeader,
 	KanbanProvider,
@@ -38,6 +39,8 @@ interface TaskKanbanBoardProps {
 	projectId: string;
 	onRefreshBacklog?: () => void;
 	isRefreshingBacklog?: boolean;
+	collapsedColumns?: Set<TaskStatus>;
+	onToggleColumn?: (status: TaskStatus) => void;
 	/** For unified "Show All" view: map of project IDs to project objects */
 	projectsById?: Record<string, Project>;
 }
@@ -53,6 +56,8 @@ function TaskKanbanBoard({
 	projectId,
 	onRefreshBacklog,
 	isRefreshingBacklog,
+	collapsedColumns,
+	onToggleColumn,
 	projectsById,
 }: TaskKanbanBoardProps) {
 	const { userId } = useAuth();
@@ -62,14 +67,33 @@ function TaskKanbanBoard({
 			{Object.entries(columns).map(([status, items]) => {
 				const statusKey = status as TaskStatus;
 				const isBacklog = statusKey === "backlog";
+				const isCollapsed = collapsedColumns?.has(statusKey);
+
+				if (isCollapsed) {
+					return (
+						<KanbanBoardCollapsed
+							key={status}
+							id={statusKey}
+							name={statusLabels[statusKey]}
+							color={statusBoardColors[statusKey]}
+							count={items.length}
+							onExpand={() => onToggleColumn?.(statusKey)}
+						/>
+					);
+				}
+
 				return (
 					<KanbanBoard key={status} id={statusKey}>
 						<KanbanHeader
 							name={statusLabels[statusKey]}
 							color={statusBoardColors[statusKey]}
+							count={items.length}
 							onAddTask={onCreateTask}
 							onRefresh={isBacklog ? onRefreshBacklog : undefined}
 							isRefreshing={isBacklog ? isRefreshingBacklog : undefined}
+							onToggleCollapse={
+								onToggleColumn ? () => onToggleColumn(statusKey) : undefined
+							}
 						/>
 						<KanbanCards>
 							{items.map((item, index) => {

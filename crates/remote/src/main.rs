@@ -1,8 +1,7 @@
-use remote::{Server, config::RemoteServerConfig, init_tracing, sentry_init_once};
+use remote::{Server, config::RemoteServerConfig, init_tracing};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    sentry_init_once();
     init_tracing();
 
     let config = RemoteServerConfig::from_env()?;

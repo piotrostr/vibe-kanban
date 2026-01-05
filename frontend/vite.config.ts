@@ -1,5 +1,4 @@
 // vite.config.ts
-import { sentryVitePlugin } from "@sentry/vite-plugin";
 import { defineConfig, Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
@@ -53,7 +52,6 @@ export default schemas;
 export default defineConfig({
 	plugins: [
 		react(),
-		sentryVitePlugin({ org: "bloop-ai", project: "vibe-kanban" }),
 		executorSchemasPlugin(),
 		VitePWA({
 			registerType: "autoUpdate",

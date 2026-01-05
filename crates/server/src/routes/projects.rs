@@ -205,15 +205,6 @@ async fn apply_remote_project_link(
         .link_to_remote(&deployment.db().pool, project.id, remote_project)
         .await?;
 
-    deployment
-        .track_if_analytics_allowed(
-            "project_linked_to_remote",
-            serde_json::json!({
-                "project_id": project.id.to_string(),
-            }),
-        )
-        .await;
-
     Ok(updated_project)
 }
 
@@ -229,21 +220,7 @@ pub async fn create_project(
         .create_project(&deployment.db().pool, deployment.repo(), payload)
         .await
     {
-        Ok(project) => {
-            // Track project creation event
-            deployment
-                .track_if_analytics_allowed(
-                    "project_created",
-                    serde_json::json!({
-                        "project_id": project.id.to_string(),
-                        "repository_count": repo_count,
-                        "trigger": "manual",
-                    }),
-                )
-                .await;
-
-            Ok(ResponseJson(ApiResponse::success(project)))
-        }
+        Ok(project) => Ok(ResponseJson(ApiResponse::success(project))),
         Err(ProjectServiceError::DuplicateGitRepoPath) => Ok(ResponseJson(ApiResponse::error(
             "Duplicate repository path provided",
         ))),
@@ -294,15 +271,6 @@ pub async fn delete_project(
             if rows_affected == 0 {
                 Err(StatusCode::NOT_FOUND)
             } else {
-                deployment
-                    .track_if_analytics_allowed(
-                        "project_deleted",
-                        serde_json::json!({
-                            "project_id": project.id.to_string(),
-                        }),
-                    )
-                    .await;
-
                 Ok(ResponseJson(ApiResponse::success(())))
             }
         }
@@ -359,17 +327,6 @@ pub async fn open_project_in_editor(
                 path.to_string_lossy(),
                 if url.is_some() { " (remote mode)" } else { "" }
             );
-
-            deployment
-                .track_if_analytics_allowed(
-                    "project_editor_opened",
-                    serde_json::json!({
-                        "project_id": project.id.to_string(),
-                        "editor_type": payload.as_ref().and_then(|req| req.editor_type.as_ref()),
-                        "remote_mode": url.is_some(),
-                    }),
-                )
-                .await;
 
             Ok(ResponseJson(ApiResponse::success(OpenEditorResponse {
                 url,
@@ -455,19 +412,7 @@ pub async fn add_project_repository(
         )
         .await
     {
-        Ok(repository) => {
-            deployment
-                .track_if_analytics_allowed(
-                    "project_repository_added",
-                    serde_json::json!({
-                        "project_id": project.id.to_string(),
-                        "repository_id": repository.id.to_string(),
-                    }),
-                )
-                .await;
-
-            Ok(ResponseJson(ApiResponse::success(repository)))
-        }
+        Ok(repository) => Ok(ResponseJson(ApiResponse::success(repository))),
         Err(ProjectServiceError::PathNotFound(_)) => {
             tracing::warn!(
                 "Failed to add repository to project {}: path does not exist",
@@ -532,19 +477,7 @@ pub async fn delete_project_repository(
         .delete_repository(&deployment.db().pool, project_id, repo_id)
         .await
     {
-        Ok(()) => {
-            deployment
-                .track_if_analytics_allowed(
-                    "project_repository_removed",
-                    serde_json::json!({
-                        "project_id": project_id.to_string(),
-                        "repository_id": repo_id.to_string(),
-                    }),
-                )
-                .await;
-
-            Ok(ResponseJson(ApiResponse::success(())))
-        }
+        Ok(()) => Ok(ResponseJson(ApiResponse::success(()))),
         Err(ProjectServiceError::RepositoryNotFound) => {
             tracing::warn!(
                 "Failed to remove repository {} from project {}: not found",
@@ -591,6 +524,50 @@ pub struct LinearSyncResponse {
     pub updated_count: usize,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ValidateLinearAssigneeRequest {
+    pub assignee_id: String,
+}
+
+#[derive(Debug, Serialize, TS)]
+pub struct ValidateLinearAssigneeResponse {
+    pub valid: bool,
+    pub name: Option<String>,
+}
+
+/// Validate that a Linear user ID exists
+pub async fn validate_linear_assignee(
+    Extension(project): Extension<Project>,
+    Json(payload): Json<ValidateLinearAssigneeRequest>,
+) -> Result<ResponseJson<ApiResponse<ValidateLinearAssigneeResponse>>, ApiError> {
+    let api_key = project.linear_api_key.ok_or_else(|| {
+        ApiError::BadRequest("Linear API key not configured for this project".to_string())
+    })?;
+
+    let client = LinearClient::new(api_key);
+    match client.validate_user(&payload.assignee_id).await {
+        Ok(Some(user)) => Ok(ResponseJson(ApiResponse::success(
+            ValidateLinearAssigneeResponse {
+                valid: true,
+                name: Some(user.name),
+            },
+        ))),
+        Ok(None) => Ok(ResponseJson(ApiResponse::success(
+            ValidateLinearAssigneeResponse {
+                valid: false,
+                name: None,
+            },
+        ))),
+        Err(e) => {
+            tracing::error!("Failed to validate Linear user: {}", e);
+            Err(ApiError::BadRequest(format!(
+                "Failed to validate user: {}",
+                e
+            )))
+        }
+    }
+}
+
 /// Sync backlog issues from Linear into the project's Backlog column
 pub async fn sync_linear_backlog(
     Extension(project): Extension<Project>,
@@ -601,7 +578,16 @@ pub async fn sync_linear_backlog(
     })?;
 
     let client = LinearClient::new(api_key);
-    let issues = client.fetch_backlog_issues().await.map_err(|e| {
+
+    // Fetch issues - use assignee filter if configured, otherwise use viewer's issues
+    let issues = if let Some(ref assignee_id) = project.linear_assignee_id {
+        client
+            .fetch_issues_by_assignee(assignee_id, Some("backlog"))
+            .await
+    } else {
+        client.fetch_backlog_issues().await
+    }
+    .map_err(|e| {
         tracing::error!("Failed to fetch Linear issues: {}", e);
         ApiError::BadRequest(format!("Failed to fetch Linear issues: {}", e))
     })?;
@@ -676,6 +662,10 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
             get(get_project_repositories).post(add_project_repository),
         )
         .route("/linear/sync", post(sync_linear_backlog))
+        .route(
+            "/linear/validate-assignee",
+            post(validate_linear_assignee),
+        )
         .layer(from_fn_with_state(
             deployment.clone(),
             load_project_middleware,

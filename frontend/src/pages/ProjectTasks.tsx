@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { AlertTriangle, Plus, X } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 import { Loader } from "@/components/ui/loader";
 import { tasksApi, projectsApi } from "@/lib/api";
 import type { RepoBranchStatus, Workspace } from "shared/types";
@@ -11,7 +11,6 @@ import { openTaskForm } from "@/lib/openTaskForm";
 import { FeatureShowcaseDialog } from "@/components/dialogs/global/FeatureShowcaseDialog";
 import { showcases } from "@/config/showcases";
 import { useUserSystem } from "@/components/ConfigProvider";
-import { usePostHog } from "posthog-js/react";
 
 import { useSearch } from "@/contexts/SearchContext";
 import { useProject } from "@/contexts/ProjectContext";
@@ -73,6 +72,10 @@ import { AttemptHeaderActions } from "@/components/panels/AttemptHeaderActions";
 import { TaskPanelHeaderActions } from "@/components/panels/TaskPanelHeaderActions";
 
 import type { TaskWithAttemptStatus, TaskStatus } from "shared/types";
+import {
+	LinearSyncConfirmDialog,
+	type LinearSyncConfirmResult,
+} from "@/components/dialogs/tasks/LinearSyncConfirmDialog";
 
 type Task = TaskWithAttemptStatus;
 
@@ -141,12 +144,26 @@ export function ProjectTasks() {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const isXL = useMediaQuery("(min-width: 1280px)");
 	const isMobile = !isXL;
-	const posthog = usePostHog();
 	const [selectedSharedTaskId, setSelectedSharedTaskId] = useState<
 		string | null
 	>(null);
 	const [isRefreshingBacklog, setIsRefreshingBacklog] = useState(false);
+	const [collapsedColumns, setCollapsedColumns] = useState<Set<TaskStatus>>(
+		new Set(),
+	);
 	const { userId } = useAuth();
+
+	const handleToggleColumn = useCallback((status: TaskStatus) => {
+		setCollapsedColumns((prev) => {
+			const next = new Set(prev);
+			if (next.has(status)) {
+				next.delete(status);
+			} else {
+				next.add(status);
+			}
+			return next;
+		});
+	}, []);
 
 	const {
 		projectId,
@@ -575,27 +592,6 @@ export function ProjectTasks() {
 	useKeyOpenDetails(
 		() => {
 			if (isPanelOpen) {
-				// Track keyboard shortcut before cycling view
-				const order: LayoutMode[] = [null, "preview", "diffs"];
-				const idx = order.indexOf(mode);
-				const next = order[(idx + 1) % order.length];
-
-				if (next === "preview") {
-					posthog?.capture("preview_navigated", {
-						trigger: "keyboard",
-						direction: "forward",
-						timestamp: new Date().toISOString(),
-						source: "frontend",
-					});
-				} else if (next === "diffs") {
-					posthog?.capture("diffs_navigated", {
-						trigger: "keyboard",
-						direction: "forward",
-						timestamp: new Date().toISOString(),
-						source: "frontend",
-					});
-				}
-
 				cycleViewForward();
 			} else if (selectedTask) {
 				handleViewTaskDetails(selectedTask);
@@ -608,27 +604,6 @@ export function ProjectTasks() {
 	useKeyCycleViewBackward(
 		() => {
 			if (isPanelOpen) {
-				// Track keyboard shortcut before cycling view
-				const order: LayoutMode[] = [null, "preview", "diffs"];
-				const idx = order.indexOf(mode);
-				const next = order[(idx - 1 + order.length) % order.length];
-
-				if (next === "preview") {
-					posthog?.capture("preview_navigated", {
-						trigger: "keyboard",
-						direction: "backward",
-						timestamp: new Date().toISOString(),
-						source: "frontend",
-					});
-				} else if (next === "diffs") {
-					posthog?.capture("diffs_navigated", {
-						trigger: "keyboard",
-						direction: "backward",
-						timestamp: new Date().toISOString(),
-						source: "frontend",
-					});
-				}
-
 				cycleViewBackward();
 			}
 		},
@@ -669,12 +644,20 @@ export function ProjectTasks() {
 	const handleViewSharedTask = useCallback(
 		(sharedTask: SharedTaskRecord) => {
 			setSelectedSharedTaskId(sharedTask.id);
-			setMode(null);
 			if (projectId) {
-				navigateWithSearch(paths.projectTasks(projectId), { replace: true });
+				// Clear view mode and navigate in a single URL update to avoid race conditions
+				const params = new URLSearchParams(searchParams);
+				params.delete("view");
+				navigate(
+					{
+						pathname: paths.projectTasks(projectId),
+						search: params.toString() ? `?${params.toString()}` : "",
+					},
+					{ replace: true },
+				);
 			}
 		},
-		[navigateWithSearch, projectId, setMode],
+		[navigate, projectId, searchParams],
 	);
 
 	const selectNextTask = useCallback(() => {
@@ -777,6 +760,24 @@ export function ProjectTasks() {
 			const task = tasksById[draggedTaskId];
 			if (!task || task.status === newStatus) return;
 
+			let syncToLinear = false;
+
+			// If task is linked to Linear, ask user whether to sync
+			if (task.linear_issue_id) {
+				const result: LinearSyncConfirmResult =
+					await LinearSyncConfirmDialog.show({
+						taskTitle: task.title,
+						fromStatus: task.status,
+						toStatus: newStatus,
+					});
+
+				if (result === "cancelled") {
+					return; // User cancelled, don't update
+				}
+
+				syncToLinear = result === "sync";
+			}
+
 			try {
 				await tasksApi.update(draggedTaskId, {
 					title: task.title,
@@ -784,6 +785,7 @@ export function ProjectTasks() {
 					status: newStatus,
 					parent_workspace_id: task.parent_workspace_id,
 					image_ids: null,
+					sync_to_linear: syncToLinear,
 				});
 			} catch (err) {
 				console.error("Failed to update task status:", err);
@@ -802,15 +804,6 @@ export function ProjectTasks() {
 		},
 		[sharedTasksById],
 	);
-
-	const hasSharedTasks = useMemo(() => {
-		return Object.values(kanbanColumns).some((items) =>
-			items.some((item) => {
-				if (item.type === "shared") return true;
-				return Boolean(item.sharedTask);
-			}),
-		);
-	}, [kanbanColumns]);
 
 	const isInitialTasksLoad = isLoading && tasks.length === 0;
 
@@ -847,19 +840,7 @@ export function ProjectTasks() {
 	};
 
 	const kanbanContent =
-		tasks.length === 0 && !hasSharedTasks ? (
-			<div className="max-w-7xl mx-auto mt-8">
-				<Card>
-					<CardContent className="text-center py-8">
-						<p className="text-muted-foreground">{t("empty.noTasks")}</p>
-						<Button className="mt-4" onClick={handleCreateNewTask}>
-							<Plus className="h-4 w-4 mr-2" />
-							{t("empty.createFirst")}
-						</Button>
-					</CardContent>
-				</Card>
-			</div>
-		) : !hasVisibleLocalTasks && !hasVisibleSharedTasks ? (
+		searchQuery && !hasVisibleLocalTasks && !hasVisibleSharedTasks ? (
 			<div className="max-w-7xl mx-auto mt-8">
 				<Card>
 					<CardContent className="text-center py-8">
@@ -882,6 +863,8 @@ export function ProjectTasks() {
 					projectId={projectId!}
 					onRefreshBacklog={handleRefreshBacklog}
 					isRefreshingBacklog={isRefreshingBacklog}
+					collapsedColumns={collapsedColumns}
+					onToggleColumn={handleToggleColumn}
 				/>
 			</div>
 		);

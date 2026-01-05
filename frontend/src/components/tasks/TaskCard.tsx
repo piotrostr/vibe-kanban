@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { KanbanCard } from "@/components/ui/shadcn-io/kanban";
-import { Link, Loader2, XCircle } from "lucide-react";
+import { GitPullRequest, Link, Loader2, XCircle } from "lucide-react";
 import { LinearIcon } from "@/components/icons/LinearIcon";
 import type { TaskWithAttemptStatus } from "shared/types";
 import { ActionsDropdown } from "@/components/ui/actions-dropdown";
@@ -159,6 +159,20 @@ export function TaskCard({
 									title={t("navigateToParent")}
 								>
 									<Link className="h-4 w-4" />
+								</Button>
+							)}
+							{task.pr_url && (
+								<Button
+									variant="icon"
+									onClick={(e) => {
+										e.stopPropagation();
+										window.open(task.pr_url!, "_blank", "noopener,noreferrer");
+									}}
+									onPointerDown={(e) => e.stopPropagation()}
+									onMouseDown={(e) => e.stopPropagation()}
+									title="View Pull Request"
+								>
+									<GitPullRequest className="h-4 w-4" />
 								</Button>
 							)}
 							{task.linear_url && (

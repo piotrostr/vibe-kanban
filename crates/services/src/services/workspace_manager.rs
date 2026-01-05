@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use db::models::{repo::Repo, workspace::Workspace as DbWorkspace};
 use sqlx::{Pool, Sqlite};
 use thiserror::Error;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
 use super::worktree_manager::{WorktreeCleanup, WorktreeError, WorktreeManager};
@@ -160,7 +160,7 @@ impl WorkspaceManager {
         for repo in repos {
             let worktree_path = workspace_dir.join(&repo.name);
 
-            debug!(
+            trace!(
                 "Ensuring worktree exists for repo '{}' at {}",
                 repo.name,
                 worktree_path.display()

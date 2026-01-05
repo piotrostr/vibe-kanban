@@ -28,6 +28,9 @@ pub struct Project {
     #[serde(skip_serializing)] // Don't expose API key to frontend
     #[ts(skip)]
     pub linear_api_key: Option<String>,
+    #[serde(skip_serializing)] // Don't expose assignee ID to frontend
+    #[ts(skip)]
+    pub linear_assignee_id: Option<String>,
     #[ts(type = "Date")]
     pub created_at: DateTime<Utc>,
     #[ts(type = "Date")]
@@ -47,6 +50,7 @@ pub struct UpdateProject {
     pub dev_script_working_dir: Option<String>,
     pub default_agent_working_dir: Option<String>,
     pub linear_api_key: Option<String>,
+    pub linear_assignee_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, TS)]
@@ -80,6 +84,7 @@ impl Project {
                       default_agent_working_dir,
                       remote_project_id as "remote_project_id: Uuid",
                       linear_api_key,
+                      linear_assignee_id,
                       created_at as "created_at!: DateTime<Utc>",
                       updated_at as "updated_at!: DateTime<Utc>"
                FROM projects
@@ -98,6 +103,7 @@ impl Project {
                    p.default_agent_working_dir,
                    p.remote_project_id as "remote_project_id: Uuid",
                    p.linear_api_key,
+                   p.linear_assignee_id,
                    p.created_at as "created_at!: DateTime<Utc>", p.updated_at as "updated_at!: DateTime<Utc>"
             FROM projects p
             WHERE p.id IN (
@@ -124,6 +130,7 @@ impl Project {
                       default_agent_working_dir,
                       remote_project_id as "remote_project_id: Uuid",
                       linear_api_key,
+                      linear_assignee_id,
                       created_at as "created_at!: DateTime<Utc>",
                       updated_at as "updated_at!: DateTime<Utc>"
                FROM projects
@@ -144,6 +151,7 @@ impl Project {
                       default_agent_working_dir,
                       remote_project_id as "remote_project_id: Uuid",
                       linear_api_key,
+                      linear_assignee_id,
                       created_at as "created_at!: DateTime<Utc>",
                       updated_at as "updated_at!: DateTime<Utc>"
                FROM projects
@@ -167,6 +175,7 @@ impl Project {
                       default_agent_working_dir,
                       remote_project_id as "remote_project_id: Uuid",
                       linear_api_key,
+                      linear_assignee_id,
                       created_at as "created_at!: DateTime<Utc>",
                       updated_at as "updated_at!: DateTime<Utc>"
                FROM projects
@@ -198,6 +207,7 @@ impl Project {
                           default_agent_working_dir,
                           remote_project_id as "remote_project_id: Uuid",
                           linear_api_key,
+                          linear_assignee_id,
                           created_at as "created_at!: DateTime<Utc>",
                           updated_at as "updated_at!: DateTime<Utc>""#,
             project_id,
@@ -222,11 +232,12 @@ impl Project {
         let default_agent_working_dir = payload.default_agent_working_dir.clone();
         // Treat same as other optional fields - None clears it
         let linear_api_key = payload.linear_api_key.clone();
+        let linear_assignee_id = payload.linear_assignee_id.clone();
 
         sqlx::query_as!(
             Project,
             r#"UPDATE projects
-               SET name = $2, dev_script = $3, dev_script_working_dir = $4, default_agent_working_dir = $5, linear_api_key = $6
+               SET name = $2, dev_script = $3, dev_script_working_dir = $4, default_agent_working_dir = $5, linear_api_key = $6, linear_assignee_id = $7
                WHERE id = $1
                RETURNING id as "id!: Uuid",
                          name,
@@ -235,6 +246,7 @@ impl Project {
                          default_agent_working_dir,
                          remote_project_id as "remote_project_id: Uuid",
                          linear_api_key,
+                         linear_assignee_id,
                          created_at as "created_at!: DateTime<Utc>",
                          updated_at as "updated_at!: DateTime<Utc>""#,
             id,
@@ -243,6 +255,7 @@ impl Project {
             dev_script_working_dir,
             default_agent_working_dir,
             linear_api_key,
+            linear_assignee_id,
         )
         .fetch_one(pool)
         .await

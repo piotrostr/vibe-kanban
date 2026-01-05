@@ -88,6 +88,7 @@ export function NoServerContent({
 					dev_script_working_dir: project.dev_script_working_dir ?? null,
 					default_agent_working_dir: project.default_agent_working_dir ?? null,
 					linear_api_key: null,
+					linear_assignee_id: null,
 				},
 			},
 			{

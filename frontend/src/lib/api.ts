@@ -86,6 +86,7 @@ import {
 	Session,
 	SlashCommand,
 	Workspace,
+	LinearIssueStateResponse,
 } from "shared/types";
 import type { WorkspaceWithSession } from "@/types/attempt";
 import { createWorkspaceWithSession } from "@/types/attempt";
@@ -400,6 +401,26 @@ export const projectsApi = {
 			updated_count: number;
 		}>(response);
 	},
+
+	validateLinearAssignee: async (
+		projectId: string,
+		assigneeId: string,
+	): Promise<{
+		valid: boolean;
+		name: string | null;
+	}> => {
+		const response = await makeRequest(
+			`/api/projects/${projectId}/linear/validate-assignee`,
+			{
+				method: "POST",
+				body: JSON.stringify({ assignee_id: assigneeId }),
+			},
+		);
+		return handleApiResponse<{
+			valid: boolean;
+			name: string | null;
+		}>(response);
+	},
 };
 
 // Task Management APIs
@@ -481,6 +502,26 @@ export const tasksApi = {
 			body: JSON.stringify(data),
 		});
 		return handleApiResponse<Task | null>(response);
+	},
+
+	// Linear sync methods
+	getLinearState: async (taskId: string): Promise<LinearIssueStateResponse> => {
+		const response = await makeRequest(`/api/tasks/${taskId}/linear`);
+		return handleApiResponse<LinearIssueStateResponse>(response);
+	},
+
+	pullFromLinear: async (taskId: string): Promise<Task> => {
+		const response = await makeRequest(`/api/tasks/${taskId}/linear/pull`, {
+			method: "POST",
+		});
+		return handleApiResponse<Task>(response);
+	},
+
+	pushToLinear: async (taskId: string): Promise<void> => {
+		const response = await makeRequest(`/api/tasks/${taskId}/linear/push`, {
+			method: "POST",
+		});
+		return handleApiResponse<void>(response);
 	},
 };
 

@@ -403,6 +403,7 @@ export function ProjectSettings() {
 					draft.default_agent_working_dir.trim() || null,
 				// Only send linear_api_key if it was modified (not empty)
 				linear_api_key: draft.linear_api_key.trim() || null,
+			linear_assignee_id: null,
 			};
 
 			updateProject.mutate({

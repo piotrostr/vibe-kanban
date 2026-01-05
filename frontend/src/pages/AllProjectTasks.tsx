@@ -116,6 +116,7 @@ export function AllProjectTasks() {
 					status: newStatus,
 					parent_workspace_id: task.parent_workspace_id,
 					image_ids: null,
+					sync_to_linear: true,
 				});
 			} catch (err) {
 				console.error("Failed to update task status:", err);
