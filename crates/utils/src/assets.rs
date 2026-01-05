@@ -1,16 +1,10 @@
 use rust_embed::RustEmbed;
 
-const PROJECT_ROOT: &str = env!("CARGO_MANIFEST_DIR");
-
 pub fn asset_dir() -> std::path::PathBuf {
-    let path = if cfg!(debug_assertions) {
-        std::path::PathBuf::from(PROJECT_ROOT).join("../../dev_assets")
-    } else {
-        // Use ~/.vibe for all platforms
-        dirs::home_dir()
-            .expect("Could not determine home directory")
-            .join(".vibe")
-    };
+    // Always use ~/.vibe for consistency between dev and release builds
+    let path = dirs::home_dir()
+        .expect("Could not determine home directory")
+        .join(".vibe");
 
     // Ensure the directory exists
     if !path.exists() {

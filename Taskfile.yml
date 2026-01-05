@@ -116,17 +116,24 @@ tasks:
       - cargo build
 
   build:
-    desc: Build for production
+    desc: Build for production (frontend first, then Rust to embed it)
     cmds:
-      - cargo build --release
       - cd frontend && pnpm run build
+      - cargo build
 
   start:
-    desc: Run production build with PWA on port 4067
+    desc: Run build with PWA on port 4067
     deps: [build]
     env:
       BACKEND_PORT: '4067'
     cmds:
-      - |
-        echo "Starting production server on http://localhost:4067"
-      - cargo run --release --bin server
+      - echo "Starting server on http://localhost:4067"
+      - ./target/debug/server
+
+  start:quick:
+    desc: Run existing build without rebuilding
+    env:
+      BACKEND_PORT: '4067'
+    cmds:
+      - echo "Starting server on http://localhost:4067"
+      - ./target/debug/server
