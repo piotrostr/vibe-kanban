@@ -25,7 +25,9 @@ use executors::profile::ExecutorProfileId;
 use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use services::services::{
-    container::ContainerService, linear::LinearClient, share::ShareError,
+    container::ContainerService,
+    linear::{linear_state_type_to_task_status, LinearClient, LinearIssueWithState},
+    share::ShareError,
     workspace_manager::WorkspaceManager,
 };
 use sqlx::Error as SqlxError;
@@ -496,11 +498,143 @@ pub async fn share_task(
     })))
 }
 
+/// Response type for Linear issue state fetch
+#[derive(Debug, Serialize, Deserialize, TS)]
+pub struct LinearIssueStateResponse {
+    pub issue: LinearIssueWithState,
+    pub mapped_status: db::models::task::TaskStatus,
+}
+
+/// Fetch the current state of a Linear issue linked to a task
+pub async fn get_linear_issue_state(
+    Extension(task): Extension<Task>,
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<LinearIssueStateResponse>>, ApiError> {
+    let linear_issue_id = task.linear_issue_id.as_ref().ok_or_else(|| {
+        ApiError::BadRequest("Task is not linked to a Linear issue".to_string())
+    })?;
+
+    let project = Project::find_by_id(&deployment.db().pool, task.project_id)
+        .await?
+        .ok_or(ProjectError::ProjectNotFound)?;
+
+    let api_key = project.linear_api_key.ok_or_else(|| {
+        ApiError::BadRequest("Project does not have a Linear API key configured".to_string())
+    })?;
+
+    let client = LinearClient::new(api_key);
+    let issue = client
+        .fetch_issue(linear_issue_id)
+        .await
+        .map_err(|e| ApiError::BadRequest(format!("Failed to fetch Linear issue: {}", e)))?
+        .ok_or_else(|| ApiError::BadRequest("Linear issue not found".to_string()))?;
+
+    let mapped_status = linear_state_type_to_task_status(&issue.state.state_type);
+
+    Ok(ResponseJson(ApiResponse::success(LinearIssueStateResponse {
+        issue,
+        mapped_status,
+    })))
+}
+
+/// Pull the latest state from Linear and update the local task
+pub async fn pull_from_linear(
+    Extension(existing_task): Extension<Task>,
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<Task>>, ApiError> {
+    let linear_issue_id = existing_task.linear_issue_id.as_ref().ok_or_else(|| {
+        ApiError::BadRequest("Task is not linked to a Linear issue".to_string())
+    })?;
+
+    let project = Project::find_by_id(&deployment.db().pool, existing_task.project_id)
+        .await?
+        .ok_or(ProjectError::ProjectNotFound)?;
+
+    let api_key = project.linear_api_key.ok_or_else(|| {
+        ApiError::BadRequest("Project does not have a Linear API key configured".to_string())
+    })?;
+
+    let client = LinearClient::new(api_key);
+    let issue = client
+        .fetch_issue(linear_issue_id)
+        .await
+        .map_err(|e| ApiError::BadRequest(format!("Failed to fetch Linear issue: {}", e)))?
+        .ok_or_else(|| ApiError::BadRequest("Linear issue not found".to_string()))?;
+
+    let new_status = linear_state_type_to_task_status(&issue.state.state_type);
+
+    // Update local task with Linear data
+    let task = Task::update(
+        &deployment.db().pool,
+        existing_task.id,
+        existing_task.project_id,
+        issue.title,
+        issue.description,
+        new_status,
+        existing_task.parent_workspace_id,
+    )
+    .await?;
+
+    // If task has been shared, broadcast update
+    if task.shared_task_id.is_some() {
+        let Ok(publisher) = deployment.share_publisher() else {
+            return Err(ShareError::MissingConfig("share publisher unavailable").into());
+        };
+        publisher.update_shared_task(&task).await?;
+    }
+
+    tracing::info!(
+        "Pulled Linear issue {} to task {}: title='{}', status={:?}",
+        linear_issue_id,
+        task.id,
+        task.title,
+        task.status
+    );
+
+    Ok(ResponseJson(ApiResponse::success(task)))
+}
+
+/// Push local task state to Linear
+pub async fn push_to_linear(
+    Extension(task): Extension<Task>,
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
+    let linear_issue_id = task.linear_issue_id.as_ref().ok_or_else(|| {
+        ApiError::BadRequest("Task is not linked to a Linear issue".to_string())
+    })?;
+
+    let project = Project::find_by_id(&deployment.db().pool, task.project_id)
+        .await?
+        .ok_or(ProjectError::ProjectNotFound)?;
+
+    let api_key = project.linear_api_key.ok_or_else(|| {
+        ApiError::BadRequest("Project does not have a Linear API key configured".to_string())
+    })?;
+
+    let client = LinearClient::new(api_key);
+    client
+        .sync_task_status_to_linear(linear_issue_id, &task.status)
+        .await
+        .map_err(|e| ApiError::BadRequest(format!("Failed to push to Linear: {}", e)))?;
+
+    tracing::info!(
+        "Pushed task {} status {:?} to Linear issue {}",
+        task.id,
+        task.status,
+        linear_issue_id
+    );
+
+    Ok(ResponseJson(ApiResponse::success(())))
+}
+
 pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
     let task_actions_router = Router::new()
         .route("/", put(update_task))
         .route("/", delete(delete_task))
-        .route("/share", post(share_task));
+        .route("/share", post(share_task))
+        .route("/linear", get(get_linear_issue_state))
+        .route("/linear/pull", post(pull_from_linear))
+        .route("/linear/push", post(push_to_linear));
 
     let task_id_router = Router::new()
         .route("/", get(get_task))

@@ -2,6 +2,7 @@ use db::models::task::TaskStatus;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use ts_rs::TS;
 
 #[derive(Debug, Error)]
 pub enum LinearError {
@@ -23,8 +24,18 @@ pub struct LinearIssue {
     pub url: String,
 }
 
+/// Extended issue info including current state
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct LinearIssueWithState {
+    pub id: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub url: String,
+    pub state: WorkflowState,
+}
+
 /// Workflow state in Linear (e.g., Backlog, Todo, In Progress, Done)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct WorkflowState {
     pub id: String,
     pub name: String,
@@ -92,6 +103,11 @@ struct IssueUpdateData {
 #[derive(Debug, Deserialize)]
 struct IssueUpdateResult {
     success: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct IssueData {
+    issue: Option<LinearIssueWithState>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -320,6 +336,29 @@ impl LinearClient {
             .ok_or_else(|| LinearError::StateNotFound(target_type.to_string()))?;
 
         self.update_issue_state(issue_id, &state.id).await
+    }
+
+    /// Fetch a single issue by ID with its current state
+    pub async fn fetch_issue(&self, issue_id: &str) -> Result<Option<LinearIssueWithState>, LinearError> {
+        let query = r#"
+            query($id: String!) {
+                issue(id: $id) {
+                    id
+                    title
+                    description
+                    url
+                    state {
+                        id
+                        name
+                        type
+                    }
+                }
+            }
+        "#;
+
+        let variables = serde_json::json!({ "id": issue_id });
+        let data: IssueData = self.execute_query(query, Some(variables)).await?;
+        Ok(data.issue)
     }
 }
 
