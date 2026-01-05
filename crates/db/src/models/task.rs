@@ -298,6 +298,100 @@ ORDER BY t.created_at DESC"#,
         Ok(tasks)
     }
 
+    /// Fetch all tasks across all projects with attempt status information.
+    /// Used for the unified "Show All Projects" view.
+    pub async fn find_all_with_attempt_status(
+        pool: &SqlitePool,
+    ) -> Result<Vec<TaskWithAttemptStatus>, sqlx::Error> {
+        let records = sqlx::query!(
+            r#"SELECT
+  t.id                            AS "id!: Uuid",
+  t.project_id                    AS "project_id!: Uuid",
+  t.title,
+  t.description,
+  t.status                        AS "status!: TaskStatus",
+  t.parent_workspace_id           AS "parent_workspace_id: Uuid",
+  t.shared_task_id                AS "shared_task_id: Uuid",
+  t.linear_issue_id,
+  t.linear_url,
+  t.created_at                    AS "created_at!: DateTime<Utc>",
+  t.updated_at                    AS "updated_at!: DateTime<Utc>",
+
+  CASE WHEN EXISTS (
+    SELECT 1
+      FROM workspaces w
+      JOIN sessions s ON s.workspace_id = w.id
+      JOIN execution_processes ep ON ep.session_id = s.id
+     WHERE w.task_id       = t.id
+       AND ep.status        = 'running'
+       AND ep.run_reason IN ('setupscript','cleanupscript','codingagent')
+     LIMIT 1
+  ) THEN 1 ELSE 0 END            AS "has_in_progress_attempt!: i64",
+
+  CASE WHEN (
+    SELECT ep.status
+      FROM workspaces w
+      JOIN sessions s ON s.workspace_id = w.id
+      JOIN execution_processes ep ON ep.session_id = s.id
+     WHERE w.task_id       = t.id
+     AND ep.run_reason IN ('setupscript','cleanupscript','codingagent')
+     ORDER BY ep.created_at DESC
+     LIMIT 1
+  ) IN ('failed','killed') THEN 1 ELSE 0 END
+                                 AS "last_attempt_failed!: i64",
+
+  COALESCE(
+    ( SELECT s.executor
+        FROM workspaces w
+        JOIN sessions s ON s.workspace_id = w.id
+        WHERE w.task_id = t.id
+       ORDER BY s.created_at DESC
+        LIMIT 1
+      ), ''
+  )                                 AS "executor!: String",
+
+  ( SELECT m.pr_url
+      FROM workspaces w
+      JOIN merges m ON m.workspace_id = w.id
+     WHERE w.task_id = t.id
+       AND m.merge_type = 'pr'
+       AND m.pr_status = 'open'
+     ORDER BY m.created_at DESC
+     LIMIT 1
+  )                                 AS "pr_url: String"
+
+FROM tasks t
+ORDER BY t.created_at DESC"#
+        )
+        .fetch_all(pool)
+        .await?;
+
+        let tasks = records
+            .into_iter()
+            .map(|rec| TaskWithAttemptStatus {
+                task: Task {
+                    id: rec.id,
+                    project_id: rec.project_id,
+                    title: rec.title,
+                    description: rec.description,
+                    status: rec.status,
+                    parent_workspace_id: rec.parent_workspace_id,
+                    shared_task_id: rec.shared_task_id,
+                    linear_issue_id: rec.linear_issue_id,
+                    linear_url: rec.linear_url,
+                    created_at: rec.created_at,
+                    updated_at: rec.updated_at,
+                },
+                has_in_progress_attempt: rec.has_in_progress_attempt != 0,
+                last_attempt_failed: rec.last_attempt_failed != 0,
+                executor: rec.executor,
+                pr_url: rec.pr_url,
+            })
+            .collect();
+
+        Ok(tasks)
+    }
+
     pub async fn find_by_id(pool: &SqlitePool, id: Uuid) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as!(
             Task,

@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
 	FolderOpen,
+	Layers,
 	Settings,
 	BookOpen,
 	MessageCircleQuestion,
@@ -38,7 +39,10 @@ import { OAuthDialog } from "@/components/dialogs/global/OAuthDialog";
 import { useUserSystem } from "@/components/ConfigProvider";
 import { oauthApi } from "@/lib/api";
 
-const INTERNAL_NAV = [{ label: "Projects", icon: FolderOpen, to: "/projects" }];
+const INTERNAL_NAV = [
+	{ label: "Projects", icon: FolderOpen, to: "/projects" },
+	{ label: "All Tasks", icon: Layers, to: "/projects/all/tasks" },
+];
 
 const EXTERNAL_LINKS = [
 	{

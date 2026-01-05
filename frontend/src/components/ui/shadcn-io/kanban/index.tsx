@@ -75,6 +75,7 @@ export type KanbanCardProps = Pick<Feature, "id" | "name"> & {
 	onKeyDown?: (e: KeyboardEvent) => void;
 	isOpen?: boolean;
 	dragDisabled?: boolean;
+	style?: React.CSSProperties;
 };
 
 export const KanbanCard = ({
@@ -90,6 +91,7 @@ export const KanbanCard = ({
 	onKeyDown,
 	isOpen,
 	dragDisabled = false,
+	style: externalStyle,
 }: KanbanCardProps) => {
 	const { attributes, listeners, setNodeRef, transform, isDragging } =
 		useDraggable({
@@ -128,6 +130,7 @@ export const KanbanCard = ({
 				transform: transform
 					? `translateX(${transform.x}px) translateY(${transform.y}px)`
 					: "none",
+				...externalStyle,
 			}}
 		>
 			{children ?? <p className="m-0 font-medium text-sm">{name}</p>}

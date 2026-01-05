@@ -147,6 +147,94 @@ impl EventService {
         Ok(combined_stream)
     }
 
+    /// Stream all tasks across all projects with initial snapshot.
+    /// Used for the unified "Show All Projects" view.
+    pub async fn stream_all_tasks_raw(
+        &self,
+    ) -> Result<futures::stream::BoxStream<'static, Result<LogMsg, std::io::Error>>, EventError>
+    {
+        fn build_tasks_snapshot(tasks: Vec<TaskWithAttemptStatus>) -> LogMsg {
+            // Convert tasks array to object keyed by task ID
+            let tasks_map: serde_json::Map<String, serde_json::Value> = tasks
+                .into_iter()
+                .map(|task| (task.id.to_string(), serde_json::to_value(task).unwrap()))
+                .collect();
+
+            let patch = json!([
+                {
+                    "op": "replace",
+                    "path": "/tasks",
+                    "value": tasks_map
+                }
+            ]);
+
+            LogMsg::JsonPatch(serde_json::from_value(patch).unwrap())
+        }
+
+        // Get initial snapshot of all tasks
+        let tasks = Task::find_all_with_attempt_status(&self.db.pool).await?;
+        let initial_msg = build_tasks_snapshot(tasks);
+
+        let db_pool = self.db.pool.clone();
+
+        // Get filtered event stream - pass through all task events without project filtering
+        let filtered_stream =
+            BroadcastStream::new(self.msg_store.get_receiver()).filter_map(move |msg_result| {
+                let db_pool = db_pool.clone();
+                async move {
+                    match msg_result {
+                        Ok(LogMsg::JsonPatch(patch)) => {
+                            if let Some(patch_op) = patch.0.first() {
+                                // Pass through all task patches (no project filtering)
+                                if patch_op.path().starts_with("/tasks/") {
+                                    return Some(Ok(LogMsg::JsonPatch(patch)));
+                                }
+                                // Handle legacy EventPatch format
+                                else if let Ok(event_patch_value) = serde_json::to_value(patch_op)
+                                    && let Ok(event_patch) =
+                                        serde_json::from_value::<EventPatch>(event_patch_value)
+                                {
+                                    match &event_patch.value.record {
+                                        RecordTypes::Task(_) | RecordTypes::DeletedTask { .. } => {
+                                            return Some(Ok(LogMsg::JsonPatch(patch)));
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                            }
+                            None
+                        }
+                        Ok(other) => Some(Ok(other)), // Pass through non-patch messages
+                        Err(BroadcastStreamRecvError::Lagged(skipped)) => {
+                            tracing::warn!(
+                                skipped = skipped,
+                                "all tasks stream lagged; resyncing snapshot"
+                            );
+
+                            match Task::find_all_with_attempt_status(&db_pool).await {
+                                Ok(tasks) => Some(Ok(build_tasks_snapshot(tasks))),
+                                Err(err) => {
+                                    tracing::error!(
+                                        error = %err,
+                                        "failed to resync all tasks after lag"
+                                    );
+                                    Some(Err(std::io::Error::other(format!(
+                                        "failed to resync all tasks after lag: {err}"
+                                    ))))
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+        // Start with initial snapshot, then live updates
+        let initial_stream = futures::stream::once(async move { Ok(initial_msg) });
+        let combined_stream = initial_stream.chain(filtered_stream).boxed();
+
+        Ok(combined_stream)
+    }
+
     /// Stream raw project messages with initial snapshot
     pub async fn stream_projects_raw(
         &self,

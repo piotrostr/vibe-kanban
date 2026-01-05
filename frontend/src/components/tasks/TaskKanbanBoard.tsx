@@ -9,10 +9,11 @@ import {
 	KanbanProvider,
 } from "@/components/ui/shadcn-io/kanban";
 import { TaskCard } from "./TaskCard";
-import type { TaskStatus, TaskWithAttemptStatus } from "shared/types";
+import type { Project, TaskStatus, TaskWithAttemptStatus } from "shared/types";
 import { statusBoardColors, statusLabels } from "@/utils/statusLabels";
 import type { SharedTaskRecord } from "@/hooks/useProjectTasks";
 import { SharedTaskCard } from "./SharedTaskCard";
+import { getProjectColor } from "@/utils/projectColors";
 
 export type KanbanColumnItem =
 	| {
@@ -40,6 +41,8 @@ interface TaskKanbanBoardProps {
 	isRefreshingBacklog?: boolean;
 	collapsedColumns?: Set<TaskStatus>;
 	onToggleColumn?: (status: TaskStatus) => void;
+	/** For unified "Show All" view: map of project IDs to project objects */
+	projectsById?: Record<string, Project>;
 }
 
 function TaskKanbanBoard({
@@ -55,6 +58,7 @@ function TaskKanbanBoard({
 	isRefreshingBacklog,
 	collapsedColumns,
 	onToggleColumn,
+	projectsById,
 }: TaskKanbanBoardProps) {
 	const { userId } = useAuth();
 
@@ -100,6 +104,14 @@ function TaskKanbanBoard({
 										item.sharedTask?.assignee_user_id === userId);
 
 								if (isOwnTask) {
+									// Get project info for unified view
+									const taskProjectId = item.task.project_id;
+									const project = projectsById?.[taskProjectId];
+									const projectColor = project
+										? getProjectColor(taskProjectId)
+										: undefined;
+									const projectName = project?.name;
+
 									return (
 										<TaskCard
 											key={item.task.id}
@@ -108,8 +120,10 @@ function TaskKanbanBoard({
 											status={statusKey}
 											onViewDetails={onViewTaskDetails}
 											isOpen={selectedTaskId === item.task.id}
-											projectId={projectId}
+											projectId={projectId || taskProjectId}
 											sharedTask={item.sharedTask}
+											projectColor={projectColor}
+											projectName={projectName}
 										/>
 									);
 								}
