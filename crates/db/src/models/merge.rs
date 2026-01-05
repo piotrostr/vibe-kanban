@@ -394,6 +394,9 @@ impl Merge {
                 pr_status as "pr_status?: MergeStatus",
                 pr_merged_at as "pr_merged_at?: DateTime<Utc>",
                 pr_merge_commit_sha,
+                pr_is_draft as "pr_is_draft?: bool",
+                pr_review_decision as "pr_review_decision?: ReviewDecision",
+                pr_checks_status as "pr_checks_status?: ChecksStatus",
                 created_at as "created_at!: DateTime<Utc>",
                 target_branch_name as "target_branch_name!: String"
             "#,
