@@ -358,7 +358,37 @@ ORDER BY t.created_at DESC"#,
        AND m.pr_status = 'open'
      ORDER BY m.created_at DESC
      LIMIT 1
-  )                                 AS "pr_url: String"
+  )                                 AS "pr_url: String",
+
+  ( SELECT m.pr_is_draft
+      FROM workspaces w
+      JOIN merges m ON m.workspace_id = w.id
+     WHERE w.task_id = t.id
+       AND m.merge_type = 'pr'
+       AND m.pr_status = 'open'
+     ORDER BY m.created_at DESC
+     LIMIT 1
+  )                                 AS "pr_is_draft: bool",
+
+  ( SELECT m.pr_review_decision
+      FROM workspaces w
+      JOIN merges m ON m.workspace_id = w.id
+     WHERE w.task_id = t.id
+       AND m.merge_type = 'pr'
+       AND m.pr_status = 'open'
+     ORDER BY m.created_at DESC
+     LIMIT 1
+  )                                 AS "pr_review_decision: ReviewDecision",
+
+  ( SELECT m.pr_checks_status
+      FROM workspaces w
+      JOIN merges m ON m.workspace_id = w.id
+     WHERE w.task_id = t.id
+       AND m.merge_type = 'pr'
+       AND m.pr_status = 'open'
+     ORDER BY m.created_at DESC
+     LIMIT 1
+  )                                 AS "pr_checks_status: ChecksStatus"
 
 FROM tasks t
 ORDER BY t.created_at DESC"#
@@ -386,6 +416,9 @@ ORDER BY t.created_at DESC"#
                 last_attempt_failed: rec.last_attempt_failed != 0,
                 executor: rec.executor,
                 pr_url: rec.pr_url,
+                pr_is_draft: rec.pr_is_draft,
+                pr_review_decision: rec.pr_review_decision,
+                pr_checks_status: rec.pr_checks_status,
             })
             .collect();
 
