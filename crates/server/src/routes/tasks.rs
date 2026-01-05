@@ -643,6 +643,5 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
 
     // mount under /projects/:project_id/tasks and /tasks
     Router::new()
-        .nest("/tasks", all_tasks_router)
-        .nest("/tasks", inner)
+        .nest("/tasks", inner.merge(all_tasks_router))
 }

@@ -79,9 +79,7 @@ export function AllProjectTasks() {
 		});
 
 		const getTimestamp = (item: KanbanColumnItem) => {
-			const createdAt =
-				item.type === "task" ? item.task.created_at : item.task.created_at;
-			return new Date(createdAt).getTime();
+			return new Date(item.task.created_at as string).getTime();
 		};
 
 		TASK_STATUSES.forEach((status) => {
