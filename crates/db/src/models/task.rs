@@ -365,6 +365,22 @@ ORDER BY t.created_at DESC"#,
         Ok(())
     }
 
+    /// Update the linear_url field for a task (used when syncing from Linear)
+    pub async fn update_linear_url(
+        pool: &SqlitePool,
+        id: Uuid,
+        linear_url: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            "UPDATE tasks SET linear_url = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+            id,
+            linear_url
+        )
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
     /// Update the parent_workspace_id field for a task
     pub async fn update_parent_workspace_id(
         pool: &SqlitePool,

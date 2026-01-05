@@ -614,7 +614,7 @@ pub async fn sync_linear_backlog(
         if let Some(existing) =
             Task::find_by_linear_issue_id(pool, project.id, &issue.id).await?
         {
-            // Update existing task title/description if changed
+            // Update existing task title/description/url if changed
             Task::update(
                 pool,
                 existing.id,
@@ -625,6 +625,8 @@ pub async fn sync_linear_backlog(
                 existing.parent_workspace_id,
             )
             .await?;
+            // Also update the linear_url in case it was missing
+            Task::update_linear_url(pool, existing.id, &issue.url).await?;
             updated += 1;
         } else {
             // Create new task from Linear issue
