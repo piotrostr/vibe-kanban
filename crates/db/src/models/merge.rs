@@ -75,11 +75,25 @@ struct MergeRow {
 }
 
 impl Merge {
+    pub fn id(&self) -> Uuid {
+        match self {
+            Merge::Direct(direct) => direct.id,
+            Merge::Pr(pr) => pr.id,
+        }
+    }
+
     pub fn merge_commit(&self) -> Option<String> {
         match self {
             Merge::Direct(direct) => Some(direct.merge_commit.clone()),
             Merge::Pr(pr) => pr.pr_info.merge_commit_sha.clone(),
         }
+    }
+
+    pub async fn delete(pool: &SqlitePool, id: Uuid) -> Result<(), sqlx::Error> {
+        sqlx::query!("DELETE FROM merges WHERE id = $1", id)
+            .execute(pool)
+            .await?;
+        Ok(())
     }
 
     /// Create a direct merge record

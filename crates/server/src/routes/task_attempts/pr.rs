@@ -67,6 +67,21 @@ pub struct AttachExistingPrRequest {
     pub repo_id: Uuid,
 }
 
+#[derive(Debug, Deserialize, Serialize, TS)]
+pub struct BindPrByNumberRequest {
+    pub repo_id: Uuid,
+    pub pr_number: i64,
+}
+
+#[derive(Debug, Serialize, TS)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[ts(tag = "type", rename_all = "snake_case")]
+pub enum BindPrError {
+    PrNotFound { pr_number: i64 },
+    GithubCliNotInstalled,
+    GithubCliNotLoggedIn,
+}
+
 #[derive(Debug, Serialize, TS)]
 pub struct PrCommentsResponse {
     pub comments: Vec<UnifiedPrComment>,
@@ -512,6 +527,118 @@ pub async fn get_pr_comments(
                 )),
                 GitHubServiceError::AuthFailed(_) => Ok(ResponseJson(
                     ApiResponse::error_with_data(GetPrCommentsError::GithubCliNotLoggedIn),
+                )),
+                _ => Err(ApiError::GitHubService(e)),
+            }
+        }
+    }
+}
+
+pub async fn bind_pr_by_number(
+    Extension(workspace): Extension<Workspace>,
+    State(deployment): State<DeploymentImpl>,
+    Json(request): Json<BindPrByNumberRequest>,
+) -> Result<ResponseJson<ApiResponse<AttachPrResponse, BindPrError>>, ApiError> {
+    let pool = &deployment.db().pool;
+
+    let task = workspace
+        .parent_task(pool)
+        .await?
+        .ok_or(ApiError::Workspace(WorkspaceError::TaskNotFound))?;
+
+    let workspace_repo =
+        WorkspaceRepo::find_by_workspace_and_repo_id(pool, workspace.id, request.repo_id)
+            .await?
+            .ok_or(RepoError::NotFound)?;
+
+    let repo = Repo::find_by_id(pool, workspace_repo.repo_id)
+        .await?
+        .ok_or(RepoError::NotFound)?;
+
+    // Check if PR already attached for this repo - if so, remove it first
+    let existing_merges =
+        Merge::find_by_workspace_and_repo_id(pool, workspace.id, request.repo_id).await?;
+    for merge in existing_merges {
+        Merge::delete(pool, merge.id()).await?;
+    }
+
+    let github_service = GitHubService::new()?;
+    let repo_info = deployment.git().get_github_repo_info(&repo.path)?;
+
+    // Fetch the PR by number using update_pr_status (which calls view_pr)
+    match github_service
+        .update_pr_status(&repo_info, request.pr_number)
+        .await
+    {
+        Ok(pr_info) => {
+            // Save PR info to database
+            let merge = Merge::create_pr(
+                pool,
+                workspace.id,
+                workspace_repo.repo_id,
+                &workspace_repo.target_branch,
+                pr_info.number,
+                &pr_info.url,
+            )
+            .await?;
+
+            // Update status if not open
+            if !matches!(pr_info.status, MergeStatus::Open) {
+                Merge::update_status(
+                    pool,
+                    merge.id,
+                    pr_info.status.clone(),
+                    pr_info.merge_commit_sha.clone(),
+                )
+                .await?;
+            }
+
+            // If PR is merged, mark task as done
+            if matches!(pr_info.status, MergeStatus::Merged) {
+                Task::update_status(pool, task.id, TaskStatus::Done).await?;
+
+                // Try broadcast update to other users in organization
+                if let Ok(publisher) = deployment.share_publisher() {
+                    if let Err(err) = publisher.update_shared_task_by_id(task.id).await {
+                        tracing::warn!(
+                            ?err,
+                            "Failed to propagate shared task update for {}",
+                            task.id
+                        );
+                    }
+                } else {
+                    tracing::debug!(
+                        "Share publisher unavailable; skipping remote update for {}",
+                        task.id
+                    );
+                }
+            }
+
+            Ok(ResponseJson(ApiResponse::success(AttachPrResponse {
+                pr_attached: true,
+                pr_url: Some(pr_info.url),
+                pr_number: Some(pr_info.number),
+                pr_status: Some(pr_info.status),
+            })))
+        }
+        Err(e) => {
+            tracing::error!(
+                "Failed to fetch PR #{} for attempt {}: {}",
+                request.pr_number,
+                workspace.id,
+                e
+            );
+            match &e {
+                GitHubServiceError::GhCliNotInstalled(_) => Ok(ResponseJson(
+                    ApiResponse::error_with_data(BindPrError::GithubCliNotInstalled),
+                )),
+                GitHubServiceError::AuthFailed(_) => Ok(ResponseJson(
+                    ApiResponse::error_with_data(BindPrError::GithubCliNotLoggedIn),
+                )),
+                GitHubServiceError::RepoNotFoundOrNoAccess(_) => Ok(ResponseJson(
+                    ApiResponse::error_with_data(BindPrError::PrNotFound {
+                        pr_number: request.pr_number,
+                    }),
                 )),
                 _ => Err(ApiError::GitHubService(e)),
             }

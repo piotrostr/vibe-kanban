@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM merges WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "049424f5a2372a324a7b2948103e2cd640d6baaaf46a3db79b6263eb4d096c1b"
+}

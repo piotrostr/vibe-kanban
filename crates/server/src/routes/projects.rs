@@ -664,9 +664,7 @@ pub async fn sync_linear_backlog(
     let mut updated = 0;
 
     for issue in &issues {
-        if let Some(existing) =
-            Task::find_by_linear_issue_id(pool, project.id, &issue.id).await?
-        {
+        if let Some(existing) = Task::find_by_linear_issue_id(pool, project.id, &issue.id).await? {
             // Update existing task title/description/url if changed
             Task::update(
                 pool,
@@ -729,10 +727,7 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
             get(get_project_repositories).post(add_project_repository),
         )
         .route("/linear/sync", post(sync_linear_backlog))
-        .route(
-            "/linear/validate-assignee",
-            post(validate_linear_assignee),
-        )
+        .route("/linear/validate-assignee", post(validate_linear_assignee))
         .layer(from_fn_with_state(
             deployment.clone(),
             load_project_middleware,

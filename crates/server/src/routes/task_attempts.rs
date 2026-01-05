@@ -1494,6 +1494,7 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
         .route("/conflicts/abort", post(abort_conflicts_task_attempt))
         .route("/pr", post(pr::create_github_pr))
         .route("/pr/attach", post(pr::attach_existing_pr))
+        .route("/pr/bind", post(pr::bind_pr_by_number))
         .route("/pr/comments", get(pr::get_pr_comments))
         .route("/open-editor", post(open_task_attempt_in_editor))
         .route("/children", get(get_task_attempt_children))

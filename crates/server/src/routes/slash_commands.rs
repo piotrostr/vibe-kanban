@@ -225,7 +225,8 @@ fn discover_commands() -> Vec<SlashCommand> {
                         // Check for skill.md in the skill directory
                         let skill_md = skill_path.join("skill.md");
                         if skill_md.exists() {
-                            if let Some(skill_name) = skill_path.file_name().and_then(|s| s.to_str())
+                            if let Some(skill_name) =
+                                skill_path.file_name().and_then(|s| s.to_str())
                             {
                                 if let Ok(content) = std::fs::read_to_string(&skill_md) {
                                     let frontmatter = parse_frontmatter(&content);

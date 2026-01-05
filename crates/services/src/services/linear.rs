@@ -339,7 +339,10 @@ impl LinearClient {
     }
 
     /// Fetch a single issue by ID with its current state
-    pub async fn fetch_issue(&self, issue_id: &str) -> Result<Option<LinearIssueWithState>, LinearError> {
+    pub async fn fetch_issue(
+        &self,
+        issue_id: &str,
+    ) -> Result<Option<LinearIssueWithState>, LinearError> {
         let query = r#"
             query($id: String!) {
                 issue(id: $id) {
@@ -386,13 +389,7 @@ mod tests {
         }"#;
 
         let response: GraphQLResponse<ViewerData> = serde_json::from_str(json).unwrap();
-        let issues = response
-            .data
-            .unwrap()
-            .viewer
-            .assigned_issues
-            .unwrap()
-            .nodes;
+        let issues = response.data.unwrap().viewer.assigned_issues.unwrap().nodes;
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].id, "abc123");
         assert_eq!(issues[0].title, "Test Issue");
