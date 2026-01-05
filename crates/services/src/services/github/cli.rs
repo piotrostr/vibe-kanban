@@ -10,7 +10,7 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
-use db::models::merge::{MergeStatus, PullRequestInfo};
+use db::models::merge::{ChecksStatus, MergeStatus, PullRequestInfo, ReviewDecision};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
@@ -186,7 +186,7 @@ impl GhCli {
             "--repo",
             &format!("{owner}/{repo}"),
             "--json",
-            "number,url,state,mergedAt,mergeCommit",
+            "number,url,state,mergedAt,mergeCommit,isDraft,reviewDecision,statusCheckRollup",
         ])?;
         Self::parse_pr_view(&raw)
     }
@@ -208,7 +208,7 @@ impl GhCli {
             "--head",
             &format!("{owner}:{branch}"),
             "--json",
-            "number,url,state,mergedAt,mergeCommit",
+            "number,url,state,mergedAt,mergeCommit,isDraft,reviewDecision,statusCheckRollup",
         ])?;
         Self::parse_pr_list(&raw)
     }
@@ -285,6 +285,9 @@ impl GhCli {
             status: MergeStatus::Open,
             merged_at: None,
             merge_commit_sha: None,
+            is_draft: false,
+            review_decision: ReviewDecision::Pending,
+            checks_status: ChecksStatus::Pending,
         })
     }
 
@@ -375,6 +378,25 @@ impl GhCli {
             .and_then(|v| v.get("oid"))
             .and_then(Value::as_str)
             .map(|s| s.to_string());
+
+        let is_draft = value
+            .get("isDraft")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+
+        let review_decision = value
+            .get("reviewDecision")
+            .and_then(Value::as_str)
+            .map(|s| match s.to_ascii_uppercase().as_str() {
+                "APPROVED" => ReviewDecision::Approved,
+                "CHANGES_REQUESTED" => ReviewDecision::ChangesRequested,
+                "REVIEW_REQUIRED" => ReviewDecision::ReviewRequired,
+                _ => ReviewDecision::Pending,
+            })
+            .unwrap_or(ReviewDecision::Pending);
+
+        let checks_status = Self::compute_checks_status(value.get("statusCheckRollup"));
+
         Some(PullRequestInfo {
             number,
             url,
@@ -386,6 +408,47 @@ impl GhCli {
             },
             merged_at,
             merge_commit_sha,
+            is_draft,
+            review_decision,
+            checks_status,
         })
+    }
+
+    fn compute_checks_status(rollup: Option<&Value>) -> ChecksStatus {
+        let Some(arr) = rollup.and_then(Value::as_array) else {
+            return ChecksStatus::Pending;
+        };
+
+        if arr.is_empty() {
+            return ChecksStatus::Pending;
+        }
+
+        let mut has_pending = false;
+
+        for check in arr {
+            let conclusion = check.get("conclusion").and_then(Value::as_str);
+            let status = check.get("status").and_then(Value::as_str);
+
+            match conclusion {
+                Some("FAILURE") | Some("CANCELLED") | Some("TIMED_OUT") | Some("ERROR") => {
+                    return ChecksStatus::Failure;
+                }
+                Some("SUCCESS") | Some("NEUTRAL") | Some("SKIPPED") => {}
+                _ => {
+                    if matches!(
+                        status,
+                        Some("QUEUED") | Some("IN_PROGRESS") | Some("PENDING")
+                    ) {
+                        has_pending = true;
+                    }
+                }
+            }
+        }
+
+        if has_pending {
+            ChecksStatus::Pending
+        } else {
+            ChecksStatus::Success
+        }
     }
 }

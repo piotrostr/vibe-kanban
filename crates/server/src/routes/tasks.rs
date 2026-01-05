@@ -247,6 +247,9 @@ pub async fn create_task_and_start(
         last_attempt_failed: false,
         executor: payload.executor_profile_id.executor.to_string(),
         pr_url: None,
+        pr_is_draft: None,
+        pr_review_decision: None,
+        pr_checks_status: None,
     })))
 }
 
