@@ -128,18 +128,6 @@ pub async fn create_task(
         TaskImage::associate_many_dedup(&deployment.db().pool, task.id, image_ids).await?;
     }
 
-    deployment
-        .track_if_analytics_allowed(
-            "task_created",
-            serde_json::json!({
-            "task_id": task.id.to_string(),
-            "project_id": payload.project_id,
-            "has_description": task.description.is_some(),
-            "has_images": payload.image_ids.is_some(),
-            }),
-        )
-        .await;
-
     Ok(ResponseJson(ApiResponse::success(task)))
 }
 
@@ -168,18 +156,6 @@ pub async fn create_task_and_start(
     if let Some(image_ids) = &payload.task.image_ids {
         TaskImage::associate_many_dedup(pool, task.id, image_ids).await?;
     }
-
-    deployment
-        .track_if_analytics_allowed(
-            "task_created",
-            serde_json::json!({
-                "task_id": task.id.to_string(),
-                "project_id": task.project_id,
-                "has_description": task.description.is_some(),
-                "has_images": payload.task.image_ids.is_some(),
-            }),
-        )
-        .await;
 
     let project = Project::find_by_id(pool, task.project_id)
         .await?
@@ -224,18 +200,6 @@ pub async fn create_task_and_start(
         .await
         .inspect_err(|err| tracing::error!("Failed to start task attempt: {}", err))
         .is_ok();
-    deployment
-        .track_if_analytics_allowed(
-            "task_attempt_started",
-            serde_json::json!({
-                "task_id": task.id.to_string(),
-                "executor": &payload.executor_profile_id.executor,
-                "variant": &payload.executor_profile_id.variant,
-                "workspace_id": workspace.id.to_string(),
-            }),
-        )
-        .await;
-
     let task = Task::find_by_id(pool, task.id)
         .await?
         .ok_or(ApiError::Database(SqlxError::RowNotFound))?;
@@ -417,17 +381,6 @@ pub async fn delete_task(
         );
     }
 
-    deployment
-        .track_if_analytics_allowed(
-            "task_deleted",
-            serde_json::json!({
-                "task_id": task.id.to_string(),
-                "project_id": task.project_id.to_string(),
-                "attempt_count": attempts.len(),
-            }),
-        )
-        .await;
-
     let task_id = task.id;
     let pool = pool.clone();
     tokio::spawn(async move {
@@ -485,14 +438,6 @@ pub async fn share_task(
         .await
         .ok_or(ShareError::MissingAuth)?;
     let shared_task_id = publisher.share_task(task.id, profile.user_id).await?;
-
-    let props = serde_json::json!({
-        "task_id": task.id,
-        "shared_task_id": shared_task_id,
-    });
-    deployment
-        .track_if_analytics_allowed("start_sharing_task", props)
-        .await;
 
     Ok(ResponseJson(ApiResponse::success(ShareTaskResponse {
         shared_task_id,

@@ -5,7 +5,6 @@ use db::DBService;
 use deployment::{Deployment, DeploymentError, RemoteClientNotConfigured};
 use executors::profile::ExecutorConfigs;
 use services::services::{
-    analytics::{AnalyticsConfig, AnalyticsContext, AnalyticsService, generate_user_id},
     approvals::Approvals,
     auth::AuthContext,
     config::{Config, load_config_from_file, save_config_to_file},
@@ -35,12 +34,39 @@ mod command;
 pub mod container;
 mod copy;
 
+/// Generate a stable user ID based on machine identifier and username.
+/// Uses a hash of the machine ID and username to create a consistent identifier.
+fn generate_user_id() -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let mut hasher = DefaultHasher::new();
+
+    // Try to get machine ID (Linux)
+    if let Ok(machine_id) = std::fs::read_to_string("/etc/machine-id")
+        .or_else(|_| std::fs::read_to_string("/var/lib/dbus/machine-id"))
+    {
+        machine_id.trim().hash(&mut hasher);
+    }
+
+    // Add username
+    if let Ok(user) = std::env::var("USER").or_else(|_| std::env::var("USERNAME")) {
+        user.hash(&mut hasher);
+    }
+
+    // Add home directory as fallback identifier
+    if let Ok(home) = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")) {
+        home.hash(&mut hasher);
+    }
+
+    format!("{:016x}", hasher.finish())
+}
+
 #[derive(Clone)]
 pub struct LocalDeployment {
     config: Arc<RwLock<Config>>,
     user_id: String,
     db: DBService,
-    analytics: Option<AnalyticsService>,
     container: LocalContainerService,
     git: GitService,
     project: ProjectService,
@@ -93,7 +119,6 @@ impl Deployment for LocalDeployment {
 
         let config = Arc::new(RwLock::new(raw_config));
         let user_id = generate_user_id();
-        let analytics = AnalyticsConfig::new().map(AnalyticsService::new);
         let git = GitService::new();
         let project = ProjectService::new();
         let repo = RepoService::new();
@@ -166,19 +191,12 @@ impl Deployment for LocalDeployment {
 
         let oauth_handoffs = Arc::new(RwLock::new(HashMap::new()));
 
-        // We need to make analytics accessible to the ContainerService
-        // TODO: Handle this more gracefully
-        let analytics_ctx = analytics.as_ref().map(|s| AnalyticsContext {
-            user_id: user_id.clone(),
-            analytics_service: s.clone(),
-        });
         let container = LocalContainerService::new(
             db.clone(),
             msg_stores.clone(),
             config.clone(),
             git.clone(),
             image.clone(),
-            analytics_ctx,
             approvals.clone(),
             queued_message_service.clone(),
             share_publisher.clone(),
@@ -193,7 +211,6 @@ impl Deployment for LocalDeployment {
             config,
             user_id,
             db,
-            analytics,
             container,
             git,
             project,
@@ -224,10 +241,6 @@ impl Deployment for LocalDeployment {
 
     fn db(&self) -> &DBService {
         &self.db
-    }
-
-    fn analytics(&self) -> &Option<AnalyticsService> {
-        &self.analytics
     }
 
     fn container(&self) -> &impl ContainerService {
