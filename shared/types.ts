@@ -16,7 +16,7 @@ export type Project = { id: string, name: string, dev_script: string | null, dev
 
 export type CreateProject = { name: string, repositories: Array<CreateProjectRepo>, };
 
-export type UpdateProject = { name: string | null, dev_script: string | null, dev_script_working_dir: string | null, default_agent_working_dir: string | null, linear_api_key: string | null, };
+export type UpdateProject = { name: string | null, dev_script: string | null, dev_script_working_dir: string | null, default_agent_working_dir: string | null, linear_api_key: string | null, linear_assignee_id: string | null, };
 
 export type SearchResult = { path: string, is_file: boolean, match_type: SearchMatchType, };
 
@@ -52,7 +52,11 @@ export type TaskRelationships = { parent_task: Task | null, current_workspace: W
 
 export type CreateTask = { project_id: string, title: string, description: string | null, status: TaskStatus | null, parent_workspace_id: string | null, image_ids: Array<string> | null, shared_task_id: string | null, linear_issue_id: string | null, linear_url: string | null, };
 
-export type UpdateTask = { title: string | null, description: string | null, status: TaskStatus | null, parent_workspace_id: string | null, image_ids: Array<string> | null, };
+export type UpdateTask = { title: string | null, description: string | null, status: TaskStatus | null, parent_workspace_id: string | null, image_ids: Array<string> | null, 
+/**
+ * If true, sync the status change to Linear (for tasks with linear_issue_id)
+ */
+sync_to_linear: boolean, };
 
 export type DraftFollowUpData = { message: string, variant: string | null, };
 

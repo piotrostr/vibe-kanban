@@ -756,6 +756,7 @@ impl TaskServer {
             status,
             parent_workspace_id: None,
             image_ids: None,
+            sync_to_linear: false, // MCP doesn't trigger Linear sync
         };
         let url = self.url(&format!("/api/tasks/{}", task_id));
         let updated_task: Task = match self.send_json(self.client.put(&url).json(&payload)).await {

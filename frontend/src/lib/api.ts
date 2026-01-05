@@ -400,6 +400,26 @@ export const projectsApi = {
 			updated_count: number;
 		}>(response);
 	},
+
+	validateLinearAssignee: async (
+		projectId: string,
+		assigneeId: string,
+	): Promise<{
+		valid: boolean;
+		name: string | null;
+	}> => {
+		const response = await makeRequest(
+			`/api/projects/${projectId}/linear/validate-assignee`,
+			{
+				method: "POST",
+				body: JSON.stringify({ assignee_id: assigneeId }),
+			},
+		);
+		return handleApiResponse<{
+			valid: boolean;
+			name: string | null;
+		}>(response);
+	},
 };
 
 // Task Management APIs

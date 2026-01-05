@@ -25,7 +25,8 @@ use executors::profile::ExecutorProfileId;
 use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use services::services::{
-    container::ContainerService, share::ShareError, workspace_manager::WorkspaceManager,
+    container::ContainerService, linear::LinearClient, share::ShareError,
+    workspace_manager::WorkspaceManager,
 };
 use sqlx::Error as SqlxError;
 use ts_rs::TS;
@@ -255,13 +256,13 @@ pub async fn update_task(
     ensure_shared_task_auth(&existing_task, &deployment).await?;
 
     // Use existing values if not provided in update
-    let title = payload.title.unwrap_or(existing_task.title);
+    let title = payload.title.unwrap_or(existing_task.title.clone());
     let description = match payload.description {
         Some(s) if s.trim().is_empty() => None, // Empty string = clear description
         Some(s) => Some(s),                     // Non-empty string = update description
-        None => existing_task.description,      // Field omitted = keep existing
+        None => existing_task.description.clone(), // Field omitted = keep existing
     };
-    let status = payload.status.unwrap_or(existing_task.status);
+    let new_status = payload.status.clone().unwrap_or(existing_task.status.clone());
     let parent_workspace_id = payload
         .parent_workspace_id
         .or(existing_task.parent_workspace_id);
@@ -272,7 +273,7 @@ pub async fn update_task(
         existing_task.project_id,
         title,
         description,
-        status,
+        new_status.clone(),
         parent_workspace_id,
     )
     .await?;
@@ -288,6 +289,41 @@ pub async fn update_task(
             return Err(ShareError::MissingConfig("share publisher unavailable").into());
         };
         publisher.update_shared_task(&task).await?;
+    }
+
+    // If task originated from Linear, status changed, and user confirmed sync
+    if payload.sync_to_linear
+        && task.linear_issue_id.is_some()
+        && payload.status.is_some()
+        && existing_task.status != new_status
+    {
+        if let Some(linear_issue_id) = &task.linear_issue_id {
+            // Get project to access Linear API key
+            if let Ok(Some(project)) =
+                Project::find_by_id(&deployment.db().pool, task.project_id).await
+            {
+                if let Some(api_key) = project.linear_api_key {
+                    let client = LinearClient::new(api_key);
+                    if let Err(e) = client
+                        .sync_task_status_to_linear(linear_issue_id, &new_status)
+                        .await
+                    {
+                        // Log warning but don't fail the local update
+                        tracing::warn!(
+                            "Failed to sync task {} status to Linear: {}",
+                            task.id,
+                            e
+                        );
+                    } else {
+                        tracing::info!(
+                            "Synced task {} status to Linear: {:?}",
+                            task.id,
+                            new_status
+                        );
+                    }
+                }
+            }
+        }
     }
 
     Ok(ResponseJson(ApiResponse::success(task)))
