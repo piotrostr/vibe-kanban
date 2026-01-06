@@ -40,9 +40,11 @@ import {
 	OnboardingDialog,
 	type OnboardingResult,
 } from "@/components/dialogs/global/OnboardingDialog";
+import { FeatureShowcaseDialog } from "@/components/dialogs/global/FeatureShowcaseDialog";
+import { showcases } from "@/config/showcases";
 import { useUserSystem } from "@/components/ConfigProvider";
 import { oauthApi } from "@/lib/api";
-import { HelpCircle } from "lucide-react";
+import { HelpCircle, CircleHelp } from "lucide-react";
 
 const INTERNAL_NAV = [
 	{ label: "Projects", icon: FolderOpen, to: "/projects" },
@@ -146,6 +148,10 @@ export function Navbar() {
 		OnboardingDialog.hide();
 	};
 
+	const handleOpenFeatureShowcase = () => {
+		FeatureShowcaseDialog.show({ config: showcases.taskPanel });
+	};
+
 	const isOAuthLoggedIn = loginStatus?.status === "loggedin";
 
 	return (
@@ -220,6 +226,23 @@ export function Navbar() {
 						) : null}
 
 						<div className="flex items-center gap-1">
+							<TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											variant="ghost"
+											size="icon"
+											className="h-9 w-9"
+											onClick={handleOpenFeatureShowcase}
+											aria-label="Feature guide"
+										>
+											<CircleHelp className="h-4 w-4" />
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent side="bottom">Feature guide</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+
 							<Button
 								variant="ghost"
 								size="icon"
