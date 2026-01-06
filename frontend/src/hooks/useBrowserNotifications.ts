@@ -1,11 +1,12 @@
 import { useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import type { TaskWithAttemptStatus } from "shared/types";
 
 /**
  * Hook to show browser notifications when tasks complete (status changes to 'inreview')
  * - Always shows notifications, even when app is focused
  * - Notifications persist until clicked/dismissed
- * - Clicking navigates to the task
+ * - Clicking focuses existing PWA window and navigates to the task
  */
 export const useBrowserNotifications = (
 	tasks: TaskWithAttemptStatus[],
@@ -13,6 +14,7 @@ export const useBrowserNotifications = (
 ) => {
 	const prevTasksRef = useRef<Map<string, string>>(new Map());
 	const permissionGranted = useRef(false);
+	const navigate = useNavigate();
 
 	// Auto-request notification permission on mount
 	useEffect(() => {
@@ -27,26 +29,39 @@ export const useBrowserNotifications = (
 		}
 	}, []);
 
+	// Listen for notification click messages from service worker
+	useEffect(() => {
+		const handleMessage = (event: MessageEvent) => {
+			if (event.data?.type === "NOTIFICATION_CLICK" && event.data?.url) {
+				navigate(event.data.url);
+			}
+		};
+
+		navigator.serviceWorker?.addEventListener("message", handleMessage);
+		return () => {
+			navigator.serviceWorker?.removeEventListener("message", handleMessage);
+		};
+	}, [navigate]);
+
 	const showNotification = useCallback(
-		(title: string, body: string, taskId: string) => {
+		async (title: string, body: string, taskId: string) => {
 			if (!("Notification" in window)) return;
 			if (Notification.permission !== "granted") return;
 			if (!projectId) return;
 
-			// Always show notification, even when app is focused
-			const notification = new Notification(title, {
-				body,
-				icon: "/vibe.jpeg",
-				tag: `task-complete-${taskId}`,
-				requireInteraction: true, // Persist until clicked/dismissed
-			});
+			const targetUrl = `/projects/${projectId}/tasks/${taskId}/attempts/latest`;
 
-			notification.onclick = () => {
-				window.focus();
-				// Navigate to the task's latest attempt
-				window.location.href = `/projects/${projectId}/tasks/${taskId}/attempts/latest`;
-				notification.close();
-			};
+			// Use service worker to show notification - this allows proper window focusing on click
+			const registration = await navigator.serviceWorker?.ready;
+			if (registration) {
+				await registration.showNotification(title, {
+					body,
+					icon: "/vibe.jpeg",
+					tag: `task-complete-${taskId}`,
+					requireInteraction: true,
+					data: { url: targetUrl },
+				});
+			}
 		},
 		[projectId],
 	);

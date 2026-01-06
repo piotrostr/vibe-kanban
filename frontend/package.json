@@ -97,6 +97,12 @@
 		"tailwindcss": "^3.4.0",
 		"typescript": "^5.9.2",
 		"vite": "^5.0.8",
-		"vite-plugin-pwa": "^1.2.0"
+		"vite-plugin-pwa": "^1.2.0",
+		"workbox-cacheable-response": "^7.4.0",
+		"workbox-core": "^7.4.0",
+		"workbox-expiration": "^7.4.0",
+		"workbox-precaching": "^7.4.0",
+		"workbox-routing": "^7.4.0",
+		"workbox-strategies": "^7.4.0"
 	}
 }
