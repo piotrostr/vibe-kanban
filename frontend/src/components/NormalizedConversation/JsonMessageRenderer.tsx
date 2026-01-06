@@ -341,7 +341,37 @@ function parseJsonLines(content: string): ParsedMessage[] {
 		result.push({ type: "aggregated_text", text: aggregatedText });
 	}
 
-	return result;
+	// Simple deduplication: skip consecutive messages with identical text content
+	const deduplicated: ParsedMessage[] = [];
+	const getTextContent = (msg: ParsedMessage): string | null => {
+		switch (msg.type) {
+			case "aggregated_text":
+				return msg.text.trim();
+			case "assistant_message":
+				return msg.text.trim();
+			case "stop_hook":
+				return msg.text.trim();
+			case "user_message":
+				return msg.text.trim();
+			default:
+				return null;
+		}
+	};
+
+	for (const msg of result) {
+		const lastMsg = deduplicated[deduplicated.length - 1];
+		if (lastMsg) {
+			const currentText = getTextContent(msg);
+			const lastText = getTextContent(lastMsg);
+			// Skip if both have text and it's identical
+			if (currentText && lastText && currentText === lastText) {
+				continue;
+			}
+		}
+		deduplicated.push(msg);
+	}
+
+	return deduplicated;
 }
 
 // Collapsible section for arrays/objects
