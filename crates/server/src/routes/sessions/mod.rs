@@ -95,6 +95,9 @@ pub struct CreateFollowUpAttempt {
     pub retry_process_id: Option<Uuid>,
     pub force_when_dirty: Option<bool>,
     pub perform_git_reset: Option<bool>,
+    /// Optional list of MCP server names to enable for this follow-up
+    #[serde(default)]
+    pub enabled_mcps: Option<Vec<String>>,
 }
 
 pub async fn follow_up(
@@ -200,6 +203,7 @@ pub async fn follow_up(
                 session_id: agent_session_id,
                 executor_profile_id,
                 working_dir,
+                enabled_mcps: None, // Slash commands don't have MCP overrides
             })
         } else {
             // No existing session - start a new one with the slash command
@@ -300,12 +304,15 @@ pub async fn follow_up(
         .filter(|dir| !dir.is_empty())
         .cloned();
 
+    let enabled_mcps = payload.enabled_mcps.clone();
+
     let action_type = if let Some(agent_session_id) = latest_agent_session_id {
         ExecutorActionType::CodingAgentFollowUpRequest(CodingAgentFollowUpRequest {
             prompt: prompt.clone(),
             session_id: agent_session_id,
             executor_profile_id: executor_profile_id.clone(),
             working_dir: working_dir.clone(),
+            enabled_mcps: enabled_mcps.clone(),
         })
     } else {
         ExecutorActionType::CodingAgentInitialRequest(
@@ -313,7 +320,7 @@ pub async fn follow_up(
                 prompt,
                 executor_profile_id: executor_profile_id.clone(),
                 working_dir,
-                enabled_mcps: None,
+                enabled_mcps,
             },
         )
     };

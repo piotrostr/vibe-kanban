@@ -216,7 +216,11 @@ export type CheckAgentAvailabilityQuery = { executor: BaseCodingAgent, };
 
 export type CurrentUserResponse = { user_id: string, };
 
-export type CreateFollowUpAttempt = { prompt: string, variant: string | null, retry_process_id: string | null, force_when_dirty: boolean | null, perform_git_reset: boolean | null, };
+export type CreateFollowUpAttempt = { prompt: string, variant: string | null, retry_process_id: string | null, force_when_dirty: boolean | null, perform_git_reset: boolean | null, 
+/**
+ * Optional list of MCP server names to enable for this follow-up
+ */
+enabled_mcps: Array<string> | null, };
 
 export type ChangeTargetBranchRequest = { repo_id: string, new_target_branch: string, };
 
@@ -495,7 +499,11 @@ executor_profile_id: ExecutorProfileId,
  * Optional relative path to execute the agent in (relative to container_ref).
  * If None, uses the container_ref directory directly.
  */
-working_dir: string | null, };
+working_dir: string | null, 
+/**
+ * List of MCP server keys to enable for this follow-up (e.g., ["linear", "sentry"])
+ */
+enabled_mcps: Array<string> | null, };
 
 export type CommandExitStatus = { "type": "exit_code", code: number, } | { "type": "success", success: boolean, };
 

@@ -808,6 +808,7 @@ impl LocalContainerService {
                 session_id: agent_session_id,
                 executor_profile_id: executor_profile_id.clone(),
                 working_dir: working_dir.clone(),
+                enabled_mcps: None, // Queued messages don't have MCP overrides
             })
         } else {
             ExecutorActionType::CodingAgentInitialRequest(CodingAgentInitialRequest {
