@@ -259,6 +259,7 @@ pub async fn create_task_and_start(
         pr_is_draft: None,
         pr_review_decision: None,
         pr_checks_status: None,
+        pr_has_conflicts: None,
     })))
 }
 

@@ -205,7 +205,7 @@ impl GhCli {
             "--repo",
             &format!("{owner}/{repo}"),
             "--json",
-            "number,url,state,mergedAt,mergeCommit,isDraft,reviewDecision,statusCheckRollup",
+            "number,url,state,mergedAt,mergeCommit,isDraft,reviewDecision,statusCheckRollup,mergeable",
         ])?;
         Self::parse_pr_view(&raw)
     }
@@ -339,6 +339,7 @@ impl GhCli {
             is_draft: false,
             review_decision: ReviewDecision::Pending,
             checks_status: ChecksStatus::Pending,
+            has_conflicts: false,
         })
     }
 
@@ -460,6 +461,13 @@ impl GhCli {
 
         let checks_status = Self::compute_checks_status(value.get("statusCheckRollup"));
 
+        // GitHub returns mergeable as "MERGEABLE", "CONFLICTING", or "UNKNOWN"
+        let has_conflicts = value
+            .get("mergeable")
+            .and_then(Value::as_str)
+            .map(|s| s.to_ascii_uppercase() == "CONFLICTING")
+            .unwrap_or(false);
+
         Some(PullRequestInfo {
             number,
             url,
@@ -474,6 +482,7 @@ impl GhCli {
             is_draft,
             review_decision,
             checks_status,
+            has_conflicts,
         })
     }
 

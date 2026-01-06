@@ -55,6 +55,8 @@ pub struct PullRequestInfo {
     pub review_decision: ReviewDecision,
     #[serde(default)]
     pub checks_status: ChecksStatus,
+    #[serde(default)]
+    pub has_conflicts: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, Type, Default, PartialEq)]
@@ -101,6 +103,7 @@ struct MergeRow {
     pr_is_draft: Option<bool>,
     pr_review_decision: Option<ReviewDecision>,
     pr_checks_status: Option<ChecksStatus>,
+    pr_has_conflicts: Option<bool>,
     created_at: DateTime<Utc>,
 }
 
@@ -159,6 +162,7 @@ impl Merge {
                 pr_is_draft,
                 pr_review_decision as "pr_review_decision?: ReviewDecision",
                 pr_checks_status as "pr_checks_status?: ChecksStatus",
+                pr_has_conflicts,
                 created_at as "created_at!: DateTime<Utc>",
                 target_branch_name as "target_branch_name!: String"
             "#,
@@ -188,8 +192,8 @@ impl Merge {
             MergeRow,
             r#"INSERT INTO merges (
                 id, workspace_id, repo_id, merge_type, pr_number, pr_url, pr_status,
-                pr_is_draft, pr_review_decision, pr_checks_status, created_at, target_branch_name
-            ) VALUES ($1, $2, $3, 'pr', $4, $5, $6, $7, $8, $9, $10, $11)
+                pr_is_draft, pr_review_decision, pr_checks_status, pr_has_conflicts, created_at, target_branch_name
+            ) VALUES ($1, $2, $3, 'pr', $4, $5, $6, $7, $8, $9, $10, $11, $12)
             RETURNING
                 id as "id!: Uuid",
                 workspace_id as "workspace_id!: Uuid",
@@ -204,6 +208,7 @@ impl Merge {
                 pr_is_draft,
                 pr_review_decision as "pr_review_decision?: ReviewDecision",
                 pr_checks_status as "pr_checks_status?: ChecksStatus",
+                pr_has_conflicts,
                 created_at as "created_at!: DateTime<Utc>",
                 target_branch_name as "target_branch_name!: String"
             "#,
@@ -216,6 +221,7 @@ impl Merge {
             pr_info.is_draft,
             pr_info.review_decision,
             pr_info.checks_status,
+            pr_info.has_conflicts,
             now,
             target_branch_name
         )
@@ -242,6 +248,7 @@ impl Merge {
                 pr_is_draft,
                 pr_review_decision as "pr_review_decision?: ReviewDecision",
                 pr_checks_status as "pr_checks_status?: ChecksStatus",
+                pr_has_conflicts,
                 created_at as "created_at!: DateTime<Utc>",
                 target_branch_name as "target_branch_name!: String"
                FROM merges
@@ -273,14 +280,16 @@ impl Merge {
                 pr_merged_at = $3,
                 pr_is_draft = $4,
                 pr_review_decision = $5,
-                pr_checks_status = $6
-            WHERE id = $7"#,
+                pr_checks_status = $6,
+                pr_has_conflicts = $7
+            WHERE id = $8"#,
             pr_info.status,
             pr_info.merge_commit_sha,
             merged_at,
             pr_info.is_draft,
             pr_info.review_decision,
             pr_info.checks_status,
+            pr_info.has_conflicts,
             merge_id
         )
         .execute(pool)
@@ -310,6 +319,7 @@ impl Merge {
                 pr_is_draft,
                 pr_review_decision as "pr_review_decision?: ReviewDecision",
                 pr_checks_status as "pr_checks_status?: ChecksStatus",
+                pr_has_conflicts,
                 target_branch_name as "target_branch_name!: String",
                 created_at as "created_at!: DateTime<Utc>"
             FROM merges
@@ -349,6 +359,7 @@ impl Merge {
                 pr_is_draft,
                 pr_review_decision as "pr_review_decision?: ReviewDecision",
                 pr_checks_status as "pr_checks_status?: ChecksStatus",
+                pr_has_conflicts,
                 target_branch_name as "target_branch_name!: String",
                 created_at as "created_at!: DateTime<Utc>"
             FROM merges
@@ -397,6 +408,7 @@ impl Merge {
                 pr_is_draft as "pr_is_draft?: bool",
                 pr_review_decision as "pr_review_decision?: ReviewDecision",
                 pr_checks_status as "pr_checks_status?: ChecksStatus",
+                pr_has_conflicts,
                 created_at as "created_at!: DateTime<Utc>",
                 target_branch_name as "target_branch_name!: String"
             "#,
@@ -479,6 +491,7 @@ impl From<MergeRow> for PrMerge {
                 is_draft: row.pr_is_draft.unwrap_or(false),
                 review_decision: row.pr_review_decision.unwrap_or_default(),
                 checks_status: row.pr_checks_status.unwrap_or_default(),
+                has_conflicts: row.pr_has_conflicts.unwrap_or(false),
             },
             created_at: row.created_at,
         }

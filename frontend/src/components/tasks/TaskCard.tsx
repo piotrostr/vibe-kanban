@@ -99,6 +99,21 @@ function getReviewBadge(decision: ReviewDecision | null | undefined) {
 	);
 }
 
+function getConflictBadge(hasConflicts: boolean | null | undefined) {
+	if (!hasConflicts) return null;
+
+	return (
+		<span
+			className={cn(
+				"text-[10px] font-medium px-1 py-0.5 rounded",
+				"bg-orange-500/20 text-orange-600 dark:text-orange-400",
+			)}
+		>
+			Conflicts
+		</span>
+	);
+}
+
 type Task = TaskWithAttemptStatus;
 
 interface TaskCardProps {
@@ -250,6 +265,7 @@ export function TaskCard({
 							{task.pr_url && (
 								<div className="flex items-center gap-1">
 									{getPrStatusBadge(task.pr_status) ||
+										getConflictBadge(task.pr_has_conflicts) ||
 										getReviewBadge(task.pr_review_decision)}
 									<Button
 										variant="icon"
@@ -263,7 +279,7 @@ export function TaskCard({
 										}}
 										onPointerDown={(e) => e.stopPropagation()}
 										onMouseDown={(e) => e.stopPropagation()}
-										title={`View Pull Request${task.pr_is_draft ? " (Draft)" : ""}${task.pr_status === "merged" ? " (Merged)" : ""}`}
+										title={`View Pull Request${task.pr_is_draft ? " (Draft)" : ""}${task.pr_status === "merged" ? " (Merged)" : ""}${task.pr_has_conflicts ? " (Has Conflicts)" : ""}`}
 										className="relative"
 									>
 										<GitPullRequest
@@ -271,6 +287,7 @@ export function TaskCard({
 												"h-4 w-4",
 												task.pr_is_draft && "text-muted-foreground",
 												task.pr_status === "merged" && "text-purple-500",
+												task.pr_has_conflicts && "text-orange-500",
 											)}
 										/>
 										{task.pr_status === "open" && (
