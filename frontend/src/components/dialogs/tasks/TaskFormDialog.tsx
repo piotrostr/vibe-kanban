@@ -49,6 +49,7 @@ import type {
 	TaskStatus,
 	ExecutorProfileId,
 	ImageResponse,
+	Project,
 } from "shared/types";
 
 interface Task {
@@ -62,7 +63,8 @@ interface Task {
 }
 
 export type TaskFormDialogProps =
-	| { mode: "create"; projectId: string }
+	| { mode: "create"; projectId: string; projects?: undefined }
+	| { mode: "create"; projectId?: undefined; projects: Project[] }
 	| { mode: "edit"; projectId: string; task: Task }
 	| { mode: "duplicate"; projectId: string; initialTask: Task }
 	| {
@@ -81,15 +83,23 @@ type TaskFormValues = {
 	executorProfileId: ExecutorProfileId | null;
 	repoBranches: RepoBranch[];
 	autoStart: boolean;
+	selectedProjectId: string;
 };
 
 const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
-	const { mode, projectId } = props;
+	const { mode } = props;
+	// Extract projects array if provided (for All Tasks view)
+	const projects =
+		mode === "create" && "projects" in props && Array.isArray(props.projects)
+			? props.projects
+			: undefined;
+	const initialProjectId =
+		props.projectId ?? (projects && projects.length > 0 ? projects[0].id : "");
+	const showProjectSelector = projects !== undefined && projects.length > 0;
+
 	const editMode = mode === "edit";
 	const modal = useModal();
 	const { t } = useTranslation(["tasks", "common"]);
-	const { createTask, createAndStart, updateTask } =
-		useTaskMutations(projectId);
 	const { system, profiles, loading: userSystemLoading } = useUserSystem();
 	const { upload, uploadForTask } = useImageUpload();
 	const { enableScope, disableScope } = useHotkeysContext();
@@ -101,12 +111,22 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 	);
 	const [showDiscardWarning, setShowDiscardWarning] = useState(false);
 	const forceCreateOnlyRef = useRef(false);
+	const [selectedProjectId, setSelectedProjectId] =
+		useState<string>(initialProjectId);
+
+	// Use selectedProjectId for hooks - this allows dynamic project selection
+	const activeProjectId = showProjectSelector
+		? selectedProjectId
+		: initialProjectId;
+
+	const { createTask, createAndStart, updateTask } =
+		useTaskMutations(activeProjectId);
 
 	const { data: taskImages } = useTaskImages(
 		editMode ? props.task.id : undefined,
 	);
-	const { data: projectRepos = [] } = useProjectRepos(projectId, {
-		enabled: modal.visible,
+	const { data: projectRepos = [] } = useProjectRepos(activeProjectId, {
+		enabled: modal.visible && !!activeProjectId,
 	});
 	const initialBranch =
 		mode === "subtask" ? props.initialBaseBranch : undefined;
@@ -136,6 +156,7 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 					executorProfileId: baseProfile,
 					repoBranches: defaultRepoBranches,
 					autoStart: false,
+					selectedProjectId: initialProjectId,
 				};
 
 			case "duplicate":
@@ -146,6 +167,7 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 					executorProfileId: baseProfile,
 					repoBranches: defaultRepoBranches,
 					autoStart: true,
+					selectedProjectId: initialProjectId,
 				};
 
 			case "subtask":
@@ -158,9 +180,16 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 					executorProfileId: baseProfile,
 					repoBranches: defaultRepoBranches,
 					autoStart: true,
+					selectedProjectId: initialProjectId,
 				};
 		}
-	}, [mode, props, system.config?.executor_profile, defaultRepoBranches]);
+	}, [
+		mode,
+		props,
+		system.config?.executor_profile,
+		defaultRepoBranches,
+		initialProjectId,
+	]);
 
 	// Form submission handler
 	const handleSubmit = async ({ value }: { value: TaskFormValues }) => {
@@ -183,7 +212,7 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 			const imageIds =
 				newlyUploadedImageIds.length > 0 ? newlyUploadedImageIds : null;
 			const task = {
-				project_id: projectId,
+				project_id: activeProjectId,
 				title: value.title,
 				description: value.description,
 				status: null,
@@ -425,6 +454,37 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 						</div>
 					)}
 
+					{/* Project selector for All Tasks view */}
+					{showProjectSelector && projects && (
+						<div className="flex-none">
+							<form.Field name="selectedProjectId">
+								{(field) => (
+									<Select
+										value={field.state.value}
+										onValueChange={(value) => {
+											field.handleChange(value);
+											setSelectedProjectId(value);
+										}}
+										disabled={isSubmitting}
+									>
+										<SelectTrigger className="w-full">
+											<SelectValue
+												placeholder={t("taskFormDialog.selectProject")}
+											/>
+										</SelectTrigger>
+										<SelectContent>
+											{projects.map((project) => (
+												<SelectItem key={project.id} value={project.id}>
+													{project.name}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								)}
+							</form.Field>
+						</div>
+					)}
+
 					{/* Title */}
 					<div className="flex-none px-4 py-2 border border-1 border-border">
 						<form.Field name="title">
@@ -451,7 +511,7 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 									value={field.state.value}
 									onChange={(desc) => field.handleChange(desc)}
 									disabled={isSubmitting}
-									projectId={projectId}
+									projectId={activeProjectId}
 									onPasteFiles={onDrop}
 									className="border-none shadow-none px-0 text-md font-normal"
 									onCmdEnter={primaryAction}

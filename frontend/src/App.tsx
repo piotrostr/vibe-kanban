@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { I18nextProvider } from "react-i18next";
 import i18n from "@/i18n";
-import { Projects } from "@/pages/Projects";
 import { ProjectTasks } from "@/pages/ProjectTasks";
 import { AllProjectTasks } from "@/pages/AllProjectTasks";
 import { FullAttemptLogsPage } from "@/pages/FullAttemptLogs";
@@ -95,12 +94,14 @@ function AppContent() {
 								/>
 
 								<Route element={<NormalLayout />}>
-									<Route path="/" element={<Projects />} />
-									<Route path="/projects" element={<Projects />} />
-									<Route path="/projects/:projectId" element={<Projects />} />
+									<Route path="/" element={<AllProjectTasks />} />
+									<Route
+										path="/projects"
+										element={<Navigate to="/settings/projects" replace />}
+									/>
 									<Route
 										path="/projects/all/tasks"
-										element={<AllProjectTasks />}
+										element={<Navigate to="/" replace />}
 									/>
 									<Route
 										path="/projects/:projectId/tasks"
