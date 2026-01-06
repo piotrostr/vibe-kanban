@@ -22,6 +22,7 @@ use executors::{
         script::{ScriptContext, ScriptRequest, ScriptRequestLanguage},
     },
     executors::BaseCodingAgent,
+    mcp_config::McpApiKeys,
     profile::ExecutorProfileId,
 };
 use serde::Deserialize;
@@ -196,6 +197,14 @@ pub async fn follow_up(
         let latest_agent_session_id =
             ExecutionProcess::find_latest_coding_agent_turn_session_id(pool, session.id).await?;
 
+        // Load API keys from user config for slash commands
+        let config = deployment.config().read().await;
+        let mcp_api_keys = McpApiKeys {
+            linear_api_key: config.integrations.linear_api_key.clone(),
+            sentry_auth_token: config.integrations.sentry_auth_token.clone(),
+        };
+        drop(config);
+
         // Send slash command to Claude Code
         let action_type = if let Some(agent_session_id) = latest_agent_session_id {
             ExecutorActionType::CodingAgentFollowUpRequest(CodingAgentFollowUpRequest {
@@ -204,6 +213,7 @@ pub async fn follow_up(
                 executor_profile_id,
                 working_dir,
                 enabled_mcps: None, // Slash commands don't have MCP overrides
+                mcp_api_keys: mcp_api_keys.clone(),
             })
         } else {
             // No existing session - start a new one with the slash command
@@ -213,6 +223,7 @@ pub async fn follow_up(
                     executor_profile_id,
                     working_dir,
                     enabled_mcps: None,
+                    mcp_api_keys,
                 },
             )
         };
@@ -306,6 +317,14 @@ pub async fn follow_up(
 
     let enabled_mcps = payload.enabled_mcps.clone();
 
+    // Load API keys from user config
+    let config = deployment.config().read().await;
+    let mcp_api_keys = McpApiKeys {
+        linear_api_key: config.integrations.linear_api_key.clone(),
+        sentry_auth_token: config.integrations.sentry_auth_token.clone(),
+    };
+    drop(config);
+
     let action_type = if let Some(agent_session_id) = latest_agent_session_id {
         ExecutorActionType::CodingAgentFollowUpRequest(CodingAgentFollowUpRequest {
             prompt: prompt.clone(),
@@ -313,6 +332,7 @@ pub async fn follow_up(
             executor_profile_id: executor_profile_id.clone(),
             working_dir: working_dir.clone(),
             enabled_mcps: enabled_mcps.clone(),
+            mcp_api_keys: mcp_api_keys.clone(),
         })
     } else {
         ExecutorActionType::CodingAgentInitialRequest(
@@ -321,6 +341,7 @@ pub async fn follow_up(
                 executor_profile_id: executor_profile_id.clone(),
                 working_dir,
                 enabled_mcps,
+                mcp_api_keys,
             },
         )
     };

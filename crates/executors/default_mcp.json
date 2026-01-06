@@ -15,12 +15,18 @@
 		"args": ["@playwright/mcp@latest"]
 	},
 	"linear": {
-		"type": "http",
-		"url": "https://mcp.linear.app/sse"
+		"command": "npx",
+		"args": ["-y", "@larryhudson/linear-mcp-server"],
+		"env": {
+			"LINEAR_API_KEY": "${LINEAR_API_KEY}"
+		}
 	},
 	"sentry": {
-		"type": "http",
-		"url": "https://mcp.sentry.dev/mcp"
+		"command": "npx",
+		"args": ["-y", "@sentry/mcp-server@latest"],
+		"env": {
+			"SENTRY_ACCESS_TOKEN": "${SENTRY_ACCESS_TOKEN}"
+		}
 	},
 	"meta": {
 		"vibe_kanban": {

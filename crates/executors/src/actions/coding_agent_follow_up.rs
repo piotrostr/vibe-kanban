@@ -9,7 +9,7 @@ use crate::{
     approvals::ExecutorApprovalService,
     env::ExecutionEnv,
     executors::{BaseCodingAgent, ExecutorError, SpawnedChild, StandardCodingAgentExecutor},
-    mcp_config::ensure_mcps_in_config,
+    mcp_config::{ensure_mcps_in_config, McpApiKeys},
     profile::{ExecutorConfigs, ExecutorProfileId},
 };
 
@@ -28,6 +28,10 @@ pub struct CodingAgentFollowUpRequest {
     /// List of MCP server keys to enable for this follow-up (e.g., ["linear", "sentry"])
     #[serde(default)]
     pub enabled_mcps: Option<Vec<String>>,
+    /// API keys for MCP integrations (not serialized - sensitive data)
+    #[serde(skip)]
+    #[ts(skip)]
+    pub mcp_api_keys: McpApiKeys,
 }
 
 impl CodingAgentFollowUpRequest {
@@ -63,7 +67,7 @@ impl Executable for CodingAgentFollowUpRequest {
 
         // Inject enabled MCPs into agent config before spawning
         if let Some(ref enabled_mcps) = self.enabled_mcps {
-            if let Err(e) = ensure_mcps_in_config(&agent, enabled_mcps).await {
+            if let Err(e) = ensure_mcps_in_config(&agent, enabled_mcps, &self.mcp_api_keys).await {
                 tracing::warn!(
                     error = %e,
                     mcps = ?enabled_mcps,

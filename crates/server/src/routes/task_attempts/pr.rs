@@ -15,9 +15,12 @@ use db::models::{
     workspace_repo::WorkspaceRepo,
 };
 use deployment::Deployment;
-use executors::actions::{
-    ExecutorAction, ExecutorActionType, coding_agent_follow_up::CodingAgentFollowUpRequest,
-    coding_agent_initial::CodingAgentInitialRequest,
+use executors::{
+    actions::{
+        ExecutorAction, ExecutorActionType, coding_agent_follow_up::CodingAgentFollowUpRequest,
+        coding_agent_initial::CodingAgentInitialRequest,
+    },
+    mcp_config::McpApiKeys,
 };
 use git2::BranchType;
 use serde::{Deserialize, Serialize};
@@ -166,6 +169,14 @@ async fn trigger_pr_description_follow_up(
         .filter(|dir| !dir.is_empty())
         .cloned();
 
+    // Load API keys from user config
+    let config = deployment.config().read().await;
+    let mcp_api_keys = McpApiKeys {
+        linear_api_key: config.integrations.linear_api_key.clone(),
+        sentry_auth_token: config.integrations.sentry_auth_token.clone(),
+    };
+    drop(config);
+
     // Build the action type (follow-up if session exists, otherwise initial)
     let action_type = if let Some(agent_session_id) = latest_agent_session_id {
         ExecutorActionType::CodingAgentFollowUpRequest(CodingAgentFollowUpRequest {
@@ -174,6 +185,7 @@ async fn trigger_pr_description_follow_up(
             executor_profile_id: executor_profile_id.clone(),
             working_dir: working_dir.clone(),
             enabled_mcps: None, // PR prompts don't have MCP overrides
+            mcp_api_keys: mcp_api_keys.clone(),
         })
     } else {
         ExecutorActionType::CodingAgentInitialRequest(CodingAgentInitialRequest {
@@ -181,6 +193,7 @@ async fn trigger_pr_description_follow_up(
             executor_profile_id: executor_profile_id.clone(),
             working_dir,
             enabled_mcps: None,
+            mcp_api_keys,
         })
     };
 

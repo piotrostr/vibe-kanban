@@ -23,6 +23,14 @@ pub struct IntegrationsConfig {
     pub linear_mcp_enabled: bool,
     #[serde(default)]
     pub sentry_mcp_enabled: bool,
+    /// Linear API key for MCP integration
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(skip)]
+    pub linear_api_key: Option<String>,
+    /// Sentry auth token for MCP integration
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(skip)]
+    pub sentry_auth_token: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]

@@ -12,7 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Loader2, ExternalLink } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, ExternalLink, Eye, EyeOff } from "lucide-react";
 import { useUserSystem } from "@/components/ConfigProvider";
 
 export function IntegrationsSettings() {
@@ -25,6 +26,8 @@ export function IntegrationsSettings() {
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState(false);
+	const [showLinearKey, setShowLinearKey] = useState(false);
+	const [showSentryToken, setShowSentryToken] = useState(false);
 
 	useEffect(() => {
 		if (config && !draft) {
@@ -34,7 +37,12 @@ export function IntegrationsSettings() {
 
 	useEffect(() => {
 		if (config && draft) {
-			setDirty(!isEqual(config.integrations, draft.integrations));
+			// Compare integrations including API keys (which are not in TS types)
+			const configIntegrations = (config as Record<string, unknown>)
+				.integrations as Record<string, unknown>;
+			const draftIntegrations = (draft as Record<string, unknown>)
+				.integrations as Record<string, unknown>;
+			setDirty(!isEqual(configIntegrations, draftIntegrations));
 		}
 	}, [config, draft]);
 
@@ -144,16 +152,67 @@ export function IntegrationsSettings() {
 							}
 						/>
 					</div>
+					<div className="space-y-2">
+						<Label htmlFor="linear-api-key">
+							{t("settings.integrations.linear.apiKey", "API Key")}
+						</Label>
+						<div className="flex gap-2">
+							<Input
+								id="linear-api-key"
+								type={showLinearKey ? "text" : "password"}
+								placeholder="lin_api_..."
+								value={
+									((
+										(draft as Record<string, unknown>).integrations as Record<
+											string,
+											unknown
+										>
+									)?.linear_api_key as string) ?? ""
+								}
+								onChange={(e) =>
+									setDraft((prev) =>
+										prev
+											? {
+													...prev,
+													integrations: {
+														...prev.integrations,
+														linear_api_key: e.target.value || undefined,
+													},
+												}
+											: prev,
+									)
+								}
+							/>
+							<Button
+								variant="outline"
+								size="icon"
+								onClick={() => setShowLinearKey(!showLinearKey)}
+								type="button"
+							>
+								{showLinearKey ? (
+									<EyeOff className="h-4 w-4" />
+								) : (
+									<Eye className="h-4 w-4" />
+								)}
+							</Button>
+						</div>
+						<p className="text-xs text-muted-foreground">
+							{t(
+								"settings.integrations.linear.apiKeyHelp",
+								"Get your API key from Linear Settings > API",
+							)}
+						</p>
+					</div>
 					<div className="text-sm text-muted-foreground">
 						<a
-							href="https://linear.app/changelog/2025-05-01-mcp"
+							href="https://linear.app/settings/api"
 							target="_blank"
 							rel="noopener noreferrer"
 							className="inline-flex items-center gap-1 text-primary hover:underline"
 						>
 							{t(
-								"settings.integrations.linear.learnMore",
-								"Learn more about Linear MCP",
+								"settings.integrations.linear.getApiKey",
+								"Get Linear API key",
 							)}
 							<ExternalLink className="h-3 w-3" />
 						</a>
@@ -207,16 +266,67 @@ export function IntegrationsSettings() {
 							}
 						/>
 					</div>
+					<div className="space-y-2">
+						<Label htmlFor="sentry-token">
+							{t("settings.integrations.sentry.authToken", "Auth Token")}
+						</Label>
+						<div className="flex gap-2">
+							<Input
+								id="sentry-token"
+								type={showSentryToken ? "text" : "password"}
+								placeholder="sntrys_..."
+								value={
+									((
+										(draft as Record<string, unknown>).integrations as Record<
+											string,
+											unknown
+										>
+									)?.sentry_auth_token as string) ?? ""
+								}
+								onChange={(e) =>
+									setDraft((prev) =>
+										prev
+											? {
+													...prev,
+													integrations: {
+														...prev.integrations,
+														sentry_auth_token: e.target.value || undefined,
+													},
+												}
+											: prev,
+									)
+								}
+							/>
+							<Button
+								variant="outline"
+								size="icon"
+								onClick={() => setShowSentryToken(!showSentryToken)}
+								type="button"
+							>
+								{showSentryToken ? (
+									<EyeOff className="h-4 w-4" />
+								) : (
+									<Eye className="h-4 w-4" />
+								)}
+							</Button>
+						</div>
+						<p className="text-xs text-muted-foreground">
+							{t(
+								"settings.integrations.sentry.authTokenHelp",
+								"Get your auth token from Sentry Settings > Auth Tokens",
+							)}
+						</p>
+					</div>
 					<div className="text-sm text-muted-foreground">
 						<a
-							href="https://docs.sentry.io/product/sentry-mcp/"
+							href="https://sentry.io/settings/account/api/auth-tokens/"
 							target="_blank"
 							rel="noopener noreferrer"
 							className="inline-flex items-center gap-1 text-primary hover:underline"
 						>
 							{t(
-								"settings.integrations.sentry.learnMore",
-								"Learn more about Sentry MCP",
+								"settings.integrations.sentry.getAuthToken",
+								"Get Sentry auth token",
 							)}
 							<ExternalLink className="h-3 w-3" />
 						</a>
@@ -228,8 +338,8 @@ export function IntegrationsSettings() {
 				<CardContent className="pt-6">
 					<p className="text-sm text-muted-foreground">
 						{t(
-							"settings.integrations.oauthNote",
-							"Both Linear and Sentry use OAuth for authentication. When you enable an MCP for a task, you will be prompted to authorize access the first time.",
+							"settings.integrations.apiKeyNote",
+							"API keys are stored locally and used to authenticate with Linear and Sentry MCP servers.",
 						)}
 					</p>
 				</CardContent>

@@ -306,11 +306,49 @@ impl CodingAgent {
     }
 }
 
+/// API keys/tokens for MCP integrations
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct McpApiKeys {
+    pub linear_api_key: Option<String>,
+    pub sentry_auth_token: Option<String>,
+}
+
+/// Substitutes ${VAR_NAME} placeholders in a JSON value with actual values
+fn substitute_env_vars(value: &mut Value, api_keys: &McpApiKeys) {
+    match value {
+        Value::String(s) => {
+            if s.starts_with("${") && s.ends_with("}") {
+                let var_name = &s[2..s.len() - 1];
+                let replacement = match var_name {
+                    "LINEAR_API_KEY" => api_keys.linear_api_key.clone(),
+                    "SENTRY_ACCESS_TOKEN" => api_keys.sentry_auth_token.clone(),
+                    _ => None,
+                };
+                if let Some(val) = replacement {
+                    *s = val;
+                }
+            }
+        }
+        Value::Object(obj) => {
+            for (_, v) in obj.iter_mut() {
+                substitute_env_vars(v, api_keys);
+            }
+        }
+        Value::Array(arr) => {
+            for v in arr.iter_mut() {
+                substitute_env_vars(v, api_keys);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Ensures specific MCP servers from the preconfigured list are present in the agent's config.
 /// This is used to conditionally inject MCPs like Linear/Sentry before a task starts.
 pub async fn ensure_mcps_in_config(
     agent: &CodingAgent,
     mcp_keys: &[String],
+    api_keys: &McpApiKeys,
 ) -> Result<(), ExecutorError> {
     use crate::executors::StandardCodingAgentExecutor;
 
@@ -380,7 +418,10 @@ pub async fn ensure_mcps_in_config(
     for key in mcp_keys {
         if !servers.contains_key(key) {
             if let Some(server_config) = preconfigured_servers.get(key) {
-                servers.insert(key.clone(), server_config.clone());
+                let mut config_with_keys = server_config.clone();
+                // Substitute API key placeholders with actual values
+                substitute_env_vars(&mut config_with_keys, api_keys);
+                servers.insert(key.clone(), config_with_keys);
                 added.push(key.clone());
             }
         }

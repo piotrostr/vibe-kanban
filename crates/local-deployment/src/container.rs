@@ -36,6 +36,7 @@ use executors::{
     env::ExecutionEnv,
     executors::{BaseCodingAgent, ExecutorExitResult, ExecutorExitSignal, InterruptSender},
     logs::{NormalizedEntryType, utils::patch::extract_normalized_entry_from_patch},
+    mcp_config::McpApiKeys,
     profile::ExecutorProfileId,
 };
 use futures::{FutureExt, TryStreamExt, stream::select};
@@ -802,6 +803,14 @@ impl LocalContainerService {
             .filter(|dir| !dir.is_empty())
             .cloned();
 
+        // Load API keys from user config
+        let config = self.config.read().await;
+        let mcp_api_keys = McpApiKeys {
+            linear_api_key: config.integrations.linear_api_key.clone(),
+            sentry_auth_token: config.integrations.sentry_auth_token.clone(),
+        };
+        drop(config);
+
         let action_type = if let Some(agent_session_id) = latest_agent_session_id {
             ExecutorActionType::CodingAgentFollowUpRequest(CodingAgentFollowUpRequest {
                 prompt: queued_data.message.clone(),
@@ -809,6 +818,7 @@ impl LocalContainerService {
                 executor_profile_id: executor_profile_id.clone(),
                 working_dir: working_dir.clone(),
                 enabled_mcps: None, // Queued messages don't have MCP overrides
+                mcp_api_keys: mcp_api_keys.clone(),
             })
         } else {
             ExecutorActionType::CodingAgentInitialRequest(CodingAgentInitialRequest {
@@ -816,6 +826,7 @@ impl LocalContainerService {
                 executor_profile_id: executor_profile_id.clone(),
                 working_dir,
                 enabled_mcps: None, // Queued messages don't have MCP overrides
+                mcp_api_keys,
             })
         };
 
