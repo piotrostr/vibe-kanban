@@ -54,28 +54,15 @@ export default defineConfig({
 		react(),
 		executorSchemasPlugin(),
 		VitePWA({
+			strategies: "injectManifest",
+			srcDir: "src",
+			filename: "sw.ts",
 			registerType: "autoUpdate",
 			includeAssets: ["vibe-192.png", "vibe-512.png", "vibe-apple-touch.png"],
 			manifest: false, // Use existing site.webmanifest
-			workbox: {
+			injectManifest: {
 				maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MiB
 				globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
-				runtimeCaching: [
-					{
-						urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-						handler: "CacheFirst",
-						options: {
-							cacheName: "google-fonts-cache",
-							expiration: {
-								maxEntries: 10,
-								maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
-							},
-							cacheableResponse: {
-								statuses: [0, 200],
-							},
-						},
-					},
-				],
 			},
 			devOptions: {
 				enabled: false,

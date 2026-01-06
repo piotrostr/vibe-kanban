@@ -45,8 +45,8 @@ import { oauthApi } from "@/lib/api";
 import { HelpCircle } from "lucide-react";
 
 const INTERNAL_NAV = [
-	{ label: "Projects", icon: FolderOpen, to: "/projects" },
-	{ label: "All Tasks", icon: Layers, to: "/projects/all/tasks" },
+	{ label: "Projects", icon: FolderOpen, to: "/settings/projects" },
+	{ label: "All Tasks", icon: Layers, to: "/" },
 ];
 
 const EXTERNAL_LINKS = [
@@ -153,7 +153,7 @@ export function Navbar() {
 			<div className="w-full px-3">
 				<div className="flex items-center h-12 py-2">
 					<div className="flex-1 flex items-center">
-						<Link to="/projects" className="flex items-center gap-2">
+						<Link to="/" className="flex items-center gap-2">
 							<Logo />
 							<span className="font-semibold text-lg">Vibe</span>
 						</Link>

@@ -136,12 +136,23 @@ export const useProjectTasks = (projectId: string): UseProjectTasksResult => {
 				new Date(a.created_at as string).getTime(),
 		);
 
-		(Object.values(byStatus) as TaskWithAttemptStatus[][]).forEach((list) => {
-			list.sort(
-				(a, b) =>
+		(Object.keys(byStatus) as TaskStatus[]).forEach((status) => {
+			const list = byStatus[status];
+			list.sort((a, b) => {
+				// For inreview column, sort by PR being open first
+				if (status === "inreview") {
+					const aHasOpenPr = a.pr_status === "open";
+					const bHasOpenPr = b.pr_status === "open";
+					if (aHasOpenPr !== bHasOpenPr) {
+						return aHasOpenPr ? -1 : 1;
+					}
+				}
+				// Then sort by created_at descending
+				return (
 					new Date(b.created_at as string).getTime() -
-					new Date(a.created_at as string).getTime(),
-			);
+					new Date(a.created_at as string).getTime()
+				);
+			});
 		});
 
 		return { tasks: sorted, tasksById: merged, tasksByStatus: byStatus };

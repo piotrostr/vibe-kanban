@@ -876,7 +876,6 @@ export function ProjectTasks() {
 				isTaskView ? (
 					<TaskPanelHeaderActions
 						task={selectedTask}
-						sharedTask={getSharedTask(selectedTask)}
 						onClose={() =>
 							navigate(`/projects/${projectId}/tasks`, { replace: true })
 						}

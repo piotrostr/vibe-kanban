@@ -122,14 +122,16 @@ pub trait ContainerService {
 
     /// A context is finalized when
     /// - Always when the execution process has failed or been killed
-    /// - Never when the run reason is DevServer
+    /// - Never when the run reason is DevServer, QuickCommand, or SlashCommand
     /// - Never when a setup script has no next_action (parallel mode)
     /// - The next action is None (no follow-up actions)
     fn should_finalize(&self, ctx: &ExecutionContext) -> bool {
-        // Never finalize DevServer processes
+        // Never finalize DevServer, QuickCommand, or SlashCommand processes
         if matches!(
             ctx.execution_process.run_reason,
             ExecutionProcessRunReason::DevServer
+                | ExecutionProcessRunReason::QuickCommand
+                | ExecutionProcessRunReason::SlashCommand
         ) {
             return false;
         }

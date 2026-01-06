@@ -25,6 +25,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { useProjects } from "@/hooks/useProjects";
 import { useProjectMutations } from "@/hooks/useProjectMutations";
+import { ProjectFormDialog } from "@/components/dialogs/projects/ProjectFormDialog";
 import { useScriptPlaceholders } from "@/hooks/useScriptPlaceholders";
 import { CopyFilesField } from "@/components/projects/CopyFilesField";
 import { AutoExpandingTextarea } from "@/components/ui/auto-expanding-textarea";
@@ -403,7 +404,7 @@ export function ProjectSettings() {
 					draft.default_agent_working_dir.trim() || null,
 				// Only send linear_api_key if it was modified (not empty)
 				linear_api_key: draft.linear_api_key.trim() || null,
-			linear_assignee_id: null,
+				linear_assignee_id: null,
 			};
 
 			updateProject.mutate({
@@ -472,6 +473,34 @@ export function ProjectSettings() {
 		});
 	};
 
+	const handleCreateProject = async () => {
+		try {
+			await ProjectFormDialog.show({});
+		} catch {
+			// User cancelled
+		}
+	};
+
+	const handleDeleteProject = async () => {
+		if (!selectedProject) return;
+		if (
+			!window.confirm(
+				`Are you sure you want to delete "${selectedProject.name}"? This action cannot be undone.`,
+			)
+		)
+			return;
+
+		try {
+			await projectsApi.delete(selectedProject.id);
+			setSelectedProjectId("");
+			setSelectedProject(null);
+			setDraft(null);
+			setSearchParams({});
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to delete project");
+		}
+	};
+
 	if (projectsLoading) {
 		return (
 			<div className="flex items-center justify-center py-8">
@@ -523,29 +552,44 @@ export function ProjectSettings() {
 						<Label htmlFor="project-selector">
 							{t("settings.projects.selector.label")}
 						</Label>
-						<Select
-							value={selectedProjectId}
-							onValueChange={handleProjectSelect}
-						>
-							<SelectTrigger id="project-selector">
-								<SelectValue
-									placeholder={t("settings.projects.selector.placeholder")}
-								/>
-							</SelectTrigger>
-							<SelectContent>
-								{projects && projects.length > 0 ? (
-									projects.map((project) => (
-										<SelectItem key={project.id} value={project.id}>
-											{project.name}
+						<div className="flex gap-2">
+							<Select
+								value={selectedProjectId}
+								onValueChange={handleProjectSelect}
+							>
+								<SelectTrigger id="project-selector" className="flex-1">
+									<SelectValue
+										placeholder={t("settings.projects.selector.placeholder")}
+									/>
+								</SelectTrigger>
+								<SelectContent>
+									{projects && projects.length > 0 ? (
+										projects.map((project) => (
+											<SelectItem key={project.id} value={project.id}>
+												{project.name}
+											</SelectItem>
+										))
+									) : (
+										<SelectItem value="no-projects" disabled>
+											{t("settings.projects.selector.noProjects")}
 										</SelectItem>
-									))
-								) : (
-									<SelectItem value="no-projects" disabled>
-										{t("settings.projects.selector.noProjects")}
-									</SelectItem>
-								)}
-							</SelectContent>
-						</Select>
+									)}
+								</SelectContent>
+							</Select>
+							<Button variant="outline" onClick={handleCreateProject}>
+								<Plus className="h-4 w-4 mr-2" />
+								New
+							</Button>
+							{selectedProject && (
+								<Button
+									variant="outline"
+									onClick={handleDeleteProject}
+									className="text-destructive hover:text-destructive"
+								>
+									<Trash2 className="h-4 w-4" />
+								</Button>
+							)}
+						</div>
 						<p className="text-sm text-muted-foreground">
 							{t("settings.projects.selector.helper")}
 						</p>
