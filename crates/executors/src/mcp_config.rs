@@ -321,7 +321,8 @@ impl McpApiKeys {
             vars.push(("LINEAR_API_KEY".to_string(), key.clone()));
         }
         if let Some(ref token) = self.sentry_auth_token {
-            vars.push(("SENTRY_AUTH_TOKEN".to_string(), token.clone()));
+            // Sentry MCP server expects SENTRY_ACCESS_TOKEN
+            vars.push(("SENTRY_ACCESS_TOKEN".to_string(), token.clone()));
         }
         vars
     }

@@ -5,53 +5,53 @@ description: Investigate Sentry issues, analyze error traces, and help debug pro
 
 # Sentry Issue Investigation
 
-You have access to the Sentry API via the `SENTRY_AUTH_TOKEN` environment variable. Use curl to interact with the Sentry API.
+You have access to the Sentry API via the `SENTRY_ACCESS_TOKEN` environment variable. Use curl to interact with the Sentry API.
 
 ## Prerequisites
 
-The environment has `SENTRY_AUTH_TOKEN` set. The organization slug is typically available from context or can be discovered.
+The environment has `SENTRY_ACCESS_TOKEN` set. The organization slug is typically available from context or can be discovered.
 
 ## Common Operations
 
 ### List Recent Issues
 
 ```bash
-curl -s -H "Authorization: Bearer $SENTRY_AUTH_TOKEN" \
+curl -s -H "Authorization: Bearer $SENTRY_ACCESS_TOKEN" \
   "https://sentry.io/api/0/projects/{organization_slug}/{project_slug}/issues/?query=is:unresolved&statsPeriod=24h" | jq
 ```
 
 ### Get Issue Details
 
 ```bash
-curl -s -H "Authorization: Bearer $SENTRY_AUTH_TOKEN" \
+curl -s -H "Authorization: Bearer $SENTRY_ACCESS_TOKEN" \
   "https://sentry.io/api/0/issues/{issue_id}/" | jq
 ```
 
 ### Get Latest Events for an Issue
 
 ```bash
-curl -s -H "Authorization: Bearer $SENTRY_AUTH_TOKEN" \
+curl -s -H "Authorization: Bearer $SENTRY_ACCESS_TOKEN" \
   "https://sentry.io/api/0/issues/{issue_id}/events/latest/" | jq
 ```
 
 ### Get Issue Heuristics (Tags, User Impact)
 
 ```bash
-curl -s -H "Authorization: Bearer $SENTRY_AUTH_TOKEN" \
+curl -s -H "Authorization: Bearer $SENTRY_ACCESS_TOKEN" \
   "https://sentry.io/api/0/issues/{issue_id}/tags/" | jq
 ```
 
 ### List Projects in Organization
 
 ```bash
-curl -s -H "Authorization: Bearer $SENTRY_AUTH_TOKEN" \
+curl -s -H "Authorization: Bearer $SENTRY_ACCESS_TOKEN" \
   "https://sentry.io/api/0/organizations/{organization_slug}/projects/" | jq '.[] | {slug, name}'
 ```
 
 ### Search Events with Query
 
 ```bash
-curl -s -H "Authorization: Bearer $SENTRY_AUTH_TOKEN" \
+curl -s -H "Authorization: Bearer $SENTRY_ACCESS_TOKEN" \
   "https://sentry.io/api/0/organizations/{organization_slug}/events/?query=error.type:TypeError&statsPeriod=24h" | jq
 ```
 
