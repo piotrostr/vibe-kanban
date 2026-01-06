@@ -2,8 +2,6 @@ import { useState } from "react";
 import { Button } from "../ui/button";
 import { GitPullRequest, X, Upload, Download, Loader2 } from "lucide-react";
 import type { TaskWithAttemptStatus } from "shared/types";
-import { ActionsDropdown } from "../ui/actions-dropdown";
-import type { SharedTaskRecord } from "@/hooks/useProjectTasks";
 import { LinearIcon } from "../icons/LinearIcon";
 import {
 	Tooltip,
@@ -26,7 +24,6 @@ type Task = TaskWithAttemptStatus;
 
 interface TaskPanelHeaderActionsProps {
 	task: Task;
-	sharedTask?: SharedTaskRecord;
 	onClose: () => void;
 }
 
@@ -41,7 +38,6 @@ const STATUS_LABELS: Record<string, string> = {
 
 export const TaskPanelHeaderActions = ({
 	task,
-	sharedTask,
 	onClose,
 }: TaskPanelHeaderActionsProps) => {
 	const queryClient = useQueryClient();
@@ -220,7 +216,6 @@ export const TaskPanelHeaderActions = ({
 					</Tooltip>
 				</>
 			)}
-			<ActionsDropdown task={task} sharedTask={sharedTask} />
 			<Button variant="icon" aria-label="Close" onClick={onClose}>
 				<X size={16} />
 			</Button>

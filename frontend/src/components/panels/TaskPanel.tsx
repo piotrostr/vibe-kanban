@@ -17,9 +17,11 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 interface TaskPanelProps {
 	task: TaskWithAttemptStatus | null;
+	/** Optional callback when an attempt is clicked. If not provided, navigates to attempt page. */
+	onAttemptClick?: (attemptId: string) => void;
 }
 
-const TaskPanel = ({ task }: TaskPanelProps) => {
+const TaskPanel = ({ task, onAttemptClick }: TaskPanelProps) => {
 	const { t } = useTranslation("tasks");
 	const navigate = useNavigateWithSearch();
 	const { projectId } = useProject();
@@ -179,7 +181,9 @@ const TaskPanel = ({ task }: TaskPanelProps) => {
 								columns={attemptColumns}
 								keyExtractor={(attempt) => attempt.id}
 								onRowClick={(attempt) => {
-									if (projectId) {
+									if (onAttemptClick) {
+										onAttemptClick(attempt.id);
+									} else if (projectId) {
 										navigate(
 											paths.attempt(projectId, attempt.task_id, attempt.id),
 										);
@@ -204,7 +208,9 @@ const TaskPanel = ({ task }: TaskPanelProps) => {
 								columns={attemptColumns}
 								keyExtractor={(attempt) => attempt.id}
 								onRowClick={(attempt) => {
-									if (projectId && task.id) {
+									if (onAttemptClick) {
+										onAttemptClick(attempt.id);
+									} else if (projectId && task.id) {
 										navigate(paths.attempt(projectId, task.id, attempt.id));
 									}
 								}}

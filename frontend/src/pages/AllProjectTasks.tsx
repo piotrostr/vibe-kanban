@@ -1,20 +1,37 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, PanelLeftClose, PanelLeft } from "lucide-react";
+import { Plus, PanelLeftClose, PanelLeft, ChevronLeft } from "lucide-react";
 import { Loader } from "@/components/ui/loader";
-import { tasksApi, projectsApi } from "@/lib/api";
+import { tasksApi, projectsApi, attemptsApi } from "@/lib/api";
 import { openTaskForm } from "@/lib/openTaskForm";
 import { useProjects } from "@/hooks/useProjects";
 import { useAllProjectTasks } from "@/hooks/useAllProjectTasks";
+import { useTaskAttemptWithSession } from "@/hooks/useTaskAttempt";
+import { useBranchStatus, useAttemptExecution } from "@/hooks";
+import { PreviewPanel } from "@/components/panels/PreviewPanel";
+import { DiffsPanel } from "@/components/panels/DiffsPanel";
+import type { RepoBranchStatus, Workspace } from "shared/types";
 import { LinearSyncConfirmDialog } from "@/components/dialogs/tasks/LinearSyncConfirmDialog";
 import TaskPanel from "@/components/panels/TaskPanel";
+import TaskAttemptPanel from "@/components/panels/TaskAttemptPanel";
 import { TaskPanelHeaderActions } from "@/components/panels/TaskPanelHeaderActions";
+import { AttemptHeaderActions } from "@/components/panels/AttemptHeaderActions";
 import { NewCard, NewCardHeader } from "@/components/ui/new-card";
 import { ProjectProvider } from "@/contexts/ProjectContext";
+import {
+	GitOperationsProvider,
+	useGitOperationsError,
+} from "@/contexts/GitOperationsContext";
+import { ClickedElementsProvider } from "@/contexts/ClickedElementsProvider";
+import { ReviewProvider } from "@/contexts/ReviewProvider";
+import { ExecutionProcessesProvider } from "@/contexts/ExecutionProcessesContext";
+import TodoPanel from "@/components/tasks/TodoPanel";
+import { type LayoutMode } from "@/components/layout/TasksLayout";
 
 import TaskKanbanBoard, {
 	type KanbanColumnItem,
@@ -38,9 +55,55 @@ const TASK_STATUSES = [
 ] as const;
 
 const LOCAL_STORAGE_KEY = "allProjectTasks.selectedProjectIds";
+const PANEL_SIZE_KEY = "allProjectTasks.panelSize";
+
+const DEFAULT_KANBAN_SIZE = 65;
+const DEFAULT_PANEL_SIZE = 35;
+const MIN_PANEL_SIZE = 20;
 
 const normalizeStatus = (status: string): TaskStatus =>
 	status.toLowerCase() as TaskStatus;
+
+function GitErrorBanner() {
+	const { error: gitError } = useGitOperationsError();
+
+	if (!gitError) return null;
+
+	return (
+		<div className="mx-4 mt-4 p-3 border border-destructive rounded">
+			<p className="text-sm text-destructive">{gitError}</p>
+		</div>
+	);
+}
+
+function DiffsPanelContainer({
+	attempt,
+	selectedTask,
+	branchStatus,
+}: {
+	attempt: Workspace | null;
+	selectedTask: TaskWithAttemptStatus | null;
+	branchStatus: RepoBranchStatus[] | null;
+}) {
+	const { isAttemptRunning } = useAttemptExecution(attempt?.id);
+
+	return (
+		<DiffsPanel
+			key={attempt?.id}
+			selectedAttempt={attempt}
+			gitOps={
+				attempt && selectedTask
+					? {
+							task: selectedTask,
+							branchStatus: branchStatus ?? null,
+							isAttemptRunning,
+							selectedBranch: branchStatus?.[0]?.target_branch_name ?? null,
+						}
+					: undefined
+			}
+		/>
+	);
+}
 
 /**
  * Unified view showing tasks from all projects in a single kanban board.
@@ -80,10 +143,22 @@ export function AllProjectTasks() {
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 	const [isRefreshingBacklog, setIsRefreshingBacklog] = useState(false);
 	const initializedRef = useRef(false);
+	const [mode, setMode] = useState<LayoutMode>(null);
 
-	// Task selection from URL
+	// Task and attempt selection from URL
 	const selectedTaskId = searchParams.get("taskId");
+	const selectedAttemptId = searchParams.get("attemptId");
 	const selectedTask = selectedTaskId ? tasksById[selectedTaskId] : null;
+
+	// Fetch attempt data when attemptId is present
+	const { data: attempt, isLoading: isAttemptLoading } =
+		useTaskAttemptWithSession(selectedAttemptId || undefined);
+
+	// Fetch branch status for diffs panel
+	const { data: branchStatus } = useBranchStatus(attempt?.id);
+
+	const isTaskView = selectedTask && !selectedAttemptId;
+	const isAttemptView = selectedTask && selectedAttemptId && attempt;
 
 	// Persist selected projects to localStorage
 	useEffect(() => {
@@ -224,13 +299,40 @@ export function AllProjectTasks() {
 	}, [filteredTasks]);
 
 	const handleViewTaskDetails = useCallback(
-		(task: Task) => {
-			setSearchParams({ taskId: task.id });
+		async (task: Task) => {
+			try {
+				const attempts = await attemptsApi.getAll(task.id);
+				if (attempts.length === 1) {
+					// Single attempt - navigate directly to attempt view
+					setSearchParams({ taskId: task.id, attemptId: attempts[0].id });
+				} else {
+					// Multiple or no attempts - show task panel
+					setSearchParams({ taskId: task.id });
+				}
+			} catch {
+				// On error, fall back to task view
+				setSearchParams({ taskId: task.id });
+			}
 		},
 		[setSearchParams],
 	);
 
-	const handleCloseTaskPanel = useCallback(() => {
+	const handleAttemptClick = useCallback(
+		(attemptId: string) => {
+			if (selectedTaskId) {
+				setSearchParams({ taskId: selectedTaskId, attemptId });
+			}
+		},
+		[selectedTaskId, setSearchParams],
+	);
+
+	const handleBackToTask = useCallback(() => {
+		if (selectedTaskId) {
+			setSearchParams({ taskId: selectedTaskId });
+		}
+	}, [selectedTaskId, setSearchParams]);
+
+	const handleClosePanel = useCallback(() => {
 		setSearchParams({});
 	}, [setSearchParams]);
 
@@ -319,25 +421,212 @@ export function AllProjectTasks() {
 			</div>
 		);
 
-	const taskPanelContent = selectedTask ? (
-		<ProjectProvider projectId={selectedTask.project_id}>
+	// Task panel content (no attempt selected)
+	const taskPanelContent =
+		selectedTask && isTaskView ? (
+			<ProjectProvider projectId={selectedTask.project_id}>
+				<NewCard className="h-full min-h-0 flex flex-col border-l rounded-none">
+					<NewCardHeader
+						className="shrink-0"
+						actions={
+							<TaskPanelHeaderActions
+								task={selectedTask}
+								onClose={handleClosePanel}
+							/>
+						}
+					>
+						<div className="truncate font-medium">{selectedTask.title}</div>
+					</NewCardHeader>
+					<TaskPanel task={selectedTask} onAttemptClick={handleAttemptClick} />
+				</NewCard>
+			</ProjectProvider>
+		) : null;
+
+	// Attempt view content - renders both attempt panel and aux content inside providers
+	const attemptViewContent =
+		selectedTask && isAttemptView ? (
+			<ProjectProvider projectId={selectedTask.project_id}>
+				<GitOperationsProvider attemptId={attempt?.id}>
+					<ClickedElementsProvider attempt={attempt}>
+						<ReviewProvider attemptId={attempt?.id}>
+							<ExecutionProcessesProvider attemptId={attempt?.id}>
+								{mode ? (
+									// When mode is set, show attempt | aux split
+									<PanelGroup direction="horizontal" className="h-full">
+										<Panel
+											id="attempt-inner"
+											order={1}
+											defaultSize={40}
+											minSize={MIN_PANEL_SIZE}
+											className="min-w-0 min-h-0 overflow-hidden"
+										>
+											<NewCard className="h-full min-h-0 flex flex-col border-l rounded-none">
+												<NewCardHeader
+													className="shrink-0"
+													actions={
+														<AttemptHeaderActions
+															mode={mode}
+															onModeChange={setMode}
+															task={selectedTask}
+															attempt={attempt ?? null}
+															onClose={handleClosePanel}
+														/>
+													}
+												>
+													<div className="flex items-center gap-2">
+														<Button
+															variant="ghost"
+															size="icon"
+															className="h-6 w-6"
+															onClick={handleBackToTask}
+														>
+															<ChevronLeft className="h-4 w-4" />
+														</Button>
+														<div className="truncate">
+															<span className="font-medium">
+																{attempt?.branch || "Attempt"}
+															</span>
+															<span className="text-muted-foreground ml-2 text-sm">
+																{selectedTask.title}
+															</span>
+														</div>
+													</div>
+												</NewCardHeader>
+												<TaskAttemptPanel attempt={attempt} task={selectedTask}>
+													{({ logs, followUp }) => (
+														<>
+															<GitErrorBanner />
+															<div className="flex-1 min-h-0 flex flex-col">
+																<div className="flex-1 min-h-0 flex flex-col">
+																	{logs}
+																</div>
+																<div className="shrink-0 border-t">
+																	<div className="mx-auto w-full max-w-[50rem]">
+																		<TodoPanel />
+																	</div>
+																</div>
+																<div className="min-h-0 max-h-[50%] border-t overflow-hidden bg-background">
+																	<div className="mx-auto w-full max-w-[50rem] h-full min-h-0">
+																		{followUp}
+																	</div>
+																</div>
+															</div>
+														</>
+													)}
+												</TaskAttemptPanel>
+											</NewCard>
+										</Panel>
+
+										<PanelResizeHandle
+											className={cn(
+												"relative z-30 w-1 bg-border cursor-col-resize group touch-none",
+												"focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+												"hover:bg-primary/20 transition-colors",
+											)}
+										>
+											<div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1 bg-muted/90 border border-border rounded-full px-1.5 py-3 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
+												<span className="w-1 h-1 rounded-full bg-muted-foreground" />
+												<span className="w-1 h-1 rounded-full bg-muted-foreground" />
+												<span className="w-1 h-1 rounded-full bg-muted-foreground" />
+											</div>
+										</PanelResizeHandle>
+
+										<Panel
+											id="aux-inner"
+											order={2}
+											defaultSize={60}
+											minSize={MIN_PANEL_SIZE}
+											className="min-w-0 min-h-0 overflow-hidden"
+										>
+											<div className="h-full w-full">
+												{mode === "preview" && (
+													<PreviewPanel attemptId={attempt?.id} />
+												)}
+												{mode === "diffs" && (
+													<DiffsPanelContainer
+														attempt={attempt ?? null}
+														selectedTask={selectedTask}
+														branchStatus={branchStatus ?? null}
+													/>
+												)}
+											</div>
+										</Panel>
+									</PanelGroup>
+								) : (
+									// No mode - just show attempt panel
+									<NewCard className="h-full min-h-0 flex flex-col border-l rounded-none">
+										<NewCardHeader
+											className="shrink-0"
+											actions={
+												<AttemptHeaderActions
+													mode={mode}
+													onModeChange={setMode}
+													task={selectedTask}
+													attempt={attempt ?? null}
+													onClose={handleClosePanel}
+												/>
+											}
+										>
+											<div className="flex items-center gap-2">
+												<Button
+													variant="ghost"
+													size="icon"
+													className="h-6 w-6"
+													onClick={handleBackToTask}
+												>
+													<ChevronLeft className="h-4 w-4" />
+												</Button>
+												<div className="truncate">
+													<span className="font-medium">
+														{attempt?.branch || "Attempt"}
+													</span>
+													<span className="text-muted-foreground ml-2 text-sm">
+														{selectedTask.title}
+													</span>
+												</div>
+											</div>
+										</NewCardHeader>
+										<TaskAttemptPanel attempt={attempt} task={selectedTask}>
+											{({ logs, followUp }) => (
+												<>
+													<GitErrorBanner />
+													<div className="flex-1 min-h-0 flex flex-col">
+														<div className="flex-1 min-h-0 flex flex-col">
+															{logs}
+														</div>
+														<div className="shrink-0 border-t">
+															<div className="mx-auto w-full max-w-[50rem]">
+																<TodoPanel />
+															</div>
+														</div>
+														<div className="min-h-0 max-h-[50%] border-t overflow-hidden bg-background">
+															<div className="mx-auto w-full max-w-[50rem] h-full min-h-0">
+																{followUp}
+															</div>
+														</div>
+													</div>
+												</>
+											)}
+										</TaskAttemptPanel>
+									</NewCard>
+								)}
+							</ExecutionProcessesProvider>
+						</ReviewProvider>
+					</ClickedElementsProvider>
+				</GitOperationsProvider>
+			</ProjectProvider>
+		) : null;
+
+	const panelContent =
+		attemptViewContent ||
+		taskPanelContent ||
+		(isAttemptLoading && selectedAttemptId ? (
 			<NewCard className="h-full min-h-0 flex flex-col border-l rounded-none">
-				<NewCardHeader
-					className="shrink-0"
-					actions={
-						<TaskPanelHeaderActions
-							task={selectedTask}
-							sharedTask={undefined}
-							onClose={handleCloseTaskPanel}
-						/>
-					}
-				>
-					<div className="truncate font-medium">{selectedTask.title}</div>
-				</NewCardHeader>
-				<TaskPanel task={selectedTask} />
+				<div className="flex items-center justify-center h-full">
+					<Loader message="Loading attempt..." size={24} />
+				</div>
 			</NewCard>
-		</ProjectProvider>
-	) : null;
+		) : null);
 
 	return (
 		<div className="min-h-full h-full flex flex-col">
@@ -422,21 +711,89 @@ export function AllProjectTasks() {
 					)}
 				</div>
 
-				{/* Main content area with optional task panel */}
-				<div className="flex-1 min-h-0 flex">
-					{/* Kanban board */}
-					<div
-						className={cn(
-							"min-h-0 p-4 transition-all duration-200",
-							selectedTask ? "flex-1" : "flex-1",
-						)}
-					>
-						{kanbanContent}
-					</div>
+				{/* Main content area with optional panel */}
+				<div className="flex-1 min-w-0 min-h-0 overflow-hidden">
+					{attemptViewContent && mode ? (
+						// When mode is set, attemptViewContent handles its own layout (attempt | aux)
+						// Hide kanban and show full-width attemptViewContent
+						<div className="h-full">{attemptViewContent}</div>
+					) : panelContent ? (
+						// When no mode, show kanban | details panel
+						<PanelGroup
+							direction="horizontal"
+							className="h-full"
+							onLayout={(sizes) => {
+								if (sizes.length === 2) {
+									try {
+										localStorage.setItem(PANEL_SIZE_KEY, JSON.stringify(sizes));
+									} catch {
+										// Ignore errors
+									}
+								}
+							}}
+						>
+							<Panel
+								id="kanban"
+								order={1}
+								defaultSize={(() => {
+									try {
+										const saved = localStorage.getItem(PANEL_SIZE_KEY);
+										if (saved) {
+											const parsed = JSON.parse(saved);
+											if (Array.isArray(parsed) && parsed.length === 2) {
+												return parsed[0];
+											}
+										}
+									} catch {
+										// Ignore errors
+									}
+									return DEFAULT_KANBAN_SIZE;
+								})()}
+								minSize={MIN_PANEL_SIZE}
+								className="min-w-0 min-h-0 overflow-hidden"
+							>
+								<div className="h-full p-4 overflow-auto">{kanbanContent}</div>
+							</Panel>
 
-					{/* Task panel */}
-					{taskPanelContent && (
-						<div className="w-[500px] min-h-0 shrink-0">{taskPanelContent}</div>
+							<PanelResizeHandle
+								className={cn(
+									"relative z-30 w-1 bg-border cursor-col-resize group touch-none",
+									"focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+									"hover:bg-primary/20 transition-colors",
+								)}
+							>
+								<div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1 bg-muted/90 border border-border rounded-full px-1.5 py-3 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
+									<span className="w-1 h-1 rounded-full bg-muted-foreground" />
+									<span className="w-1 h-1 rounded-full bg-muted-foreground" />
+									<span className="w-1 h-1 rounded-full bg-muted-foreground" />
+								</div>
+							</PanelResizeHandle>
+
+							<Panel
+								id="details"
+								order={2}
+								defaultSize={(() => {
+									try {
+										const saved = localStorage.getItem(PANEL_SIZE_KEY);
+										if (saved) {
+											const parsed = JSON.parse(saved);
+											if (Array.isArray(parsed) && parsed.length === 2) {
+												return parsed[1];
+											}
+										}
+									} catch {
+										// Ignore errors
+									}
+									return DEFAULT_PANEL_SIZE;
+								})()}
+								minSize={MIN_PANEL_SIZE}
+								className="min-w-0 min-h-0 overflow-hidden"
+							>
+								<div className="h-full overflow-auto">{panelContent}</div>
+							</Panel>
+						</PanelGroup>
+					) : (
+						<div className="h-full p-4 overflow-auto">{kanbanContent}</div>
 					)}
 				</div>
 			</div>
