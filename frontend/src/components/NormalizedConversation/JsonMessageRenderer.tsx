@@ -618,21 +618,66 @@ function StopHookCard({ text }: { text: string }) {
 	);
 }
 
-// Tool use card
+// Get a short summary for tool input - Claude Code style
+function getToolSummary(name: string, input?: JsonObject): string {
+	if (!input) return "";
+
+	switch (name) {
+		case "Bash":
+			// Show the command, truncated
+			if (typeof input.command === "string") {
+				const cmd = input.command;
+				return cmd.length > 80 ? cmd.slice(0, 80) + "..." : cmd;
+			}
+			break;
+		case "Read":
+			// Show file path
+			if (typeof input.file_path === "string") {
+				return input.file_path;
+			}
+			break;
+		case "Write":
+		case "Edit":
+			// Show file path
+			if (typeof input.file_path === "string") {
+				return input.file_path;
+			}
+			break;
+		case "Glob":
+			// Show pattern
+			if (typeof input.pattern === "string") {
+				return input.pattern;
+			}
+			break;
+		case "Grep":
+			// Show pattern
+			if (typeof input.pattern === "string") {
+				return input.pattern;
+			}
+			break;
+	}
+	return "";
+}
+
+// Tool use card - Claude Code style: ⏺ ToolName(summary)
 function ToolUseCard({ name, input }: { name: string; input?: JsonObject }) {
 	const [expanded, setExpanded] = useState(false);
+	const summary = getToolSummary(name, input);
 
 	return (
-		<div className="flex gap-2 items-start pl-2">
-			<Terminal className="h-3.5 w-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
-			<div className="flex-1">
+		<div className="flex gap-2 items-start">
+			<span className="text-blue-500 mt-0.5 flex-shrink-0">⏺</span>
+			<div className="flex-1 min-w-0">
 				<button
 					type="button"
 					onClick={() => input && setExpanded(!expanded)}
-					className="text-sm font-medium text-muted-foreground hover:text-foreground"
+					className="text-sm font-mono text-muted-foreground hover:text-foreground text-left"
 				>
-					{name}
-					{input && (
+					<span className="font-medium text-foreground">{name}</span>
+					{summary && (
+						<span className="text-muted-foreground">({summary})</span>
+					)}
+					{input && !summary && (
 						<span className="ml-1">
 							{expanded ? (
 								<ChevronDown className="h-3 w-3 inline" />
@@ -672,17 +717,15 @@ function ToolResultCard({
 			)}
 		>
 			{isLong ? (
-				<>
-					<button
-						type="button"
-						onClick={() => setExpanded(!expanded)}
-						className="text-left hover:bg-muted/20 rounded p-1 -m-1"
-					>
-						<pre className="whitespace-pre-wrap break-all">
-							{expanded ? content : preview}
-						</pre>
-					</button>
-				</>
+				<button
+					type="button"
+					onClick={() => setExpanded(!expanded)}
+					className="text-left hover:bg-muted/20 rounded p-1 -m-1"
+				>
+					<pre className="whitespace-pre-wrap break-all">
+						{expanded ? content : preview}
+					</pre>
+				</button>
 			) : (
 				<pre className="whitespace-pre-wrap break-all">{content}</pre>
 			)}
