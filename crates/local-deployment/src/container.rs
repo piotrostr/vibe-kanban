@@ -1074,6 +1074,13 @@ impl ContainerService for LocalContainerService {
         env.insert("VK_WORKSPACE_ID", workspace.id.to_string());
         env.insert("VK_WORKSPACE_BRANCH", &workspace.branch);
 
+        // Inject API keys into environment for skills (Linear, Sentry, etc.)
+        if let Some(api_keys) = executor_action.mcp_api_keys() {
+            for (key, value) in api_keys.to_env_vars() {
+                env.insert(key, value);
+            }
+        }
+
         // Create the child and stream, add to execution tracker with timeout
         let mut spawned = tokio::time::timeout(
             Duration::from_secs(30),

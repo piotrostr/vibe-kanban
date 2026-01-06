@@ -313,6 +313,20 @@ pub struct McpApiKeys {
     pub sentry_auth_token: Option<String>,
 }
 
+impl McpApiKeys {
+    /// Returns environment variables for the API keys (only non-None values)
+    pub fn to_env_vars(&self) -> Vec<(String, String)> {
+        let mut vars = Vec::new();
+        if let Some(ref key) = self.linear_api_key {
+            vars.push(("LINEAR_API_KEY".to_string(), key.clone()));
+        }
+        if let Some(ref token) = self.sentry_auth_token {
+            vars.push(("SENTRY_AUTH_TOKEN".to_string(), token.clone()));
+        }
+        vars
+    }
+}
+
 /// Substitutes ${VAR_NAME} placeholders in a JSON value with actual values
 fn substitute_env_vars(value: &mut Value, api_keys: &McpApiKeys) {
     match value {
