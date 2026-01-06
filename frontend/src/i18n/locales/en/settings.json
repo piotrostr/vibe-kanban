@@ -9,6 +9,8 @@
 				"projectsDesc": "Project scripts and configuration",
 				"agents": "Agents",
 				"agentsDesc": "Coding agent configurations",
+				"integrations": "Integrations",
+				"integrationsDesc": "Linear, Sentry, and other MCPs",
 				"mcp": "MCP Servers",
 				"mcpDesc": "Model Context Protocol servers",
 				"organizations": "Organization Settings",

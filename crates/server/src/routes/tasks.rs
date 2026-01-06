@@ -180,6 +180,9 @@ pub struct CreateAndStartTaskRequest {
     pub task: CreateTask,
     pub executor_profile_id: ExecutorProfileId,
     pub repos: Vec<WorkspaceRepoInput>,
+    /// List of MCP server keys to enable for this task (e.g., ["linear", "sentry"])
+    #[serde(default)]
+    pub enabled_mcps: Option<Vec<String>>,
 }
 
 pub async fn create_task_and_start(
@@ -240,7 +243,7 @@ pub async fn create_task_and_start(
 
     let is_attempt_running = deployment
         .container()
-        .start_workspace(&workspace, payload.executor_profile_id.clone())
+        .start_workspace(&workspace, payload.executor_profile_id.clone(), payload.enabled_mcps)
         .await
         .inspect_err(|err| tracing::error!("Failed to start task attempt: {}", err))
         .is_ok();

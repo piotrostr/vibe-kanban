@@ -880,6 +880,7 @@ pub trait ContainerService {
         &self,
         workspace: &Workspace,
         executor_profile_id: ExecutorProfileId,
+        enabled_mcps: Option<Vec<String>>,
     ) -> Result<ExecutionProcess, ContainerError> {
         // Create container
         self.create(workspace).await?;
@@ -936,6 +937,7 @@ pub trait ContainerService {
                 prompt,
                 executor_profile_id: executor_profile_id.clone(),
                 working_dir,
+                enabled_mcps,
             }),
             cleanup_action.map(Box::new),
         );

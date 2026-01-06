@@ -6,6 +6,11 @@ import { useDropzone } from "react-dropzone";
 import { useForm, useStore } from "@tanstack/react-form";
 import { Image as ImageIcon } from "lucide-react";
 import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -101,6 +106,14 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 	);
 	const [showDiscardWarning, setShowDiscardWarning] = useState(false);
 	const forceCreateOnlyRef = useRef(false);
+
+	// MCP integration toggles - initialized from user config
+	const [linearEnabled, setLinearEnabled] = useState(
+		() => system.config?.integrations?.linear_mcp_enabled ?? false,
+	);
+	const [sentryEnabled, setSentryEnabled] = useState(
+		() => system.config?.integrations?.sentry_mcp_enabled ?? false,
+	);
 
 	const { data: taskImages } = useTaskImages(
 		editMode ? props.task.id : undefined,
@@ -200,11 +213,17 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 					repo_id: rb.repoId,
 					target_branch: rb.branch,
 				}));
+				// Build enabled MCPs list from toggles
+				const enabledMcps: string[] = [];
+				if (linearEnabled) enabledMcps.push("linear");
+				if (sentryEnabled) enabledMcps.push("sentry");
+
 				await createAndStart.mutateAsync(
 					{
 						task,
 						executor_profile_id: value.executorProfileId!,
 						repos,
+						enabled_mcps: enabledMcps.length > 0 ? enabledMcps : null,
 					},
 					{ onSuccess: () => modal.remove() },
 				);
@@ -618,17 +637,90 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 
 					{/* Actions */}
 					<div className="flex items-center justify-between gap-3">
-						{/* Attach Image*/}
+						{/* Attach Image and MCP Toggles */}
 						<div className="flex items-center gap-2">
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={dropzoneOpen}
-								className="h-9 w-9 p-0 rounded-none"
-								aria-label={t("taskFormDialog.attachImage")}
-							>
-								<ImageIcon className="h-4 w-4" />
-							</Button>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={dropzoneOpen}
+										className="h-9 w-9 p-0 rounded-none"
+										aria-label={t("taskFormDialog.attachImage")}
+									>
+										<ImageIcon className="h-4 w-4" />
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent>
+									{t("taskFormDialog.attachImage")}
+								</TooltipContent>
+							</Tooltip>
+							{!editMode && (
+								<>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												variant={linearEnabled ? "default" : "outline"}
+												size="sm"
+												onClick={() => setLinearEnabled(!linearEnabled)}
+												className={cn(
+													"h-9 px-2 rounded-none text-xs font-medium",
+													linearEnabled &&
+														"bg-[#5E6AD2] hover:bg-[#4E5AC2] text-white",
+												)}
+												aria-label={t(
+													"taskFormDialog.toggleLinear",
+													"Toggle Linear MCP",
+												)}
+											>
+												Linear
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent>
+											{linearEnabled
+												? t(
+														"taskFormDialog.linearEnabled",
+														"Linear MCP enabled",
+													)
+												: t(
+														"taskFormDialog.linearDisabled",
+														"Enable Linear MCP",
+													)}
+										</TooltipContent>
+									</Tooltip>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												variant={sentryEnabled ? "default" : "outline"}
+												size="sm"
+												onClick={() => setSentryEnabled(!sentryEnabled)}
+												className={cn(
+													"h-9 px-2 rounded-none text-xs font-medium",
+													sentryEnabled &&
+														"bg-[#362D59] hover:bg-[#2D2449] text-white",
+												)}
+												aria-label={t(
+													"taskFormDialog.toggleSentry",
+													"Toggle Sentry MCP",
+												)}
+											>
+												Sentry
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent>
+											{sentryEnabled
+												? t(
+														"taskFormDialog.sentryEnabled",
+														"Sentry MCP enabled",
+													)
+												: t(
+														"taskFormDialog.sentryDisabled",
+														"Enable Sentry MCP",
+													)}
+										</TooltipContent>
+									</Tooltip>
+								</>
+							)}
 						</div>
 
 						{/* Autostart switch */}

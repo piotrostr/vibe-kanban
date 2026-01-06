@@ -208,6 +208,7 @@ pub async fn follow_up(
                     prompt: command.to_string(),
                     executor_profile_id,
                     working_dir,
+                    enabled_mcps: None,
                 },
             )
         };
@@ -312,6 +313,7 @@ pub async fn follow_up(
                 prompt,
                 executor_profile_id: executor_profile_id.clone(),
                 working_dir,
+                enabled_mcps: None,
             },
         )
     };

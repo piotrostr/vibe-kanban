@@ -108,6 +108,9 @@ pub struct CreateTaskAttemptBody {
     pub task_id: Uuid,
     pub executor_profile_id: ExecutorProfileId,
     pub repos: Vec<WorkspaceRepoInput>,
+    /// List of MCP server keys to enable for this task (e.g., ["linear", "sentry"])
+    #[serde(default)]
+    pub enabled_mcps: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
@@ -182,7 +185,7 @@ pub async fn create_task_attempt(
     WorkspaceRepo::create_many(pool, workspace.id, &workspace_repos).await?;
     if let Err(err) = deployment
         .container()
-        .start_workspace(&workspace, executor_profile_id.clone())
+        .start_workspace(&workspace, executor_profile_id.clone(), payload.enabled_mcps)
         .await
     {
         tracing::error!("Failed to start task attempt: {}", err);
