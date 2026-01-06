@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                id as \"id!: Uuid\",\n                workspace_id as \"workspace_id!: Uuid\",\n                repo_id as \"repo_id!: Uuid\",\n                merge_type as \"merge_type!: MergeType\",\n                merge_commit,\n                pr_number,\n                pr_url,\n                pr_status as \"pr_status?: MergeStatus\",\n                pr_merged_at as \"pr_merged_at?: DateTime<Utc>\",\n                pr_merge_commit_sha,\n                pr_is_draft,\n                pr_review_decision as \"pr_review_decision?: ReviewDecision\",\n                pr_checks_status as \"pr_checks_status?: ChecksStatus\",\n                target_branch_name as \"target_branch_name!: String\",\n                created_at as \"created_at!: DateTime<Utc>\"\n            FROM merges\n            WHERE workspace_id = $1 AND repo_id = $2\n            ORDER BY created_at DESC",
+  "query": "INSERT INTO merges (\n                id, workspace_id, repo_id, merge_type, pr_number, pr_url, pr_status,\n                pr_is_draft, pr_review_decision, pr_checks_status, pr_has_conflicts, created_at, target_branch_name\n            ) VALUES ($1, $2, $3, 'pr', $4, $5, $6, $7, $8, $9, $10, $11, $12)\n            RETURNING\n                id as \"id!: Uuid\",\n                workspace_id as \"workspace_id!: Uuid\",\n                repo_id as \"repo_id!: Uuid\",\n                merge_type as \"merge_type!: MergeType\",\n                merge_commit,\n                pr_number,\n                pr_url,\n                pr_status as \"pr_status?: MergeStatus\",\n                pr_merged_at as \"pr_merged_at?: DateTime<Utc>\",\n                pr_merge_commit_sha,\n                pr_is_draft,\n                pr_review_decision as \"pr_review_decision?: ReviewDecision\",\n                pr_checks_status as \"pr_checks_status?: ChecksStatus\",\n                pr_has_conflicts,\n                created_at as \"created_at!: DateTime<Utc>\",\n                target_branch_name as \"target_branch_name!: String\"\n            ",
   "describe": {
     "columns": [
       {
@@ -69,18 +69,23 @@
         "type_info": "Text"
       },
       {
-        "name": "target_branch_name!: String",
+        "name": "pr_has_conflicts",
         "ordinal": 13,
-        "type_info": "Text"
+        "type_info": "Bool"
       },
       {
         "name": "created_at!: DateTime<Utc>",
         "ordinal": 14,
         "type_info": "Text"
+      },
+      {
+        "name": "target_branch_name!: String",
+        "ordinal": 15,
+        "type_info": "Text"
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 12
     },
     "nullable": [
       true,
@@ -96,9 +101,10 @@
       true,
       true,
       true,
+      true,
       false,
       false
     ]
   },
-  "hash": "d7965ec62e64e2919b68fe3849491780cfd6b93803abf3c7687d910bf7669a27"
+  "hash": "55e9c2fa4ee86b8e574fcb225e8461375799d30762beeab9f4ade70a37debdfb"
 }

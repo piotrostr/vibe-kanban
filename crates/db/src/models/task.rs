@@ -53,6 +53,7 @@ pub struct TaskWithAttemptStatus {
     pub pr_is_draft: Option<bool>,
     pub pr_review_decision: Option<ReviewDecision>,
     pub pr_checks_status: Option<ChecksStatus>,
+    pub pr_has_conflicts: Option<bool>,
 }
 
 impl std::ops::Deref for TaskWithAttemptStatus {
@@ -265,7 +266,16 @@ impl Task {
        AND m.merge_type = 'pr'
      ORDER BY m.created_at DESC
      LIMIT 1
-  )                                 AS "pr_checks_status: ChecksStatus"
+  )                                 AS "pr_checks_status: ChecksStatus",
+
+  ( SELECT m.pr_has_conflicts
+      FROM workspaces w
+      JOIN merges m ON m.workspace_id = w.id
+     WHERE w.task_id = t.id
+       AND m.merge_type = 'pr'
+     ORDER BY m.created_at DESC
+     LIMIT 1
+  )                                 AS "pr_has_conflicts: bool"
 
 FROM tasks t
 WHERE t.project_id = $1
@@ -299,6 +309,7 @@ ORDER BY t.created_at DESC"#,
                 pr_is_draft: rec.pr_is_draft,
                 pr_review_decision: rec.pr_review_decision,
                 pr_checks_status: rec.pr_checks_status,
+                pr_has_conflicts: rec.pr_has_conflicts,
             })
             .collect();
 
@@ -400,7 +411,16 @@ ORDER BY t.created_at DESC"#,
        AND m.merge_type = 'pr'
      ORDER BY m.created_at DESC
      LIMIT 1
-  )                                 AS "pr_checks_status: ChecksStatus"
+  )                                 AS "pr_checks_status: ChecksStatus",
+
+  ( SELECT m.pr_has_conflicts
+      FROM workspaces w
+      JOIN merges m ON m.workspace_id = w.id
+     WHERE w.task_id = t.id
+       AND m.merge_type = 'pr'
+     ORDER BY m.created_at DESC
+     LIMIT 1
+  )                                 AS "pr_has_conflicts: bool"
 
 FROM tasks t
 ORDER BY t.created_at DESC"#
@@ -432,6 +452,7 @@ ORDER BY t.created_at DESC"#
                 pr_is_draft: rec.pr_is_draft,
                 pr_review_decision: rec.pr_review_decision,
                 pr_checks_status: rec.pr_checks_status,
+                pr_has_conflicts: rec.pr_has_conflicts,
             })
             .collect();
 

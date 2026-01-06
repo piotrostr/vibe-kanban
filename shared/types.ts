@@ -46,7 +46,7 @@ export type TaskStatus = "backlog" | "todo" | "inprogress" | "inreview" | "done"
 
 export type Task = { id: string, project_id: string, title: string, description: string | null, status: TaskStatus, parent_workspace_id: string | null, shared_task_id: string | null, linear_issue_id: string | null, linear_url: string | null, created_at: string, updated_at: string, };
 
-export type TaskWithAttemptStatus = { has_in_progress_attempt: boolean, last_attempt_failed: boolean, executor: string, pr_url: string | null, pr_status: MergeStatus | null, pr_is_draft: boolean | null, pr_review_decision: ReviewDecision | null, pr_checks_status: ChecksStatus | null, id: string, project_id: string, title: string, description: string | null, status: TaskStatus, parent_workspace_id: string | null, shared_task_id: string | null, linear_issue_id: string | null, linear_url: string | null, created_at: string, updated_at: string, };
+export type TaskWithAttemptStatus = { has_in_progress_attempt: boolean, last_attempt_failed: boolean, executor: string, pr_url: string | null, pr_status: MergeStatus | null, pr_is_draft: boolean | null, pr_review_decision: ReviewDecision | null, pr_checks_status: ChecksStatus | null, pr_has_conflicts: boolean | null, id: string, project_id: string, title: string, description: string | null, status: TaskStatus, parent_workspace_id: string | null, shared_task_id: string | null, linear_issue_id: string | null, linear_url: string | null, created_at: string, updated_at: string, };
 
 export type TaskRelationships = { parent_task: Task | null, current_workspace: Workspace, children: Array<Task>, };
 
@@ -100,7 +100,7 @@ export type PrMerge = { id: string, workspace_id: string, repo_id: string, creat
 
 export type MergeStatus = "open" | "merged" | "closed" | "unknown";
 
-export type PullRequestInfo = { number: bigint, url: string, status: MergeStatus, merged_at: string | null, merge_commit_sha: string | null, is_draft: boolean, review_decision: ReviewDecision, checks_status: ChecksStatus, };
+export type PullRequestInfo = { number: bigint, url: string, status: MergeStatus, merged_at: string | null, merge_commit_sha: string | null, is_draft: boolean, review_decision: ReviewDecision, checks_status: ChecksStatus, has_conflicts: boolean, };
 
 export type ReviewDecision = "approved" | "changes_requested" | "review_required" | "pending";
 
