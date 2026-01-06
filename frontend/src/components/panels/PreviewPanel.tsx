@@ -16,13 +16,7 @@ import { PreviewToolbar } from "@/components/tasks/TaskDetails/preview/PreviewTo
 import { NoServerContent } from "@/components/tasks/TaskDetails/preview/NoServerContent";
 import { ReadyContent } from "@/components/tasks/TaskDetails/preview/ReadyContent";
 
-interface PreviewPanelProps {
-	attemptId?: string;
-}
-
-export function PreviewPanel({
-	attemptId: attemptIdProp,
-}: PreviewPanelProps = {}) {
+export function PreviewPanel() {
 	const [iframeError, setIframeError] = useState(false);
 	const [isReady, setIsReady] = useState(false);
 	const [loadingTimeFinished, setLoadingTimeFinished] = useState(false);
@@ -35,10 +29,8 @@ export function PreviewPanel({
 	const { project, projectId } = useProject();
 	const { attemptId: rawAttemptId } = useParams<{ attemptId?: string }>();
 
-	// Use prop if provided, otherwise fall back to route param
 	const attemptId =
-		attemptIdProp ??
-		(rawAttemptId && rawAttemptId !== "latest" ? rawAttemptId : undefined);
+		rawAttemptId && rawAttemptId !== "latest" ? rawAttemptId : undefined;
 	const projectHasDevScript = Boolean(project?.dev_script);
 
 	const {
@@ -65,6 +57,12 @@ export function PreviewPanel({
 	};
 	const handleIframeError = () => {
 		setIframeError(true);
+	};
+
+	const handleIframeLoad = () => {
+		setIsReady(true);
+		setShowLogs(false);
+		setShowHelp(false);
 	};
 
 	const { addElement } = useClickedElements();
@@ -183,6 +181,7 @@ export function PreviewPanel({
 							url={previewState.url}
 							iframeKey={`${previewState.url}-${refreshKey}`}
 							onIframeError={handleIframeError}
+							onIframeLoad={handleIframeLoad}
 						/>
 					</>
 				) : (
