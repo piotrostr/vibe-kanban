@@ -539,9 +539,7 @@ export function AllProjectTasks() {
 											className="min-w-0 min-h-0 overflow-hidden"
 										>
 											<div className="h-full w-full">
-												{mode === "preview" && (
-													<PreviewPanel attemptId={attempt?.id} />
-												)}
+												{mode === "preview" && <PreviewPanel />}
 												{mode === "diffs" && (
 													<DiffsPanelContainer
 														attempt={attempt ?? null}
