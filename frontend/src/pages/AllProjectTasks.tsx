@@ -30,6 +30,7 @@ import {
 import { ClickedElementsProvider } from "@/contexts/ClickedElementsProvider";
 import { ReviewProvider } from "@/contexts/ReviewProvider";
 import { ExecutionProcessesProvider } from "@/contexts/ExecutionProcessesContext";
+import { useSearch } from "@/contexts/SearchContext";
 import TodoPanel from "@/components/tasks/TodoPanel";
 import { type LayoutMode } from "@/components/layout/TasksLayout";
 
@@ -112,6 +113,7 @@ function DiffsPanelContainer({
 export function AllProjectTasks() {
 	const { t } = useTranslation(["tasks", "common"]);
 	const [searchParams, setSearchParams] = useSearchParams();
+	const { query: searchQuery } = useSearch();
 
 	const { projects, projectsById, isLoading: projectsLoading } = useProjects();
 	const {
@@ -263,11 +265,18 @@ export function AllProjectTasks() {
 		}
 	}, [singleSelectedProject, isRefreshingBacklog]);
 
-	// Filter tasks by selected projects
+	// Filter tasks by selected projects and search query
 	const filteredTasks = useMemo(() => {
 		if (selectedProjectIds.size === 0) return [];
-		return tasks.filter((task) => selectedProjectIds.has(task.project_id));
-	}, [tasks, selectedProjectIds]);
+		const lowerQuery = searchQuery.toLowerCase().trim();
+		return tasks.filter((task) => {
+			if (!selectedProjectIds.has(task.project_id)) return false;
+			if (!lowerQuery) return true;
+			const titleMatch = task.title.toLowerCase().includes(lowerQuery);
+			const descMatch = task.description?.toLowerCase().includes(lowerQuery);
+			return titleMatch || descMatch;
+		});
+	}, [tasks, selectedProjectIds, searchQuery]);
 
 	const kanbanColumns = useMemo(() => {
 		const columns: Record<TaskStatus, KanbanColumnItem[]> = {
