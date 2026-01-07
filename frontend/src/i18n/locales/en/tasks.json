@@ -330,7 +330,11 @@
 	"attemptHeaderActions": {
 		"preview": "Preview",
 		"diffs": "Diffs",
-		"relatedTasks": "Related tasks"
+		"relatedTasks": "Related tasks",
+		"viewPlan": "View Plan"
+	},
+	"viewPlanDialog": {
+		"title": "Plan"
 	},
 	"actionsMenu": {
 		"attempt": "Attempt",

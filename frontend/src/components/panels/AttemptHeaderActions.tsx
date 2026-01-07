@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Eye, FileDiff, X } from "lucide-react";
+import { Eye, FileDiff, FileText, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 import {
@@ -13,6 +13,8 @@ import type { TaskWithAttemptStatus } from "shared/types";
 import type { Workspace } from "shared/types";
 import { ActionsDropdown } from "../ui/actions-dropdown";
 import type { SharedTaskRecord } from "@/hooks/useProjectTasks";
+import { usePlanFromEntries } from "@/hooks/usePlanFromEntries";
+import { ViewPlanDialog } from "@/components/dialogs";
 
 interface AttemptHeaderActionsProps {
 	onClose: () => void;
@@ -32,9 +34,31 @@ export const AttemptHeaderActions = ({
 	sharedTask,
 }: AttemptHeaderActionsProps) => {
 	const { t } = useTranslation("tasks");
+	const planMarkdown = usePlanFromEntries();
 
 	return (
 		<>
+			{planMarkdown && (
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="icon"
+								aria-label={t("attemptHeaderActions.viewPlan")}
+								onClick={() => ViewPlanDialog.show({ planMarkdown })}
+							>
+								<FileText className="h-4 w-4" />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent side="bottom">
+							{t("attemptHeaderActions.viewPlan")}
+						</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+			)}
+			{planMarkdown && typeof mode !== "undefined" && onModeChange && (
+				<div className="h-4 w-px bg-border" />
+			)}
 			{typeof mode !== "undefined" && onModeChange && (
 				<TooltipProvider>
 					<ToggleGroup

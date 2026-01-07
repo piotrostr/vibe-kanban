@@ -72,6 +72,10 @@ export {
 	type ViewRelatedTasksDialogProps,
 } from "./tasks/ViewRelatedTasksDialog";
 export {
+	ViewPlanDialog,
+	type ViewPlanDialogProps,
+} from "./tasks/ViewPlanDialog";
+export {
 	GitActionsDialog,
 	type GitActionsDialogProps,
 } from "./tasks/GitActionsDialog";

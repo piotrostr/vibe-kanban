@@ -22,6 +22,7 @@ import { paths } from "@/lib/paths";
 import { ExecutionProcessesProvider } from "@/contexts/ExecutionProcessesContext";
 import { ClickedElementsProvider } from "@/contexts/ClickedElementsProvider";
 import { ReviewProvider } from "@/contexts/ReviewProvider";
+import { EntriesProvider } from "@/contexts/EntriesContext";
 import {
 	GitOperationsProvider,
 	useGitOperationsError,
@@ -1015,23 +1016,25 @@ export function ProjectTasks() {
 	const effectiveMode: LayoutMode = selectedSharedTask ? null : mode;
 
 	const attemptArea = (
-		<GitOperationsProvider attemptId={attempt?.id}>
-			<ClickedElementsProvider attempt={attempt}>
-				<ReviewProvider attemptId={attempt?.id}>
-					<ExecutionProcessesProvider attemptId={attempt?.id}>
-						<TasksLayout
-							kanban={kanbanContent}
-							attempt={attemptContent}
-							aux={auxContent}
-							isPanelOpen={isPanelOpen}
-							mode={effectiveMode}
-							isMobile={isMobile}
-							rightHeader={rightHeader}
-						/>
-					</ExecutionProcessesProvider>
-				</ReviewProvider>
-			</ClickedElementsProvider>
-		</GitOperationsProvider>
+		<EntriesProvider key={attempt?.id}>
+			<GitOperationsProvider attemptId={attempt?.id}>
+				<ClickedElementsProvider attempt={attempt}>
+					<ReviewProvider attemptId={attempt?.id}>
+						<ExecutionProcessesProvider attemptId={attempt?.id}>
+							<TasksLayout
+								kanban={kanbanContent}
+								attempt={attemptContent}
+								aux={auxContent}
+								isPanelOpen={isPanelOpen}
+								mode={effectiveMode}
+								isMobile={isMobile}
+								rightHeader={rightHeader}
+							/>
+						</ExecutionProcessesProvider>
+					</ReviewProvider>
+				</ClickedElementsProvider>
+			</GitOperationsProvider>
+		</EntriesProvider>
 	);
 
 	return (

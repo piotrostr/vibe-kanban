@@ -30,6 +30,7 @@ import {
 import { ClickedElementsProvider } from "@/contexts/ClickedElementsProvider";
 import { ReviewProvider } from "@/contexts/ReviewProvider";
 import { ExecutionProcessesProvider } from "@/contexts/ExecutionProcessesContext";
+import { EntriesProvider } from "@/contexts/EntriesContext";
 import { useSearch } from "@/contexts/SearchContext";
 import TodoPanel from "@/components/tasks/TodoPanel";
 import { type LayoutMode } from "@/components/layout/TasksLayout";
@@ -455,172 +456,177 @@ export function AllProjectTasks() {
 	const attemptViewContent =
 		selectedTask && isAttemptView ? (
 			<ProjectProvider projectId={selectedTask.project_id}>
-				<GitOperationsProvider attemptId={attempt?.id}>
-					<ClickedElementsProvider attempt={attempt}>
-						<ReviewProvider attemptId={attempt?.id}>
-							<ExecutionProcessesProvider attemptId={attempt?.id}>
-								{mode ? (
-									// When mode is set, show attempt | aux split
-									<PanelGroup direction="horizontal" className="h-full">
-										<Panel
-											id="attempt-inner"
-											order={1}
-											defaultSize={40}
-											minSize={MIN_PANEL_SIZE}
-											className="min-w-0 min-h-0 overflow-hidden"
-										>
-											<NewCard className="h-full min-h-0 flex flex-col border-l rounded-none">
-												<NewCardHeader
-													className="shrink-0"
-													actions={
-														<AttemptHeaderActions
-															mode={mode}
-															onModeChange={setMode}
-															task={selectedTask}
-															attempt={attempt ?? null}
-															onClose={handleClosePanel}
-														/>
-													}
-												>
-													<div className="flex items-center gap-2">
-														<Button
-															variant="ghost"
-															size="icon"
-															className="h-6 w-6"
-															onClick={handleBackToTask}
-														>
-															<ChevronLeft className="h-4 w-4" />
-														</Button>
-														<div className="truncate">
-															<span className="font-medium">
-																{attempt?.branch || "Attempt"}
-															</span>
-															<span className="text-muted-foreground ml-2 text-sm">
-																{selectedTask.title}
-															</span>
+				<EntriesProvider key={attempt?.id}>
+					<GitOperationsProvider attemptId={attempt?.id}>
+						<ClickedElementsProvider attempt={attempt}>
+							<ReviewProvider attemptId={attempt?.id}>
+								<ExecutionProcessesProvider attemptId={attempt?.id}>
+									{mode ? (
+										// When mode is set, show attempt | aux split
+										<PanelGroup direction="horizontal" className="h-full">
+											<Panel
+												id="attempt-inner"
+												order={1}
+												defaultSize={40}
+												minSize={MIN_PANEL_SIZE}
+												className="min-w-0 min-h-0 overflow-hidden"
+											>
+												<NewCard className="h-full min-h-0 flex flex-col border-l rounded-none">
+													<NewCardHeader
+														className="shrink-0"
+														actions={
+															<AttemptHeaderActions
+																mode={mode}
+																onModeChange={setMode}
+																task={selectedTask}
+																attempt={attempt ?? null}
+																onClose={handleClosePanel}
+															/>
+														}
+													>
+														<div className="flex items-center gap-2">
+															<Button
+																variant="ghost"
+																size="icon"
+																className="h-6 w-6"
+																onClick={handleBackToTask}
+															>
+																<ChevronLeft className="h-4 w-4" />
+															</Button>
+															<div className="truncate">
+																<span className="font-medium">
+																	{attempt?.branch || "Attempt"}
+																</span>
+																<span className="text-muted-foreground ml-2 text-sm">
+																	{selectedTask.title}
+																</span>
+															</div>
 														</div>
-													</div>
-												</NewCardHeader>
-												<TaskAttemptPanel attempt={attempt} task={selectedTask}>
-													{({ logs, followUp }) => (
-														<>
-															<GitErrorBanner />
-															<div className="flex-1 min-h-0 flex flex-col">
+													</NewCardHeader>
+													<TaskAttemptPanel
+														attempt={attempt}
+														task={selectedTask}
+													>
+														{({ logs, followUp }) => (
+															<>
+																<GitErrorBanner />
 																<div className="flex-1 min-h-0 flex flex-col">
-																	{logs}
-																</div>
-																<div className="shrink-0 border-t">
-																	<div className="mx-auto w-full max-w-[50rem]">
-																		<TodoPanel />
+																	<div className="flex-1 min-h-0 flex flex-col">
+																		{logs}
+																	</div>
+																	<div className="shrink-0 border-t">
+																		<div className="mx-auto w-full max-w-[50rem]">
+																			<TodoPanel />
+																		</div>
+																	</div>
+																	<div className="min-h-0 max-h-[50%] border-t overflow-hidden bg-background">
+																		<div className="mx-auto w-full max-w-[50rem] h-full min-h-0">
+																			{followUp}
+																		</div>
 																	</div>
 																</div>
-																<div className="min-h-0 max-h-[50%] border-t overflow-hidden bg-background">
-																	<div className="mx-auto w-full max-w-[50rem] h-full min-h-0">
-																		{followUp}
-																	</div>
-																</div>
-															</div>
-														</>
-													)}
-												</TaskAttemptPanel>
-											</NewCard>
-										</Panel>
+															</>
+														)}
+													</TaskAttemptPanel>
+												</NewCard>
+											</Panel>
 
-										<PanelResizeHandle
-											className={cn(
-												"relative z-30 w-1 bg-border cursor-col-resize group touch-none",
-												"focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-												"hover:bg-primary/20 transition-colors",
-											)}
-										>
-											<div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1 bg-muted/90 border border-border rounded-full px-1.5 py-3 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
-												<span className="w-1 h-1 rounded-full bg-muted-foreground" />
-												<span className="w-1 h-1 rounded-full bg-muted-foreground" />
-												<span className="w-1 h-1 rounded-full bg-muted-foreground" />
-											</div>
-										</PanelResizeHandle>
-
-										<Panel
-											id="aux-inner"
-											order={2}
-											defaultSize={60}
-											minSize={MIN_PANEL_SIZE}
-											className="min-w-0 min-h-0 overflow-hidden"
-										>
-											<div className="h-full w-full">
-												{mode === "preview" && <PreviewPanel />}
-												{mode === "diffs" && (
-													<DiffsPanelContainer
-														attempt={attempt ?? null}
-														selectedTask={selectedTask}
-														branchStatus={branchStatus ?? null}
-													/>
+											<PanelResizeHandle
+												className={cn(
+													"relative z-30 w-1 bg-border cursor-col-resize group touch-none",
+													"focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+													"hover:bg-primary/20 transition-colors",
 												)}
-											</div>
-										</Panel>
-									</PanelGroup>
-								) : (
-									// No mode - just show attempt panel
-									<NewCard className="h-full min-h-0 flex flex-col border-l rounded-none">
-										<NewCardHeader
-											className="shrink-0"
-											actions={
-												<AttemptHeaderActions
-													mode={mode}
-													onModeChange={setMode}
-													task={selectedTask}
-													attempt={attempt ?? null}
-													onClose={handleClosePanel}
-												/>
-											}
-										>
-											<div className="flex items-center gap-2">
-												<Button
-													variant="ghost"
-													size="icon"
-													className="h-6 w-6"
-													onClick={handleBackToTask}
-												>
-													<ChevronLeft className="h-4 w-4" />
-												</Button>
-												<div className="truncate">
-													<span className="font-medium">
-														{attempt?.branch || "Attempt"}
-													</span>
-													<span className="text-muted-foreground ml-2 text-sm">
-														{selectedTask.title}
-													</span>
+											>
+												<div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1 bg-muted/90 border border-border rounded-full px-1.5 py-3 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
+													<span className="w-1 h-1 rounded-full bg-muted-foreground" />
+													<span className="w-1 h-1 rounded-full bg-muted-foreground" />
+													<span className="w-1 h-1 rounded-full bg-muted-foreground" />
 												</div>
-											</div>
-										</NewCardHeader>
-										<TaskAttemptPanel attempt={attempt} task={selectedTask}>
-											{({ logs, followUp }) => (
-												<>
-													<GitErrorBanner />
-													<div className="flex-1 min-h-0 flex flex-col">
-														<div className="flex-1 min-h-0 flex flex-col">
-															{logs}
-														</div>
-														<div className="shrink-0 border-t">
-															<div className="mx-auto w-full max-w-[50rem]">
-																<TodoPanel />
-															</div>
-														</div>
-														<div className="min-h-0 max-h-[50%] border-t overflow-hidden bg-background">
-															<div className="mx-auto w-full max-w-[50rem] h-full min-h-0">
-																{followUp}
-															</div>
-														</div>
+											</PanelResizeHandle>
+
+											<Panel
+												id="aux-inner"
+												order={2}
+												defaultSize={60}
+												minSize={MIN_PANEL_SIZE}
+												className="min-w-0 min-h-0 overflow-hidden"
+											>
+												<div className="h-full w-full">
+													{mode === "preview" && <PreviewPanel />}
+													{mode === "diffs" && (
+														<DiffsPanelContainer
+															attempt={attempt ?? null}
+															selectedTask={selectedTask}
+															branchStatus={branchStatus ?? null}
+														/>
+													)}
+												</div>
+											</Panel>
+										</PanelGroup>
+									) : (
+										// No mode - just show attempt panel
+										<NewCard className="h-full min-h-0 flex flex-col border-l rounded-none">
+											<NewCardHeader
+												className="shrink-0"
+												actions={
+													<AttemptHeaderActions
+														mode={mode}
+														onModeChange={setMode}
+														task={selectedTask}
+														attempt={attempt ?? null}
+														onClose={handleClosePanel}
+													/>
+												}
+											>
+												<div className="flex items-center gap-2">
+													<Button
+														variant="ghost"
+														size="icon"
+														className="h-6 w-6"
+														onClick={handleBackToTask}
+													>
+														<ChevronLeft className="h-4 w-4" />
+													</Button>
+													<div className="truncate">
+														<span className="font-medium">
+															{attempt?.branch || "Attempt"}
+														</span>
+														<span className="text-muted-foreground ml-2 text-sm">
+															{selectedTask.title}
+														</span>
 													</div>
-												</>
-											)}
-										</TaskAttemptPanel>
-									</NewCard>
-								)}
-							</ExecutionProcessesProvider>
-						</ReviewProvider>
-					</ClickedElementsProvider>
-				</GitOperationsProvider>
+												</div>
+											</NewCardHeader>
+											<TaskAttemptPanel attempt={attempt} task={selectedTask}>
+												{({ logs, followUp }) => (
+													<>
+														<GitErrorBanner />
+														<div className="flex-1 min-h-0 flex flex-col">
+															<div className="flex-1 min-h-0 flex flex-col">
+																{logs}
+															</div>
+															<div className="shrink-0 border-t">
+																<div className="mx-auto w-full max-w-[50rem]">
+																	<TodoPanel />
+																</div>
+															</div>
+															<div className="min-h-0 max-h-[50%] border-t overflow-hidden bg-background">
+																<div className="mx-auto w-full max-w-[50rem] h-full min-h-0">
+																	{followUp}
+																</div>
+															</div>
+														</div>
+													</>
+												)}
+											</TaskAttemptPanel>
+										</NewCard>
+									)}
+								</ExecutionProcessesProvider>
+							</ReviewProvider>
+						</ClickedElementsProvider>
+					</GitOperationsProvider>
+				</EntriesProvider>
 			</ProjectProvider>
 		) : null;
 
