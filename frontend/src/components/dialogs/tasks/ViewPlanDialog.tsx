@@ -28,10 +28,10 @@ const ViewPlanDialogImpl = NiceModal.create<ViewPlanDialogProps>(
 			<Dialog
 				open={modal.visible}
 				onOpenChange={handleOpenChange}
-				className="max-w-3xl w-[80vw] p-0 overflow-x-hidden"
+				className="max-w-4xl w-[90vw] p-0 overflow-hidden"
 			>
 				<DialogContent
-					className="p-0 min-w-0"
+					className="p-0 min-w-0 flex flex-col max-h-[85vh]"
 					onKeyDownCapture={(e) => {
 						if (e.key === "Escape") {
 							e.stopPropagation();
@@ -39,14 +39,14 @@ const ViewPlanDialogImpl = NiceModal.create<ViewPlanDialogProps>(
 						}
 					}}
 				>
-					<DialogHeader className="px-4 py-3 border-b">
+					<DialogHeader className="px-4 py-3 border-b shrink-0">
 						<DialogTitle>{t("viewPlanDialog.title")}</DialogTitle>
 					</DialogHeader>
-					<div className="max-h-[70vh] overflow-y-auto px-4 py-3">
+					<div className="flex-1 overflow-y-auto px-4 py-4">
 						<WYSIWYGEditor
 							value={planMarkdown}
 							disabled
-							className="whitespace-pre-wrap break-words"
+							className="whitespace-pre-wrap break-words prose prose-sm dark:prose-invert max-w-none"
 						/>
 					</div>
 				</DialogContent>
