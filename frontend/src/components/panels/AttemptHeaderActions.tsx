@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Eye, FileDiff, FileText, X } from "lucide-react";
+import { Eye, FileDiff, ClipboardList, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 import {
@@ -47,7 +47,7 @@ export const AttemptHeaderActions = ({
 								aria-label={t("attemptHeaderActions.viewPlan")}
 								onClick={() => ViewPlanDialog.show({ planMarkdown })}
 							>
-								<FileText className="h-4 w-4" />
+								<ClipboardList className="h-4 w-4" />
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent side="bottom">
