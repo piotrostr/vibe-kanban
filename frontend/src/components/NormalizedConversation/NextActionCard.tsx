@@ -10,7 +10,7 @@ import {
 	GitBranch,
 	Settings,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { ViewProcessesDialog } from "@/components/dialogs/tasks/ViewProcessesDialog";
 import { CreateAttemptDialog } from "@/components/dialogs/tasks/CreateAttemptDialog";
 import { GitActionsDialog } from "@/components/dialogs/tasks/GitActionsDialog";
@@ -57,7 +57,7 @@ export function NextActionCard({
 	const { t } = useTranslation("tasks");
 	const { config } = useUserSystem();
 	const { project } = useProject();
-	const navigate = useNavigate();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const [copied, setCopied] = useState(false);
 
 	const { data: attempt } = useQuery({
@@ -108,8 +108,10 @@ export function NextActionCard({
 	}, [attemptId, latestDevServerProcess?.id]);
 
 	const handleOpenDiffs = useCallback(() => {
-		navigate({ search: "?view=diffs" });
-	}, [navigate]);
+		const params = new URLSearchParams(searchParams);
+		params.set("view", "diffs");
+		setSearchParams(params, { replace: true });
+	}, [searchParams, setSearchParams]);
 
 	const handleTryAgain = useCallback(() => {
 		if (!attempt?.task_id) return;
