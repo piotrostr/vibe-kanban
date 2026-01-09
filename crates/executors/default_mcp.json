@@ -1,44 +1,63 @@
 {
-  "vibe_kanban": {
-    "command": "npx",
-    "args": [
-      "-y",
-      "vibe-kanban@latest",
-      "--mcp"
-    ]
-  },
-  "context7": {
-    "type": "http",
-    "url": "https://mcp.context7.com/mcp",
-    "headers": {
-      "CONTEXT7_API_KEY": "YOUR_API_KEY"
-    }
-  },
-  "playwright": {
-    "command": "npx",
-    "args": [
-      "@playwright/mcp@latest"
-    ]
-  },
-  "meta": {
-    "vibe_kanban": {
-      "name": "Vibe Kanban",
-      "description": "Create, update and delete Vibe Kanban tasks",
-      "url": "https://www.vibekanban.com/docs/integrations/vibe-kanban-mcp-server",
-      "icon": "favicon-vk-light.svg"
-    },
-    "context7": {
-      "name": "Context7",
-      "description": "Fetch up-to-date documentation and code examples",
-      "url": "https://github.com/upstash/context7",
-      "icon": "mcp/context7logo.png"
-    },
-    "playwright": {
-      "name": "Playwright",
-      "description": "Browser automation with Playwright",
-      "url": "https://github.com/microsoft/playwright-mcp",
-      "icon": "mcp/playwright_logo_icon.svg"
-    }
-  }
+	"vibe_kanban": {
+		"command": "npx",
+		"args": ["-y", "vibe-kanban@latest", "--mcp"]
+	},
+	"context7": {
+		"type": "http",
+		"url": "https://mcp.context7.com/mcp",
+		"headers": {
+			"CONTEXT7_API_KEY": "YOUR_API_KEY"
+		}
+	},
+	"playwright": {
+		"command": "npx",
+		"args": ["@playwright/mcp@latest"]
+	},
+	"linear": {
+		"command": "npx",
+		"args": ["-y", "@larryhudson/linear-mcp-server"],
+		"env": {
+			"LINEAR_API_KEY": "${LINEAR_API_KEY}"
+		}
+	},
+	"sentry": {
+		"command": "npx",
+		"args": ["-y", "@sentry/mcp-server@latest"],
+		"env": {
+			"SENTRY_ACCESS_TOKEN": "${SENTRY_ACCESS_TOKEN}"
+		}
+	},
+	"meta": {
+		"vibe_kanban": {
+			"name": "Vibe Kanban",
+			"description": "Create, update and delete Vibe Kanban tasks",
+			"url": "https://www.vibekanban.com/docs/integrations/vibe-kanban-mcp-server",
+			"icon": "favicon-vk-light.svg"
+		},
+		"context7": {
+			"name": "Context7",
+			"description": "Fetch up-to-date documentation and code examples",
+			"url": "https://github.com/upstash/context7",
+			"icon": "mcp/context7logo.png"
+		},
+		"playwright": {
+			"name": "Playwright",
+			"description": "Browser automation with Playwright",
+			"url": "https://github.com/microsoft/playwright-mcp",
+			"icon": "mcp/playwright_logo_icon.svg"
+		},
+		"linear": {
+			"name": "Linear",
+			"description": "Manage Linear issues and projects",
+			"url": "https://linear.app/changelog/2025-05-01-mcp",
+			"icon": "mcp/linear-icon.svg"
+		},
+		"sentry": {
+			"name": "Sentry",
+			"description": "Debug errors and get fix recommendations from Sentry",
+			"url": "https://docs.sentry.io/product/sentry-mcp/",
+			"icon": "mcp/sentry-icon.svg"
+		}
+	}
 }
-

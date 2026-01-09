@@ -38,6 +38,7 @@ use executors::{
         script::{ScriptContext, ScriptRequest, ScriptRequestLanguage},
     },
     executors::{CodingAgent, ExecutorError},
+    mcp_config::McpApiKeys,
     profile::{ExecutorConfigs, ExecutorProfileId},
 };
 use git2::BranchType;
@@ -108,6 +109,9 @@ pub struct CreateTaskAttemptBody {
     pub task_id: Uuid,
     pub executor_profile_id: ExecutorProfileId,
     pub repos: Vec<WorkspaceRepoInput>,
+    /// List of MCP server keys to enable for this task (e.g., ["linear", "sentry"])
+    #[serde(default)]
+    pub enabled_mcps: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
@@ -180,9 +184,23 @@ pub async fn create_task_attempt(
         .collect();
 
     WorkspaceRepo::create_many(pool, workspace.id, &workspace_repos).await?;
+
+    // Load API keys from user config
+    let config = deployment.config().read().await;
+    let mcp_api_keys = McpApiKeys {
+        linear_api_key: config.integrations.linear_api_key.clone(),
+        sentry_auth_token: config.integrations.sentry_auth_token.clone(),
+    };
+    drop(config);
+
     if let Err(err) = deployment
         .container()
-        .start_workspace(&workspace, executor_profile_id.clone())
+        .start_workspace(
+            &workspace,
+            executor_profile_id.clone(),
+            payload.enabled_mcps,
+            mcp_api_keys,
+        )
         .await
     {
         tracing::error!("Failed to start task attempt: {}", err);

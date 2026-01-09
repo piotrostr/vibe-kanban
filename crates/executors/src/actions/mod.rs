@@ -13,6 +13,7 @@ use crate::{
     approvals::ExecutorApprovalService,
     env::ExecutionEnv,
     executors::{BaseCodingAgent, ExecutorError, SpawnedChild},
+    mcp_config::McpApiKeys,
 };
 pub mod coding_agent_follow_up;
 pub mod coding_agent_initial;
@@ -25,6 +26,17 @@ pub enum ExecutorActionType {
     CodingAgentInitialRequest,
     CodingAgentFollowUpRequest,
     ScriptRequest,
+}
+
+impl ExecutorActionType {
+    /// Get API keys from the action if it's a coding agent request
+    pub fn mcp_api_keys(&self) -> Option<&McpApiKeys> {
+        match self {
+            ExecutorActionType::CodingAgentInitialRequest(req) => Some(&req.mcp_api_keys),
+            ExecutorActionType::CodingAgentFollowUpRequest(req) => Some(&req.mcp_api_keys),
+            ExecutorActionType::ScriptRequest(_) => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -62,6 +74,11 @@ impl ExecutorAction {
             }
             ExecutorActionType::ScriptRequest(_) => None,
         }
+    }
+
+    /// Get API keys from the action if it's a coding agent request
+    pub fn mcp_api_keys(&self) -> Option<&McpApiKeys> {
+        self.typ.mcp_api_keys()
     }
 }
 

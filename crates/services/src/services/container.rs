@@ -35,6 +35,7 @@ use executors::{
     },
     executors::{ExecutorError, StandardCodingAgentExecutor},
     logs::{NormalizedEntry, NormalizedEntryError, NormalizedEntryType, utils::ConversationPatch},
+    mcp_config::McpApiKeys,
     profile::{ExecutorConfigs, ExecutorProfileId},
 };
 use futures::{StreamExt, future};
@@ -882,6 +883,8 @@ pub trait ContainerService {
         &self,
         workspace: &Workspace,
         executor_profile_id: ExecutorProfileId,
+        enabled_mcps: Option<Vec<String>>,
+        mcp_api_keys: McpApiKeys,
     ) -> Result<ExecutionProcess, ContainerError> {
         // Create container
         self.create(workspace).await?;
@@ -938,6 +941,8 @@ pub trait ContainerService {
                 prompt,
                 executor_profile_id: executor_profile_id.clone(),
                 working_dir,
+                enabled_mcps,
+                mcp_api_keys,
             }),
             cleanup_action.map(Box::new),
         );

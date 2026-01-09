@@ -9,6 +9,7 @@ use crate::{
     approvals::ExecutorApprovalService,
     env::ExecutionEnv,
     executors::{BaseCodingAgent, ExecutorError, SpawnedChild, StandardCodingAgentExecutor},
+    mcp_config::{ensure_mcps_in_config, McpApiKeys},
     profile::{ExecutorConfigs, ExecutorProfileId},
 };
 
@@ -24,6 +25,13 @@ pub struct CodingAgentFollowUpRequest {
     /// If None, uses the container_ref directory directly.
     #[serde(default)]
     pub working_dir: Option<String>,
+    /// List of MCP server keys to enable for this follow-up (e.g., ["linear", "sentry"])
+    #[serde(default)]
+    pub enabled_mcps: Option<Vec<String>>,
+    /// API keys for MCP integrations (not serialized - sensitive data)
+    #[serde(skip)]
+    #[ts(skip)]
+    pub mcp_api_keys: McpApiKeys,
 }
 
 impl CodingAgentFollowUpRequest {
@@ -56,6 +64,17 @@ impl Executable for CodingAgentFollowUpRequest {
             .ok_or(ExecutorError::UnknownExecutorType(
                 executor_profile_id.to_string(),
             ))?;
+
+        // Inject enabled MCPs into agent config before spawning
+        if let Some(ref enabled_mcps) = self.enabled_mcps {
+            if let Err(e) = ensure_mcps_in_config(&agent, enabled_mcps, &self.mcp_api_keys).await {
+                tracing::warn!(
+                    error = %e,
+                    mcps = ?enabled_mcps,
+                    "Failed to inject MCPs into agent config, continuing anyway"
+                );
+            }
+        }
 
         agent.use_approvals(approvals.clone());
 

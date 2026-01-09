@@ -70,6 +70,8 @@ pub enum ExecutorError {
     SetupHelperNotSupported,
     #[error("Auth required: {0}")]
     AuthRequired(String),
+    #[error("Config parse error: {0}")]
+    ConfigParse(String),
 }
 
 #[enum_dispatch]

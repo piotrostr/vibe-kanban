@@ -115,7 +115,7 @@ export function TaskFollowUpSection({
 	);
 	const { branch: attemptBranch, refetch: refetchAttemptBranch } =
 		useAttemptBranch(workspaceId);
-	const { profiles } = useUserSystem();
+	const { profiles, system } = useUserSystem();
 	const { comments, generateReviewMarkdown, clearComments } = useReview();
 	const {
 		generateMarkdown: generateClickedMarkdown,
@@ -163,6 +163,14 @@ export function TaskFollowUpSection({
 
 	// Local message state for immediate UI feedback (before debounced save)
 	const [localMessage, setLocalMessage] = useState("");
+
+	// MCP integration toggles - initialized from user config
+	const [linearEnabled, setLinearEnabled] = useState(
+		() => system.config?.integrations?.linear_mcp_enabled ?? false,
+	);
+	const [sentryEnabled, setSentryEnabled] = useState(
+		() => system.config?.integrations?.sentry_mcp_enabled ?? false,
+	);
 
 	// Input history for shell-style Ctrl+P/Ctrl+N navigation
 	const { addToHistory, goToPrevious, goToNext, resetNavigation } =
@@ -336,6 +344,14 @@ export function TaskFollowUpSection({
 		});
 	}, [entries]);
 
+	// Build enabled MCPs list from toggles
+	const enabledMcps = useMemo(() => {
+		const mcps: string[] = [];
+		if (linearEnabled) mcps.push("linear");
+		if (sentryEnabled) mcps.push("sentry");
+		return mcps.length > 0 ? mcps : null;
+	}, [linearEnabled, sentryEnabled]);
+
 	// Send follow-up action
 	const { isSendingFollowUp, followUpError, setFollowUpError, onSendFollowUp } =
 		useFollowUpSend({
@@ -345,6 +361,7 @@ export function TaskFollowUpSection({
 			reviewMarkdown,
 			clickedMarkdown,
 			selectedVariant,
+			enabledMcps,
 			clearComments,
 			clearClickedElements,
 			onAfterSendCleanup: () => {
@@ -851,6 +868,50 @@ export function TaskFollowUpSection({
 					>
 						<MessageSquare className="h-4 w-4" />
 					</Button>
+
+					{/* Linear MCP toggle */}
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant={linearEnabled ? "default" : "outline"}
+								size="sm"
+								onClick={() => setLinearEnabled(!linearEnabled)}
+								disabled={!isEditable}
+								className={cn(
+									"px-2 text-xs font-medium",
+									linearEnabled && "bg-[#5E6AD2] hover:bg-[#4E5AC2] text-white",
+								)}
+								aria-label="Toggle Linear MCP"
+							>
+								Linear
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>
+							{linearEnabled ? "Linear MCP enabled" : "Enable Linear MCP"}
+						</TooltipContent>
+					</Tooltip>
+
+					{/* Sentry MCP toggle */}
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant={sentryEnabled ? "default" : "outline"}
+								size="sm"
+								onClick={() => setSentryEnabled(!sentryEnabled)}
+								disabled={!isEditable}
+								className={cn(
+									"px-2 text-xs font-medium",
+									sentryEnabled && "bg-[#362D59] hover:bg-[#2D2449] text-white",
+								)}
+								aria-label="Toggle Sentry MCP"
+							>
+								Sentry
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>
+							{sentryEnabled ? "Sentry MCP enabled" : "Enable Sentry MCP"}
+						</TooltipContent>
+					</Tooltip>
 
 					{/* Scripts dropdown - only show if project has any scripts */}
 					{hasAnyScript && (
