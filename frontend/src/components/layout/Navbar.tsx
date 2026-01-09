@@ -18,6 +18,7 @@ import {
 	Plus,
 	LogOut,
 	LogIn,
+	GitPullRequest,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { SearchBar } from "@/components/SearchBar";
@@ -45,6 +46,7 @@ import { showcases } from "@/config/showcases";
 import { useUserSystem } from "@/components/ConfigProvider";
 import { oauthApi } from "@/lib/api";
 import { HelpCircle, CircleHelp } from "lucide-react";
+import { ImportPRAsTaskDialog } from "@/components/dialogs/tasks/ImportPRAsTaskDialog";
 
 const INTERNAL_NAV = [
 	{ label: "Projects", icon: FolderOpen, to: "/settings/projects" },
@@ -114,6 +116,12 @@ export function Navbar() {
 	const handleCreateTask = () => {
 		if (projectId) {
 			openTaskForm({ mode: "create", projectId });
+		}
+	};
+
+	const handleImportFromPR = () => {
+		if (projectId) {
+			ImportPRAsTaskDialog.show({ projectId });
 		}
 	};
 
@@ -211,15 +219,28 @@ export function Navbar() {
 											className="h-9 w-9"
 										/>
 									)}
-									<Button
-										variant="ghost"
-										size="icon"
-										className="h-9 w-9"
-										onClick={handleCreateTask}
-										aria-label="Create new task"
-									>
-										<Plus className="h-4 w-4" />
-									</Button>
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button
+												variant="ghost"
+												size="icon"
+												className="h-9 w-9"
+												aria-label="Create new task"
+											>
+												<Plus className="h-4 w-4" />
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent align="end">
+											<DropdownMenuItem onSelect={handleCreateTask}>
+												<Plus className="h-4 w-4 mr-2" />
+												{t("tasks:actions.newTask")}
+											</DropdownMenuItem>
+											<DropdownMenuItem onSelect={handleImportFromPR}>
+												<GitPullRequest className="h-4 w-4 mr-2" />
+												{t("tasks:actions.importFromPr")}
+											</DropdownMenuItem>
+										</DropdownMenuContent>
+									</DropdownMenu>
 								</div>
 								<NavDivider />
 							</>

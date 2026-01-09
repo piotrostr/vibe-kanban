@@ -118,6 +118,8 @@ fn generate_types_content() -> String {
         server::routes::shared_tasks::AssignSharedTaskRequest::decl(),
         server::routes::tasks::ShareTaskResponse::decl(),
         server::routes::tasks::CreateAndStartTaskRequest::decl(),
+        server::routes::tasks::ImportTaskFromPrRequest::decl(),
+        server::routes::tasks::ImportTaskFromPrError::decl(),
         server::routes::tasks::LinearIssueStateResponse::decl(),
         services::services::linear::LinearIssueWithState::decl(),
         services::services::linear::WorkflowState::decl(),

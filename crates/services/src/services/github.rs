@@ -13,7 +13,7 @@ use ts_rs::TS;
 mod cli;
 
 use cli::{GhCli, GhCliError, PrComment, PrReviewComment};
-pub use cli::{PrCommentAuthor, PrListAuthor, PrListItem, ReviewCommentUser};
+pub use cli::{PrCommentAuthor, PrImportInfo, PrListAuthor, PrListItem, ReviewCommentUser};
 
 /// Unified PR comment that can be either a general comment or review comment
 #[derive(Debug, Clone, Serialize, TS)]
@@ -473,5 +473,25 @@ impl GitHubService {
             ))
         })?
         .map_err(GitHubServiceError::from)
+    }
+
+    /// Fetch PR info needed for importing as a task
+    pub async fn view_pr_for_import(
+        &self,
+        repo_info: &GitHubRepoInfo,
+        pr_number: i64,
+    ) -> Result<PrImportInfo, GitHubServiceError> {
+        let owner = repo_info.owner.clone();
+        let repo = repo_info.repo_name.clone();
+        let cli = self.gh_cli.clone();
+
+        task::spawn_blocking(move || cli.view_pr_for_import(&owner, &repo, pr_number))
+            .await
+            .map_err(|err| {
+                GitHubServiceError::PullRequest(format!(
+                    "Failed to execute GitHub CLI for viewing PR #{pr_number} for import: {err}"
+                ))
+            })?
+            .map_err(GitHubServiceError::from)
     }
 }

@@ -263,6 +263,217 @@ pub async fn create_task_and_start(
     })))
 }
 
+#[derive(Debug, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportTaskFromPrRequest {
+    pub project_id: Uuid,
+    pub repo_id: Uuid,
+    pub pr_number: i64,
+    pub executor_profile_id: ExecutorProfileId,
+}
+
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[ts(tag = "type", rename_all = "snake_case")]
+pub enum ImportTaskFromPrError {
+    GithubCliNotInstalled,
+    GithubCliNotLoggedIn,
+    PrNotFoundOrNoAccess { pr_number: i64 },
+}
+
+pub async fn import_task_from_pr(
+    State(deployment): State<DeploymentImpl>,
+    Json(payload): Json<ImportTaskFromPrRequest>,
+) -> Result<ResponseJson<ApiResponse<TaskWithAttemptStatus, ImportTaskFromPrError>>, ApiError> {
+    use db::models::merge::{Merge, MergeStatus};
+    use db::models::task::TaskStatus;
+    use services::services::github::{GitHubService, GitHubServiceError};
+
+    let pool = &deployment.db().pool;
+
+    // Fetch repo info
+    let repo = Repo::find_by_id(pool, payload.repo_id)
+        .await?
+        .ok_or(ApiError::BadRequest("Repository not found".to_string()))?;
+
+    let github_service = GitHubService::new()?;
+    let repo_info = deployment.git().get_github_repo_info(&repo.path)?;
+
+    // Fetch PR info for import (title, body, branch)
+    let pr_import_info = match github_service
+        .view_pr_for_import(&repo_info, payload.pr_number)
+        .await
+    {
+        Ok(info) => info,
+        Err(e) => {
+            tracing::error!(
+                "Failed to fetch PR #{} for import: {}",
+                payload.pr_number,
+                e
+            );
+            return match &e {
+                GitHubServiceError::GhCliNotInstalled(_) => Ok(ResponseJson(
+                    ApiResponse::error_with_data(ImportTaskFromPrError::GithubCliNotInstalled),
+                )),
+                GitHubServiceError::AuthFailed(_) => Ok(ResponseJson(
+                    ApiResponse::error_with_data(ImportTaskFromPrError::GithubCliNotLoggedIn),
+                )),
+                GitHubServiceError::RepoNotFoundOrNoAccess(_) => Ok(ResponseJson(
+                    ApiResponse::error_with_data(ImportTaskFromPrError::PrNotFoundOrNoAccess {
+                        pr_number: payload.pr_number,
+                    }),
+                )),
+                _ => Err(ApiError::GitHubService(e)),
+            };
+        }
+    };
+
+    // Also fetch full PR status for binding
+    let pr_status_info = match github_service
+        .update_pr_status(&repo_info, payload.pr_number)
+        .await
+    {
+        Ok(info) => info,
+        Err(e) => {
+            tracing::error!(
+                "Failed to fetch PR #{} status: {}",
+                payload.pr_number,
+                e
+            );
+            return match &e {
+                GitHubServiceError::GhCliNotInstalled(_) => Ok(ResponseJson(
+                    ApiResponse::error_with_data(ImportTaskFromPrError::GithubCliNotInstalled),
+                )),
+                GitHubServiceError::AuthFailed(_) => Ok(ResponseJson(
+                    ApiResponse::error_with_data(ImportTaskFromPrError::GithubCliNotLoggedIn),
+                )),
+                GitHubServiceError::RepoNotFoundOrNoAccess(_) => Ok(ResponseJson(
+                    ApiResponse::error_with_data(ImportTaskFromPrError::PrNotFoundOrNoAccess {
+                        pr_number: payload.pr_number,
+                    }),
+                )),
+                _ => Err(ApiError::GitHubService(e)),
+            };
+        }
+    };
+
+    // Create task from PR info
+    let task_id = Uuid::new_v4();
+    let description = if pr_import_info.body.is_empty() {
+        None
+    } else {
+        Some(pr_import_info.body.clone())
+    };
+    let task = Task::create(
+        pool,
+        &CreateTask {
+            project_id: payload.project_id,
+            title: pr_import_info.title.clone(),
+            description,
+            status: None,
+            parent_workspace_id: None,
+            image_ids: None,
+            shared_task_id: None,
+            linear_issue_id: None,
+            linear_url: None,
+        },
+        task_id,
+    )
+    .await?;
+
+    let project = Project::find_by_id(pool, task.project_id)
+        .await?
+        .ok_or(ProjectError::ProjectNotFound)?;
+
+    // Create workspace using PR's branch name
+    let attempt_id = Uuid::new_v4();
+    let agent_working_dir = project
+        .default_agent_working_dir
+        .as_ref()
+        .filter(|dir: &&String| !dir.is_empty())
+        .cloned();
+
+    let workspace = Workspace::create(
+        pool,
+        &CreateWorkspace {
+            branch: pr_import_info.head_ref_name.clone(),
+            agent_working_dir,
+        },
+        attempt_id,
+        task.id,
+    )
+    .await?;
+
+    // Create workspace repo with main as target branch
+    let workspace_repos = vec![CreateWorkspaceRepo {
+        repo_id: payload.repo_id,
+        target_branch: "main".to_string(),
+    }];
+    WorkspaceRepo::create_many(pool, workspace.id, &workspace_repos).await?;
+
+    // Bind PR to workspace
+    let mut tx = pool.begin().await?;
+    let merge = Merge::create_pr_tx(
+        &mut *tx,
+        workspace.id,
+        payload.repo_id,
+        "main",
+        pr_status_info.number,
+        &pr_status_info.url,
+    )
+    .await?;
+
+    // Update merge status if not open
+    if !matches!(pr_status_info.status, MergeStatus::Open) {
+        Merge::update_status_tx(
+            &mut *tx,
+            merge.id,
+            pr_status_info.status.clone(),
+            pr_status_info.merge_commit_sha.clone(),
+        )
+        .await?;
+    }
+
+    // If PR is merged, mark task as done
+    if matches!(pr_status_info.status, MergeStatus::Merged) {
+        Task::update_status(&mut *tx, task.id, TaskStatus::Done).await?;
+    }
+
+    tx.commit().await?;
+
+    // Start workspace
+    let is_attempt_running = deployment
+        .container()
+        .start_workspace(&workspace, payload.executor_profile_id.clone())
+        .await
+        .inspect_err(|err| tracing::error!("Failed to start task attempt: {}", err))
+        .is_ok();
+
+    let task = Task::find_by_id(pool, task.id)
+        .await?
+        .ok_or(ApiError::Database(SqlxError::RowNotFound))?;
+
+    tracing::info!(
+        "Imported task {} from PR #{} ({})",
+        task.id,
+        payload.pr_number,
+        pr_import_info.title
+    );
+
+    Ok(ResponseJson(ApiResponse::success(TaskWithAttemptStatus {
+        task,
+        has_in_progress_attempt: is_attempt_running,
+        last_attempt_failed: false,
+        executor: payload.executor_profile_id.executor.to_string(),
+        pr_url: Some(pr_status_info.url),
+        pr_status: Some(pr_status_info.status),
+        pr_is_draft: Some(pr_status_info.is_draft),
+        pr_review_decision: Some(pr_status_info.review_decision),
+        pr_checks_status: Some(pr_status_info.checks_status),
+        pr_has_conflicts: Some(pr_status_info.has_conflicts),
+    })))
+}
+
 pub async fn update_task(
     Extension(existing_task): Extension<Task>,
     State(deployment): State<DeploymentImpl>,
@@ -644,6 +855,7 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
         .route("/", get(get_tasks).post(create_task))
         .route("/stream/ws", get(stream_tasks_ws))
         .route("/create-and-start", post(create_task_and_start))
+        .route("/import-from-pr", post(import_task_from_pr))
         .nest("/{task_id}", task_id_router);
 
     // Top-level tasks routes (not scoped to a project)
