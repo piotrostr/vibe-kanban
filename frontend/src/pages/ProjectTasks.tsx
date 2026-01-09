@@ -8,6 +8,7 @@ import { Loader } from "@/components/ui/loader";
 import { tasksApi, projectsApi } from "@/lib/api";
 import type { RepoBranchStatus, Workspace } from "shared/types";
 import { openTaskForm } from "@/lib/openTaskForm";
+import { ImportPRAsTaskDialog } from "@/components/dialogs/tasks/ImportPRAsTaskDialog";
 
 import { useSearch } from "@/contexts/SearchContext";
 import { useProject } from "@/contexts/ProjectContext";
@@ -180,6 +181,12 @@ export function ProjectTasks() {
 	const handleCreateTask = useCallback(() => {
 		if (projectId) {
 			openTaskForm({ mode: "create", projectId });
+		}
+	}, [projectId]);
+
+	const handleImportFromPR = useCallback(() => {
+		if (projectId) {
+			ImportPRAsTaskDialog.show({ projectId });
 		}
 	}, [projectId]);
 
@@ -829,6 +836,7 @@ export function ProjectTasks() {
 					selectedTaskId={selectedTask?.id}
 					selectedSharedTaskId={selectedSharedTaskId}
 					onCreateTask={handleCreateNewTask}
+					onImportFromPR={handleImportFromPR}
 					projectId={projectId!}
 					onRefreshBacklog={handleRefreshBacklog}
 					isRefreshingBacklog={isRefreshingBacklog}

@@ -9,6 +9,7 @@ import { Plus, PanelLeftClose, PanelLeft, ChevronLeft } from "lucide-react";
 import { Loader } from "@/components/ui/loader";
 import { tasksApi, projectsApi, attemptsApi } from "@/lib/api";
 import { openTaskForm } from "@/lib/openTaskForm";
+import { ImportPRAsTaskDialog } from "@/components/dialogs/tasks/ImportPRAsTaskDialog";
 import { useProjects } from "@/hooks/useProjects";
 import { useAllProjectTasks } from "@/hooks/useAllProjectTasks";
 import { useTaskAttemptWithSession } from "@/hooks/useTaskAttempt";
@@ -254,6 +255,13 @@ export function AllProjectTasks() {
 		}
 	}, [singleSelectedProject, selectedProjects, projects]);
 
+	const handleImportFromPR = useCallback(() => {
+		// Import from PR only works with a single project selected
+		if (singleSelectedProject) {
+			ImportPRAsTaskDialog.show({ projectId: singleSelectedProject.id });
+		}
+	}, [singleSelectedProject]);
+
 	const handleRefreshBacklog = useCallback(async () => {
 		if (!singleSelectedProject || isRefreshingBacklog) return;
 		setIsRefreshingBacklog(true);
@@ -419,6 +427,9 @@ export function AllProjectTasks() {
 					onViewTaskDetails={handleViewTaskDetails}
 					selectedTaskId={selectedTask?.id}
 					onCreateTask={handleCreateTask}
+					onImportFromPR={
+						singleSelectedProject ? handleImportFromPR : undefined
+					}
 					projectId={singleSelectedProject?.id ?? ""}
 					projectsById={projectsById}
 					collapsedColumns={collapsedColumns}

@@ -21,7 +21,13 @@ import {
 import { type ReactNode, type Ref, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Plus, RefreshCw, Eye, EyeOff } from "lucide-react";
+import { Plus, RefreshCw, Eye, EyeOff, GitPullRequest } from "lucide-react";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { ClientRect } from "@dnd-kit/core";
 import type { Transform } from "@dnd-kit/utilities";
 import { Button } from "../../button";
@@ -157,6 +163,7 @@ export type KanbanHeaderProps =
 			className?: string;
 			count?: number;
 			onAddTask?: () => void;
+			onImportFromPR?: () => void;
 			onRefresh?: () => void;
 			isRefreshing?: boolean;
 			onToggleCollapse?: () => void;
@@ -237,21 +244,29 @@ export const KanbanHeader = (props: KanbanHeaderProps) => {
 					</Tooltip>
 				</TooltipProvider>
 			)}
-			<TooltipProvider>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button
-							variant="ghost"
-							className="m-0 p-0 h-0 text-foreground/50 hover:text-foreground"
-							onClick={props.onAddTask}
-							aria-label={t("actions.addTask")}
-						>
-							<Plus className="h-4 w-4" />
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent side="top">{t("actions.addTask")}</TooltipContent>
-				</Tooltip>
-			</TooltipProvider>
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button
+						variant="ghost"
+						className="m-0 p-0 h-0 text-foreground/50 hover:text-foreground"
+						aria-label={t("actions.addTask")}
+					>
+						<Plus className="h-4 w-4" />
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="end">
+					<DropdownMenuItem onSelect={props.onAddTask}>
+						<Plus className="h-4 w-4 mr-2" />
+						{t("actions.newTask")}
+					</DropdownMenuItem>
+					{props.onImportFromPR && (
+						<DropdownMenuItem onSelect={props.onImportFromPR}>
+							<GitPullRequest className="h-4 w-4 mr-2" />
+							{t("actions.importFromPr")}
+						</DropdownMenuItem>
+					)}
+				</DropdownMenuContent>
+			</DropdownMenu>
 		</Card>
 	);
 };
