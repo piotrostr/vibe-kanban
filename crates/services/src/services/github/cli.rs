@@ -72,8 +72,20 @@ pub struct PrListItem {
     pub url: String,
     pub state: String,
     pub title: String,
+    pub body: String,
     pub author: PrListAuthor,
     pub created_at: DateTime<Utc>,
+    pub head_ref_name: String,
+}
+
+/// PR details for importing as a task
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrImportInfo {
+    pub number: i64,
+    pub url: String,
+    pub title: String,
+    pub body: String,
     pub head_ref_name: String,
 }
 
@@ -210,6 +222,27 @@ impl GhCli {
         Self::parse_pr_view(&raw)
     }
 
+    /// Retrieve PR info needed for importing as a task.
+    pub fn view_pr_for_import(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr_number: i64,
+    ) -> Result<PrImportInfo, GhCliError> {
+        let raw = self.run([
+            "pr",
+            "view",
+            &pr_number.to_string(),
+            "--repo",
+            &format!("{owner}/{repo}"),
+            "--json",
+            "number,url,title,body,headRefName",
+        ])?;
+        serde_json::from_str(&raw).map_err(|e| {
+            GhCliError::UnexpectedOutput(format!("Failed to parse PR import info: {e}"))
+        })
+    }
+
     /// List pull requests for a branch (includes closed/merged).
     pub fn list_prs_for_branch(
         &self,
@@ -283,7 +316,7 @@ impl GhCli {
             "--limit".to_string(),
             limit.to_string(),
             "--json".to_string(),
-            "number,url,state,title,author,createdAt,headRefName".to_string(),
+            "number,url,state,title,body,author,createdAt,headRefName".to_string(),
         ];
 
         if let Some(query) = search {

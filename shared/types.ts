@@ -240,6 +240,10 @@ export type ShareTaskResponse = { shared_task_id: string, };
 
 export type CreateAndStartTaskRequest = { task: CreateTask, executor_profile_id: ExecutorProfileId, repos: Array<WorkspaceRepoInput>, };
 
+export type ImportTaskFromPrRequest = { projectId: string, repoId: string, prNumber: bigint, executorProfileId: ExecutorProfileId, };
+
+export type ImportTaskFromPrError = { "type": "github_cli_not_installed" } | { "type": "github_cli_not_logged_in" } | { "type": "pr_not_found_or_no_access", pr_number: bigint, };
+
 export type LinearIssueStateResponse = { issue: LinearIssueWithState, mapped_status: TaskStatus, };
 
 export type LinearIssueWithState = { id: string, title: string, description: string | null, url: string, state: WorkflowState, };
@@ -310,7 +314,7 @@ export type ListRecentPrsResponse = { prs: Array<PrListItem>, };
 
 export type ListRecentPrsError = { "type": "github_cli_not_installed" } | { "type": "github_cli_not_logged_in" };
 
-export type PrListItem = { number: bigint, url: string, state: string, title: string, author: PrListAuthor, createdAt: string, headRefName: string, };
+export type PrListItem = { number: bigint, url: string, state: string, title: string, body: string, author: PrListAuthor, createdAt: string, headRefName: string, };
 
 export type PrListAuthor = { login: string, };
 

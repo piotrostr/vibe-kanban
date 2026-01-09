@@ -92,6 +92,8 @@ import {
 	LinearIssueStateResponse,
 	ListRecentPrsResponse,
 	ListRecentPrsError,
+	ImportTaskFromPrRequest,
+	ImportTaskFromPrError,
 } from "shared/types";
 import type { WorkspaceWithSession } from "@/types/attempt";
 import { createWorkspaceWithSession } from "@/types/attempt";
@@ -527,6 +529,19 @@ export const tasksApi = {
 			method: "POST",
 		});
 		return handleApiResponse<void>(response);
+	},
+
+	importFromPr: async (
+		data: ImportTaskFromPrRequest,
+	): Promise<Result<TaskWithAttemptStatus, ImportTaskFromPrError>> => {
+		const response = await makeRequest(`/api/tasks/import-from-pr`, {
+			method: "POST",
+			body: JSON.stringify(data),
+		});
+		return handleApiResponseAsResult<
+			TaskWithAttemptStatus,
+			ImportTaskFromPrError
+		>(response);
 	},
 };
 
