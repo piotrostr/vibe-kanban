@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { KanbanCard } from "@/components/ui/shadcn-io/kanban";
 import {
 	Check,
@@ -12,6 +12,7 @@ import {
 import { LinearIcon } from "@/components/icons/LinearIcon";
 import type {
 	ChecksStatus,
+	LinearLabel,
 	MergeStatus,
 	ReviewDecision,
 	TaskWithAttemptStatus,
@@ -26,6 +27,24 @@ import { TaskCardHeader } from "./TaskCardHeader";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks";
 import { cn } from "@/lib/utils";
+
+function parseLinearLabels(labelsJson: string | null): LinearLabel[] {
+	if (!labelsJson) return [];
+	try {
+		return JSON.parse(labelsJson) as LinearLabel[];
+	} catch {
+		return [];
+	}
+}
+
+function getContrastColor(hexColor: string): string {
+	const hex = hexColor.replace("#", "");
+	const r = parseInt(hex.substring(0, 2), 16);
+	const g = parseInt(hex.substring(2, 4), 16);
+	const b = parseInt(hex.substring(4, 6), 16);
+	const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+	return luminance > 0.5 ? "#000000" : "#ffffff";
+}
 
 function getChecksIcon(status: ChecksStatus | null | undefined) {
 	if (!status || status === "pending") {
@@ -174,6 +193,11 @@ export function TaskCard({
 	);
 
 	const localRef = useRef<HTMLDivElement>(null);
+
+	const linearLabels = useMemo(
+		() => parseLinearLabels(task.linear_labels),
+		[task.linear_labels],
+	);
 
 	useEffect(() => {
 		if (!isOpen || !localRef.current) return;
@@ -326,6 +350,23 @@ export function TaskCard({
 							? `${task.description.substring(0, 130)}...`
 							: task.description}
 					</p>
+				)}
+				{linearLabels.length > 0 && (
+					<div className="flex flex-wrap gap-1">
+						{linearLabels.map((label) => (
+							<span
+								key={label.id}
+								className="text-[10px] font-medium px-1.5 py-0.5 rounded"
+								style={{
+									backgroundColor: `#${label.color}`,
+									color: getContrastColor(label.color),
+								}}
+								title={label.name}
+							>
+								{label.name}
+							</span>
+						))}
+					</div>
 				)}
 			</div>
 		</KanbanCard>

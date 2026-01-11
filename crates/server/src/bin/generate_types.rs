@@ -122,6 +122,7 @@ fn generate_types_content() -> String {
         server::routes::tasks::ImportTaskFromPrError::decl(),
         server::routes::tasks::LinearIssueStateResponse::decl(),
         services::services::linear::LinearIssueWithState::decl(),
+        services::services::linear::LinearLabel::decl(),
         services::services::linear::WorkflowState::decl(),
         server::routes::task_attempts::pr::CreateGitHubPrRequest::decl(),
         server::routes::images::ImageResponse::decl(),
