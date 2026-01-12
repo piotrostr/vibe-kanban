@@ -20,7 +20,6 @@ import {
 	useProjectRepos,
 } from "@/hooks";
 import { useTaskAttemptsWithSessions } from "@/hooks/useTaskAttempts";
-import { useProject } from "@/contexts/ProjectContext";
 import { useUserSystem } from "@/components/ConfigProvider";
 import { paths } from "@/lib/paths";
 import NiceModal, { useModal } from "@ebay/nice-modal-react";
@@ -34,13 +33,13 @@ import { FolderGit } from "lucide-react";
 
 export interface CreateAttemptDialogProps {
 	taskId: string;
+	projectId: string;
 }
 
 const CreateAttemptDialogImpl = NiceModal.create<CreateAttemptDialogProps>(
-	({ taskId }) => {
+	({ taskId, projectId }) => {
 		const modal = useModal();
 		const navigate = useNavigateWithSearch();
-		const { projectId } = useProject();
 		const { t } = useTranslation("tasks");
 		const queryClient = useQueryClient();
 		const { profiles, config } = useUserSystem();

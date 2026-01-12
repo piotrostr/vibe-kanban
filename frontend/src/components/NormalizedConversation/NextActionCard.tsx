@@ -114,11 +114,12 @@ export function NextActionCard({
 	}, [searchParams, setSearchParams]);
 
 	const handleTryAgain = useCallback(() => {
-		if (!attempt?.task_id) return;
+		if (!attempt?.task_id || !task?.project_id) return;
 		CreateAttemptDialog.show({
 			taskId: attempt.task_id,
+			projectId: task.project_id,
 		});
-	}, [attempt?.task_id]);
+	}, [attempt?.task_id, task?.project_id]);
 
 	const handleGitActions = useCallback(() => {
 		if (!attemptId) return;
