@@ -16,22 +16,95 @@ pub enum LinearError {
     StateNotFound(String),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// A label attached to a Linear issue
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct LinearLabel {
+    pub id: String,
+    pub name: String,
+    pub color: String,
+}
+
+/// Helper for deserializing labels connection from GraphQL
+#[derive(Debug, Clone, Deserialize)]
+struct LabelConnection {
+    nodes: Vec<LinearLabel>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct LinearIssue {
     pub id: String,
     pub title: String,
     pub description: Option<String>,
     pub url: String,
+    pub labels: Vec<LinearLabel>,
+}
+
+/// Internal struct for deserializing LinearIssue from GraphQL response
+#[derive(Debug, Deserialize)]
+struct LinearIssueRaw {
+    id: String,
+    title: String,
+    description: Option<String>,
+    url: String,
+    labels: Option<LabelConnection>,
+}
+
+impl<'de> Deserialize<'de> for LinearIssue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = LinearIssueRaw::deserialize(deserializer)?;
+        Ok(LinearIssue {
+            id: raw.id,
+            title: raw.title,
+            description: raw.description,
+            url: raw.url,
+            labels: raw.labels.map(|l| l.nodes).unwrap_or_default(),
+        })
+    }
 }
 
 /// Extended issue info including current state
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Serialize, TS)]
 pub struct LinearIssueWithState {
     pub id: String,
     pub title: String,
     pub description: Option<String>,
     pub url: String,
     pub state: WorkflowState,
+    pub labels: Vec<LinearLabel>,
+    pub assignee: Option<LinearUser>,
+}
+
+/// Internal struct for deserializing from GraphQL response
+#[derive(Debug, Deserialize)]
+struct LinearIssueWithStateRaw {
+    id: String,
+    title: String,
+    description: Option<String>,
+    url: String,
+    state: WorkflowState,
+    labels: Option<LabelConnection>,
+    assignee: Option<LinearUser>,
+}
+
+impl<'de> Deserialize<'de> for LinearIssueWithState {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = LinearIssueWithStateRaw::deserialize(deserializer)?;
+        Ok(LinearIssueWithState {
+            id: raw.id,
+            title: raw.title,
+            description: raw.description,
+            url: raw.url,
+            state: raw.state,
+            labels: raw.labels.map(|l| l.nodes).unwrap_or_default(),
+            assignee: raw.assignee,
+        })
+    }
 }
 
 /// Workflow state in Linear (e.g., Backlog, Todo, In Progress, Done)
@@ -44,7 +117,7 @@ pub struct WorkflowState {
 }
 
 /// Linear user information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct LinearUser {
     pub id: String,
     pub name: String,
@@ -210,6 +283,13 @@ impl LinearClient {
                             title
                             description
                             url
+                            labels {
+                                nodes {
+                                    id
+                                    name
+                                    color
+                                }
+                            }
                         }
                     }
                 }
@@ -247,6 +327,13 @@ impl LinearClient {
                         title
                         description
                         url
+                        labels {{
+                            nodes {{
+                                id
+                                name
+                                color
+                            }}
+                        }}
                     }}
                 }}
             }}
@@ -354,6 +441,17 @@ impl LinearClient {
                         id
                         name
                         type
+                    }
+                    labels {
+                        nodes {
+                            id
+                            name
+                            color
+                        }
+                    }
+                    assignee {
+                        id
+                        name
                     }
                 }
             }

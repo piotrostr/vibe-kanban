@@ -44,9 +44,9 @@ export type UpdateTag = { tag_name: string | null, content: string | null, };
 
 export type TaskStatus = "backlog" | "todo" | "inprogress" | "inreview" | "done" | "cancelled";
 
-export type Task = { id: string, project_id: string, title: string, description: string | null, status: TaskStatus, parent_workspace_id: string | null, shared_task_id: string | null, linear_issue_id: string | null, linear_url: string | null, created_at: string, updated_at: string, };
+export type Task = { id: string, project_id: string, title: string, description: string | null, status: TaskStatus, parent_workspace_id: string | null, shared_task_id: string | null, linear_issue_id: string | null, linear_url: string | null, linear_labels: string | null, created_at: string, updated_at: string, };
 
-export type TaskWithAttemptStatus = { has_in_progress_attempt: boolean, last_attempt_failed: boolean, executor: string, pr_url: string | null, pr_status: MergeStatus | null, pr_is_draft: boolean | null, pr_review_decision: ReviewDecision | null, pr_checks_status: ChecksStatus | null, pr_has_conflicts: boolean | null, id: string, project_id: string, title: string, description: string | null, status: TaskStatus, parent_workspace_id: string | null, shared_task_id: string | null, linear_issue_id: string | null, linear_url: string | null, created_at: string, updated_at: string, };
+export type TaskWithAttemptStatus = { has_in_progress_attempt: boolean, last_attempt_failed: boolean, executor: string, pr_url: string | null, pr_status: MergeStatus | null, pr_is_draft: boolean | null, pr_review_decision: ReviewDecision | null, pr_checks_status: ChecksStatus | null, pr_has_conflicts: boolean | null, id: string, project_id: string, title: string, description: string | null, status: TaskStatus, parent_workspace_id: string | null, shared_task_id: string | null, linear_issue_id: string | null, linear_url: string | null, linear_labels: string | null, created_at: string, updated_at: string, };
 
 export type TaskRelationships = { parent_task: Task | null, current_workspace: Workspace, children: Array<Task>, };
 
@@ -246,7 +246,11 @@ export type ImportTaskFromPrError = { "type": "github_cli_not_installed" } | { "
 
 export type LinearIssueStateResponse = { issue: LinearIssueWithState, mapped_status: TaskStatus, };
 
-export type LinearIssueWithState = { id: string, title: string, description: string | null, url: string, state: WorkflowState, };
+export type LinearIssueWithState = { id: string, title: string, description: string | null, url: string, state: WorkflowState, labels: Array<LinearLabel>, assignee: LinearUser | null, };
+
+export type LinearLabel = { id: string, name: string, color: string, };
+
+export type LinearUser = { id: string, name: string, };
 
 export type WorkflowState = { id: string, name: string, type: string, };
 

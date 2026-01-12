@@ -773,7 +773,7 @@ pub async fn pull_from_linear(
     let new_status = linear_state_type_to_task_status(&issue.state.state_type);
 
     // Update local task with Linear data
-    let task = Task::update(
+    let mut task = Task::update(
         &deployment.db().pool,
         existing_task.id,
         existing_task.project_id,
@@ -784,6 +784,15 @@ pub async fn pull_from_linear(
     )
     .await?;
 
+    // Update labels from Linear
+    let labels_json = if issue.labels.is_empty() {
+        None
+    } else {
+        Some(serde_json::to_string(&issue.labels).unwrap_or_default())
+    };
+    Task::update_linear_labels(&deployment.db().pool, task.id, labels_json.as_deref()).await?;
+    task.linear_labels = labels_json;
+
     // If task has been shared, broadcast update
     if task.shared_task_id.is_some() {
         let Ok(publisher) = deployment.share_publisher() else {
@@ -793,11 +802,12 @@ pub async fn pull_from_linear(
     }
 
     tracing::info!(
-        "Pulled Linear issue {} to task {}: title='{}', status={:?}",
+        "Pulled Linear issue {} to task {}: title='{}', status={:?}, labels_count={}",
         linear_issue_id,
         task.id,
         task.title,
-        task.status
+        task.status,
+        issue.labels.len()
     );
 
     Ok(ResponseJson(ApiResponse::success(task)))
