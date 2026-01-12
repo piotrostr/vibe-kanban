@@ -14,6 +14,13 @@ import { CreateAttemptDialog } from "@/components/dialogs/tasks/CreateAttemptDia
 import WYSIWYGEditor from "@/components/ui/wysiwyg";
 import { DataTable, type ColumnDef } from "@/components/ui/table";
 import { useState, useEffect, useCallback, useRef } from "react";
+import { LinearIcon } from "../icons/LinearIcon";
+
+function extractLinearIssueId(linearUrl: string | null): string | null {
+	if (!linearUrl) return null;
+	const match = linearUrl.match(/\/issue\/([A-Z]+-\d+)/);
+	return match ? match[1] : null;
+}
 
 interface TaskPanelProps {
 	task: TaskWithAttemptStatus | null;
@@ -175,6 +182,21 @@ const TaskPanel = ({ task, onAttemptClick }: TaskPanelProps) => {
 					</div>
 
 					<div className="mt-6 flex-shrink-0 space-y-4">
+						{task.linear_url && (
+							<button
+								type="button"
+								onClick={() =>
+									window.open(task.linear_url!, "_blank", "noopener,noreferrer")
+								}
+								className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+							>
+								<LinearIcon className="h-4 w-4" />
+								<span className="font-medium">
+									{extractLinearIssueId(task.linear_url)}
+								</span>
+							</button>
+						)}
+
 						{task.parent_workspace_id && (
 							<DataTable
 								data={parentAttempt ? [parentAttempt] : []}
