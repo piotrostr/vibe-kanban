@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { KanbanCard } from "@/components/ui/shadcn-io/kanban";
 import {
 	Check,
@@ -12,6 +12,7 @@ import {
 import { LinearIcon } from "@/components/icons/LinearIcon";
 import type {
 	ChecksStatus,
+	LinearLabel,
 	MergeStatus,
 	ReviewDecision,
 	TaskWithAttemptStatus,
@@ -26,6 +27,31 @@ import { TaskCardHeader } from "./TaskCardHeader";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks";
 import { cn } from "@/lib/utils";
+
+function parseLinearLabels(labelsJson: string | null): LinearLabel[] {
+	if (!labelsJson) return [];
+	try {
+		return JSON.parse(labelsJson) as LinearLabel[];
+	} catch {
+		return [];
+	}
+}
+
+function extractLinearIssueId(linearUrl: string | null): string | null {
+	if (!linearUrl) return null;
+	// URL format: https://linear.app/team-name/issue/AMB-738/issue-title
+	const match = linearUrl.match(/\/issue\/([A-Z]+-\d+)/);
+	return match ? match[1] : null;
+}
+
+function getContrastColor(hexColor: string): string {
+	const hex = hexColor.replace("#", "");
+	const r = parseInt(hex.substring(0, 2), 16);
+	const g = parseInt(hex.substring(2, 4), 16);
+	const b = parseInt(hex.substring(4, 6), 16);
+	const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+	return luminance > 0.5 ? "#000000" : "#ffffff";
+}
 
 function getChecksIcon(status: ChecksStatus | null | undefined) {
 	if (!status || status === "pending") {
@@ -175,6 +201,11 @@ export function TaskCard({
 
 	const localRef = useRef<HTMLDivElement>(null);
 
+	const linearLabels = useMemo(
+		() => parseLinearLabels(task.linear_labels),
+		[task.linear_labels],
+	);
+
 	useEffect(() => {
 		if (!isOpen || !localRef.current) return;
 		const el = localRef.current;
@@ -312,8 +343,14 @@ export function TaskCard({
 									onPointerDown={(e) => e.stopPropagation()}
 									onMouseDown={(e) => e.stopPropagation()}
 									title="View in Linear"
+									className="gap-1"
 								>
 									<LinearIcon className="h-4 w-4" />
+									{extractLinearIssueId(task.linear_url) && (
+										<span className="text-[10px] font-medium text-muted-foreground">
+											{extractLinearIssueId(task.linear_url)}
+										</span>
+									)}
 								</Button>
 							)}
 							<ActionsDropdown task={task} sharedTask={sharedTask} />
@@ -326,6 +363,23 @@ export function TaskCard({
 							? `${task.description.substring(0, 130)}...`
 							: task.description}
 					</p>
+				)}
+				{linearLabels.length > 0 && (
+					<div className="flex flex-wrap gap-1">
+						{linearLabels.map((label) => (
+							<span
+								key={label.id}
+								className="text-[10px] font-medium px-1.5 py-0.5 rounded"
+								style={{
+									backgroundColor: `#${label.color}`,
+									color: getContrastColor(label.color),
+								}}
+								title={label.name}
+							>
+								{label.name}
+							</span>
+						))}
+					</div>
 				)}
 			</div>
 		</KanbanCard>
