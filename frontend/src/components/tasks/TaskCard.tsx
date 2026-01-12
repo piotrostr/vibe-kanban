@@ -37,6 +37,13 @@ function parseLinearLabels(labelsJson: string | null): LinearLabel[] {
 	}
 }
 
+function extractLinearIssueId(linearUrl: string | null): string | null {
+	if (!linearUrl) return null;
+	// URL format: https://linear.app/team-name/issue/AMB-738/issue-title
+	const match = linearUrl.match(/\/issue\/([A-Z]+-\d+)/);
+	return match ? match[1] : null;
+}
+
 function getContrastColor(hexColor: string): string {
 	const hex = hexColor.replace("#", "");
 	const r = parseInt(hex.substring(0, 2), 16);
@@ -336,8 +343,14 @@ export function TaskCard({
 									onPointerDown={(e) => e.stopPropagation()}
 									onMouseDown={(e) => e.stopPropagation()}
 									title="View in Linear"
+									className="gap-1"
 								>
 									<LinearIcon className="h-4 w-4" />
+									{extractLinearIssueId(task.linear_url) && (
+										<span className="text-[10px] font-medium text-muted-foreground">
+											{extractLinearIssueId(task.linear_url)}
+										</span>
+									)}
 								</Button>
 							)}
 							<ActionsDropdown task={task} sharedTask={sharedTask} />
