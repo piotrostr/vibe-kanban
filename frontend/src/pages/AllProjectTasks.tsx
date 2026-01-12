@@ -5,7 +5,14 @@ import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, PanelLeftClose, PanelLeft, ChevronLeft } from "lucide-react";
+import {
+	Plus,
+	PanelLeftClose,
+	PanelLeft,
+	ChevronLeft,
+	Loader2,
+	GitPullRequest,
+} from "lucide-react";
 import { Loader } from "@/components/ui/loader";
 import { tasksApi, projectsApi, attemptsApi } from "@/lib/api";
 import { openTaskForm } from "@/lib/openTaskForm";
@@ -757,7 +764,22 @@ export function AllProjectTasks() {
 														className="h-2 w-2 rounded-full flex-shrink-0"
 														style={{ backgroundColor: projectColor }}
 													/>
-													<span className="truncate">{task.title}</span>
+													<span className="truncate flex-1 min-w-0">
+														{task.title}
+													</span>
+													{task.has_in_progress_attempt && (
+														<Loader2 className="h-3 w-3 animate-spin text-blue-500 flex-shrink-0" />
+													)}
+													{task.pr_url && !task.has_in_progress_attempt && (
+														<GitPullRequest
+															className={cn(
+																"h-3 w-3 flex-shrink-0",
+																task.pr_status === "merged"
+																	? "text-purple-500"
+																	: "text-muted-foreground",
+															)}
+														/>
+													)}
 												</button>
 											);
 										})}
