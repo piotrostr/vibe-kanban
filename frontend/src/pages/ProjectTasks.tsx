@@ -867,6 +867,7 @@ export function ProjectTasks() {
 						onClose={() =>
 							navigate(`/projects/${projectId}/tasks`, { replace: true })
 						}
+						branchStatus={branchStatus}
 					/>
 				)
 			}
