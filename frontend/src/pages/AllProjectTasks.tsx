@@ -834,7 +834,8 @@ export function AllProjectTasks() {
 									}
 									return DEFAULT_KANBAN_SIZE;
 								})()}
-								minSize={MIN_PANEL_SIZE}
+								minSize={0}
+								collapsible
 								className="min-w-0 min-h-0 overflow-hidden"
 							>
 								<div className="h-full p-4 overflow-auto">{kanbanContent}</div>
