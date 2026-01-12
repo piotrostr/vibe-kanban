@@ -733,27 +733,25 @@ export function AllProjectTasks() {
 										<span className="text-sm truncate">{project.name}</span>
 									</label>
 								))}
-							</div>
 
-							{recentTasks.length > 0 && (
-								<div className="border-t">
-									<div className="px-3 py-2 text-xs font-medium text-muted-foreground">
-										Recent
-									</div>
-									<div className="px-2 pb-2 space-y-0.5">
+								{recentTasks.length > 0 && (
+									<div className="border-t mt-2 pt-2">
+										<div className="px-1 pb-1 text-xs font-medium text-muted-foreground">
+											Recent
+										</div>
 										{recentTasks.map((task) => (
 											<button
 												key={task.id}
 												type="button"
 												onClick={() => handleViewTaskDetails(task)}
-												className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-muted truncate"
+												className="w-full text-left px-1 py-1.5 text-sm rounded hover:bg-muted truncate"
 											>
 												{task.title}
 											</button>
 										))}
 									</div>
-								</div>
-							)}
+								)}
+							</div>
 
 							{singleSelectedProject && (
 								<div className="p-2 border-t text-xs text-muted-foreground">
