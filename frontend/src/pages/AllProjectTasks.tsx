@@ -5,7 +5,14 @@ import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, PanelLeftClose, PanelLeft, ChevronLeft } from "lucide-react";
+import {
+	Plus,
+	PanelLeftClose,
+	PanelLeft,
+	ChevronLeft,
+	Loader2,
+	GitPullRequest,
+} from "lucide-react";
 import { Loader } from "@/components/ui/loader";
 import { tasksApi, projectsApi, attemptsApi } from "@/lib/api";
 import { openTaskForm } from "@/lib/openTaskForm";
@@ -45,6 +52,7 @@ import { AlertTriangle } from "lucide-react";
 
 import type { TaskWithAttemptStatus, TaskStatus } from "shared/types";
 import { cn } from "@/lib/utils";
+import { getProjectColor } from "@/utils/projectColors";
 
 type Task = TaskWithAttemptStatus;
 
@@ -316,6 +324,15 @@ export function AllProjectTasks() {
 		return columns;
 	}, [filteredTasks]);
 
+	const recentTasks = useMemo(() => {
+		return [...tasks]
+			.sort(
+				(a, b) =>
+					new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+			)
+			.slice(0, 20);
+	}, [tasks]);
+
 	const handleViewTaskDetails = useCallback(
 		async (task: Task) => {
 			try {
@@ -492,6 +509,7 @@ export function AllProjectTasks() {
 																task={selectedTask}
 																attempt={attempt ?? null}
 																onClose={handleClosePanel}
+																branchStatus={branchStatus}
 															/>
 														}
 													>
@@ -587,6 +605,7 @@ export function AllProjectTasks() {
 														task={selectedTask}
 														attempt={attempt ?? null}
 														onClose={handleClosePanel}
+														branchStatus={branchStatus}
 													/>
 												}
 											>
@@ -721,9 +740,53 @@ export function AllProjectTasks() {
 											checked={selectedProjectIds.has(project.id)}
 											onCheckedChange={() => handleToggleProject(project.id)}
 										/>
+										<span
+											className="h-2 w-2 rounded-full flex-shrink-0"
+											style={{ backgroundColor: getProjectColor(project.id) }}
+										/>
 										<span className="text-sm truncate">{project.name}</span>
 									</label>
 								))}
+
+								{recentTasks.length > 0 && (
+									<div className="border-t mt-2 pt-2">
+										<div className="px-1 pb-1 text-xs font-medium text-muted-foreground">
+											Recent
+										</div>
+										{recentTasks.map((task) => {
+											const projectColor = getProjectColor(task.project_id);
+											return (
+												<button
+													key={task.id}
+													type="button"
+													onClick={() => handleViewTaskDetails(task)}
+													className="w-full text-left px-1 py-1.5 text-sm rounded hover:bg-muted flex items-center gap-1.5"
+												>
+													<span
+														className="h-2 w-2 rounded-full flex-shrink-0"
+														style={{ backgroundColor: projectColor }}
+													/>
+													<span className="truncate flex-1 min-w-0">
+														{task.title}
+													</span>
+													{task.has_in_progress_attempt && (
+														<Loader2 className="h-3 w-3 animate-spin text-blue-500 flex-shrink-0" />
+													)}
+													{task.pr_url && !task.has_in_progress_attempt && (
+														<GitPullRequest
+															className={cn(
+																"h-3 w-3 flex-shrink-0",
+																task.pr_status === "merged"
+																	? "text-purple-500"
+																	: "text-muted-foreground",
+															)}
+														/>
+													)}
+												</button>
+											);
+										})}
+									</div>
+								)}
 							</div>
 
 							{singleSelectedProject && (
@@ -773,7 +836,8 @@ export function AllProjectTasks() {
 									}
 									return DEFAULT_KANBAN_SIZE;
 								})()}
-								minSize={MIN_PANEL_SIZE}
+								minSize={0}
+								collapsible
 								className="min-w-0 min-h-0 overflow-hidden"
 							>
 								<div className="h-full p-4 overflow-auto">{kanbanContent}</div>
