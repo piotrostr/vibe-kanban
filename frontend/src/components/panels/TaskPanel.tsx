@@ -448,6 +448,7 @@ const TaskPanel = ({ task, onAttemptClick }: TaskPanelProps) => {
 												onClick={() =>
 													CreateAttemptDialog.show({
 														taskId: task.id,
+														projectId: task.project_id,
 													})
 												}
 											>
