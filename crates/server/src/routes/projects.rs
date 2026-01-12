@@ -597,6 +597,13 @@ pub async fn sync_linear_backlog(
     let mut updated = 0;
 
     for issue in &issues {
+        // Serialize labels to JSON
+        let labels_json = if issue.labels.is_empty() {
+            None
+        } else {
+            Some(serde_json::to_string(&issue.labels).unwrap_or_default())
+        };
+
         if let Some(existing) = Task::find_by_linear_issue_id(pool, project.id, &issue.id).await? {
             // Update existing task title/description/url if changed
             Task::update(
@@ -611,6 +618,8 @@ pub async fn sync_linear_backlog(
             .await?;
             // Also update the linear_url in case it was missing
             Task::update_linear_url(pool, existing.id, &issue.url).await?;
+            // Update labels
+            Task::update_linear_labels(pool, existing.id, labels_json.as_deref()).await?;
             updated += 1;
         } else {
             // Create new task from Linear issue
@@ -621,7 +630,9 @@ pub async fn sync_linear_backlog(
                 issue.id.clone(),
                 issue.url.clone(),
             );
-            Task::create(pool, &create_task, Uuid::new_v4()).await?;
+            let task = Task::create(pool, &create_task, Uuid::new_v4()).await?;
+            // Update labels for new task
+            Task::update_linear_labels(pool, task.id, labels_json.as_deref()).await?;
             created += 1;
         }
     }

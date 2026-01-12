@@ -34,6 +34,7 @@ pub struct Task {
     pub shared_task_id: Option<Uuid>,
     pub linear_issue_id: Option<String>, // Linear issue ID for synced tasks
     pub linear_url: Option<String>,      // Linear issue URL for sharing
+    pub linear_labels: Option<String>,   // JSON array of Linear labels
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -189,6 +190,7 @@ impl Task {
   t.shared_task_id                AS "shared_task_id: Uuid",
   t.linear_issue_id,
   t.linear_url,
+  t.linear_labels,
   t.created_at                    AS "created_at!: DateTime<Utc>",
   t.updated_at                    AS "updated_at!: DateTime<Utc>",
 
@@ -298,6 +300,7 @@ ORDER BY t.created_at DESC"#,
                     shared_task_id: rec.shared_task_id,
                     linear_issue_id: rec.linear_issue_id,
                     linear_url: rec.linear_url,
+                    linear_labels: rec.linear_labels,
                     created_at: rec.created_at,
                     updated_at: rec.updated_at,
                 },
@@ -332,6 +335,7 @@ ORDER BY t.created_at DESC"#,
   t.shared_task_id                AS "shared_task_id: Uuid",
   t.linear_issue_id,
   t.linear_url,
+  t.linear_labels,
   t.created_at                    AS "created_at!: DateTime<Utc>",
   t.updated_at                    AS "updated_at!: DateTime<Utc>",
 
@@ -441,6 +445,7 @@ ORDER BY t.created_at DESC"#
                     shared_task_id: rec.shared_task_id,
                     linear_issue_id: rec.linear_issue_id,
                     linear_url: rec.linear_url,
+                    linear_labels: rec.linear_labels,
                     created_at: rec.created_at,
                     updated_at: rec.updated_at,
                 },
@@ -462,7 +467,7 @@ ORDER BY t.created_at DESC"#
     pub async fn find_by_id(pool: &SqlitePool, id: Uuid) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as!(
             Task,
-            r#"SELECT id as "id!: Uuid", project_id as "project_id!: Uuid", title, description, status as "status!: TaskStatus", parent_workspace_id as "parent_workspace_id: Uuid", shared_task_id as "shared_task_id: Uuid", linear_issue_id, linear_url, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>"
+            r#"SELECT id as "id!: Uuid", project_id as "project_id!: Uuid", title, description, status as "status!: TaskStatus", parent_workspace_id as "parent_workspace_id: Uuid", shared_task_id as "shared_task_id: Uuid", linear_issue_id, linear_url, linear_labels, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>"
                FROM tasks
                WHERE id = $1"#,
             id
@@ -474,7 +479,7 @@ ORDER BY t.created_at DESC"#
     pub async fn find_by_rowid(pool: &SqlitePool, rowid: i64) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as!(
             Task,
-            r#"SELECT id as "id!: Uuid", project_id as "project_id!: Uuid", title, description, status as "status!: TaskStatus", parent_workspace_id as "parent_workspace_id: Uuid", shared_task_id as "shared_task_id: Uuid", linear_issue_id, linear_url, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>"
+            r#"SELECT id as "id!: Uuid", project_id as "project_id!: Uuid", title, description, status as "status!: TaskStatus", parent_workspace_id as "parent_workspace_id: Uuid", shared_task_id as "shared_task_id: Uuid", linear_issue_id, linear_url, linear_labels, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>"
                FROM tasks
                WHERE rowid = $1"#,
             rowid
@@ -492,7 +497,7 @@ ORDER BY t.created_at DESC"#
     {
         sqlx::query_as!(
             Task,
-            r#"SELECT id as "id!: Uuid", project_id as "project_id!: Uuid", title, description, status as "status!: TaskStatus", parent_workspace_id as "parent_workspace_id: Uuid", shared_task_id as "shared_task_id: Uuid", linear_issue_id, linear_url, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>"
+            r#"SELECT id as "id!: Uuid", project_id as "project_id!: Uuid", title, description, status as "status!: TaskStatus", parent_workspace_id as "parent_workspace_id: Uuid", shared_task_id as "shared_task_id: Uuid", linear_issue_id, linear_url, linear_labels, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>"
                FROM tasks
                WHERE shared_task_id = $1
                LIMIT 1"#,
@@ -505,7 +510,7 @@ ORDER BY t.created_at DESC"#
     pub async fn find_all_shared(pool: &SqlitePool) -> Result<Vec<Self>, sqlx::Error> {
         sqlx::query_as!(
             Task,
-            r#"SELECT id as "id!: Uuid", project_id as "project_id!: Uuid", title, description, status as "status!: TaskStatus", parent_workspace_id as "parent_workspace_id: Uuid", shared_task_id as "shared_task_id: Uuid", linear_issue_id, linear_url, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>"
+            r#"SELECT id as "id!: Uuid", project_id as "project_id!: Uuid", title, description, status as "status!: TaskStatus", parent_workspace_id as "parent_workspace_id: Uuid", shared_task_id as "shared_task_id: Uuid", linear_issue_id, linear_url, linear_labels, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>"
                FROM tasks
                WHERE shared_task_id IS NOT NULL"#
         )
@@ -523,7 +528,7 @@ ORDER BY t.created_at DESC"#
             Task,
             r#"INSERT INTO tasks (id, project_id, title, description, status, parent_workspace_id, shared_task_id, linear_issue_id, linear_url)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-               RETURNING id as "id!: Uuid", project_id as "project_id!: Uuid", title, description, status as "status!: TaskStatus", parent_workspace_id as "parent_workspace_id: Uuid", shared_task_id as "shared_task_id: Uuid", linear_issue_id, linear_url, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>""#,
+               RETURNING id as "id!: Uuid", project_id as "project_id!: Uuid", title, description, status as "status!: TaskStatus", parent_workspace_id as "parent_workspace_id: Uuid", shared_task_id as "shared_task_id: Uuid", linear_issue_id, linear_url, linear_labels, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>""#,
             task_id,
             data.project_id,
             data.title,
@@ -552,7 +557,7 @@ ORDER BY t.created_at DESC"#
             r#"UPDATE tasks
                SET title = $3, description = $4, status = $5, parent_workspace_id = $6
                WHERE id = $1 AND project_id = $2
-               RETURNING id as "id!: Uuid", project_id as "project_id!: Uuid", title, description, status as "status!: TaskStatus", parent_workspace_id as "parent_workspace_id: Uuid", shared_task_id as "shared_task_id: Uuid", linear_issue_id, linear_url, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>""#,
+               RETURNING id as "id!: Uuid", project_id as "project_id!: Uuid", title, description, status as "status!: TaskStatus", parent_workspace_id as "parent_workspace_id: Uuid", shared_task_id as "shared_task_id: Uuid", linear_issue_id, linear_url, linear_labels, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>""#,
             id,
             project_id,
             title,
@@ -592,6 +597,22 @@ ORDER BY t.created_at DESC"#
             "UPDATE tasks SET linear_url = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
             id,
             linear_url
+        )
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Update the linear_labels field for a task (JSON string of labels)
+    pub async fn update_linear_labels(
+        pool: &SqlitePool,
+        id: Uuid,
+        linear_labels: Option<&str>,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            "UPDATE tasks SET linear_labels = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+            id,
+            linear_labels
         )
         .execute(pool)
         .await?;
@@ -714,7 +735,7 @@ ORDER BY t.created_at DESC"#
         // Find only child tasks that have this workspace as their parent
         sqlx::query_as!(
             Task,
-            r#"SELECT id as "id!: Uuid", project_id as "project_id!: Uuid", title, description, status as "status!: TaskStatus", parent_workspace_id as "parent_workspace_id: Uuid", shared_task_id as "shared_task_id: Uuid", linear_issue_id, linear_url, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>"
+            r#"SELECT id as "id!: Uuid", project_id as "project_id!: Uuid", title, description, status as "status!: TaskStatus", parent_workspace_id as "parent_workspace_id: Uuid", shared_task_id as "shared_task_id: Uuid", linear_issue_id, linear_url, linear_labels, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>"
                FROM tasks
                WHERE parent_workspace_id = $1
                ORDER BY created_at DESC"#,
@@ -731,7 +752,7 @@ ORDER BY t.created_at DESC"#
     ) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as!(
             Task,
-            r#"SELECT id as "id!: Uuid", project_id as "project_id!: Uuid", title, description, status as "status!: TaskStatus", parent_workspace_id as "parent_workspace_id: Uuid", shared_task_id as "shared_task_id: Uuid", linear_issue_id, linear_url, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>"
+            r#"SELECT id as "id!: Uuid", project_id as "project_id!: Uuid", title, description, status as "status!: TaskStatus", parent_workspace_id as "parent_workspace_id: Uuid", shared_task_id as "shared_task_id: Uuid", linear_issue_id, linear_url, linear_labels, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>"
                FROM tasks
                WHERE project_id = $1 AND linear_issue_id = $2
                LIMIT 1"#,
