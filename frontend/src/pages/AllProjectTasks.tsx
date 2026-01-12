@@ -45,6 +45,7 @@ import { AlertTriangle } from "lucide-react";
 
 import type { TaskWithAttemptStatus, TaskStatus } from "shared/types";
 import { cn } from "@/lib/utils";
+import { getProjectColor } from "@/utils/projectColors";
 
 type Task = TaskWithAttemptStatus;
 
@@ -322,7 +323,7 @@ export function AllProjectTasks() {
 				(a, b) =>
 					new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
 			)
-			.slice(0, 7);
+			.slice(0, 12);
 	}, [tasks]);
 
 	const handleViewTaskDetails = useCallback(
@@ -730,6 +731,10 @@ export function AllProjectTasks() {
 											checked={selectedProjectIds.has(project.id)}
 											onCheckedChange={() => handleToggleProject(project.id)}
 										/>
+										<span
+											className="h-2 w-2 rounded-full flex-shrink-0"
+											style={{ backgroundColor: getProjectColor(project.id) }}
+										/>
 										<span className="text-sm truncate">{project.name}</span>
 									</label>
 								))}
@@ -739,16 +744,23 @@ export function AllProjectTasks() {
 										<div className="px-1 pb-1 text-xs font-medium text-muted-foreground">
 											Recent
 										</div>
-										{recentTasks.map((task) => (
-											<button
-												key={task.id}
-												type="button"
-												onClick={() => handleViewTaskDetails(task)}
-												className="w-full text-left px-1 py-1.5 text-sm rounded hover:bg-muted truncate"
-											>
-												{task.title}
-											</button>
-										))}
+										{recentTasks.map((task) => {
+											const projectColor = getProjectColor(task.project_id);
+											return (
+												<button
+													key={task.id}
+													type="button"
+													onClick={() => handleViewTaskDetails(task)}
+													className="w-full text-left px-1 py-1.5 text-sm rounded hover:bg-muted flex items-center gap-1.5"
+												>
+													<span
+														className="h-2 w-2 rounded-full flex-shrink-0"
+														style={{ backgroundColor: projectColor }}
+													/>
+													<span className="truncate">{task.title}</span>
+												</button>
+											);
+										})}
 									</div>
 								)}
 							</div>
