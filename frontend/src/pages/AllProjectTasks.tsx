@@ -316,6 +316,15 @@ export function AllProjectTasks() {
 		return columns;
 	}, [filteredTasks]);
 
+	const recentTasks = useMemo(() => {
+		return [...tasks]
+			.sort(
+				(a, b) =>
+					new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+			)
+			.slice(0, 7);
+	}, [tasks]);
+
 	const handleViewTaskDetails = useCallback(
 		async (task: Task) => {
 			try {
@@ -725,6 +734,26 @@ export function AllProjectTasks() {
 									</label>
 								))}
 							</div>
+
+							{recentTasks.length > 0 && (
+								<div className="border-t">
+									<div className="px-3 py-2 text-xs font-medium text-muted-foreground">
+										Recent
+									</div>
+									<div className="px-2 pb-2 space-y-0.5">
+										{recentTasks.map((task) => (
+											<button
+												key={task.id}
+												type="button"
+												onClick={() => handleViewTaskDetails(task)}
+												className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-muted truncate"
+											>
+												{task.title}
+											</button>
+										))}
+									</div>
+								</div>
+							)}
 
 							{singleSelectedProject && (
 								<div className="p-2 border-t text-xs text-muted-foreground">
