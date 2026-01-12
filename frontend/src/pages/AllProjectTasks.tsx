@@ -330,7 +330,7 @@ export function AllProjectTasks() {
 				(a, b) =>
 					new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
 			)
-			.slice(0, 12);
+			.slice(0, 20);
 	}, [tasks]);
 
 	const handleViewTaskDetails = useCallback(
