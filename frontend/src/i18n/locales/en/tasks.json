@@ -300,7 +300,11 @@
 		"selectBranch": "Select branch",
 		"error": "Failed to create attempt. Please try again.",
 		"creating": "Creating...",
-		"start": "Start"
+		"start": "Start",
+		"addRepo": "Select Repository",
+		"addRepoDescription": "Choose a git repository to work with",
+		"selectRepo": "Select Git Repository",
+		"selectRepoDescription": "Choose a git repository to add to this project"
 	},
 	"repoBranchSelector": {
 		"label": "Base branch"
