@@ -509,6 +509,7 @@ export function AllProjectTasks() {
 																task={selectedTask}
 																attempt={attempt ?? null}
 																onClose={handleClosePanel}
+																branchStatus={branchStatus}
 															/>
 														}
 													>
@@ -604,6 +605,7 @@ export function AllProjectTasks() {
 														task={selectedTask}
 														attempt={attempt ?? null}
 														onClose={handleClosePanel}
+														branchStatus={branchStatus}
 													/>
 												}
 											>
