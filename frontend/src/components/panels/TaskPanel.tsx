@@ -74,12 +74,31 @@ const TaskPanel = ({ task, onAttemptClick }: TaskPanelProps) => {
 		status: string;
 		statusLabel: string;
 	} | null>(null);
+	const [linearAssignee, setLinearAssignee] = useState<string | null>(null);
 
 	// Sync state when task changes
 	useEffect(() => {
 		setTitle(task?.title || "");
 		setDescription(task?.description || "");
 	}, [task?.id, task?.title, task?.description]);
+
+	// Fetch Linear assignee when task has a linear issue
+	useEffect(() => {
+		if (!task?.linear_issue_id) {
+			setLinearAssignee(null);
+			return;
+		}
+
+		tasksApi
+			.getLinearState(task.id)
+			.then((state) => {
+				setLinearAssignee(state.issue.assignee?.name ?? null);
+			})
+			.catch((err) => {
+				console.error("Failed to fetch Linear assignee:", err);
+				setLinearAssignee(null);
+			});
+	}, [task?.id, task?.linear_issue_id]);
 
 	const saveChanges = useCallback(
 		(newTitle: string, newDescription: string) => {
@@ -364,6 +383,14 @@ const TaskPanel = ({ task, onAttemptClick }: TaskPanelProps) => {
 										</TooltipTrigger>
 										<TooltipContent>Push to Linear</TooltipContent>
 									</Tooltip>
+									{linearAssignee && (
+										<>
+											<div className="flex-1" />
+											<span className="text-sm text-muted-foreground">
+												{linearAssignee}
+											</span>
+										</>
+									)}
 								</div>
 							</TooltipProvider>
 						)}

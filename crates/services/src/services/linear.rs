@@ -74,6 +74,7 @@ pub struct LinearIssueWithState {
     pub url: String,
     pub state: WorkflowState,
     pub labels: Vec<LinearLabel>,
+    pub assignee: Option<LinearUser>,
 }
 
 /// Internal struct for deserializing from GraphQL response
@@ -85,6 +86,7 @@ struct LinearIssueWithStateRaw {
     url: String,
     state: WorkflowState,
     labels: Option<LabelConnection>,
+    assignee: Option<LinearUser>,
 }
 
 impl<'de> Deserialize<'de> for LinearIssueWithState {
@@ -100,6 +102,7 @@ impl<'de> Deserialize<'de> for LinearIssueWithState {
             url: raw.url,
             state: raw.state,
             labels: raw.labels.map(|l| l.nodes).unwrap_or_default(),
+            assignee: raw.assignee,
         })
     }
 }
@@ -114,7 +117,7 @@ pub struct WorkflowState {
 }
 
 /// Linear user information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct LinearUser {
     pub id: String,
     pub name: String,
@@ -445,6 +448,10 @@ impl LinearClient {
                             name
                             color
                         }
+                    }
+                    assignee {
+                        id
+                        name
                     }
                 }
             }

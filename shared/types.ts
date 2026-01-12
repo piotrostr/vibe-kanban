@@ -246,9 +246,11 @@ export type ImportTaskFromPrError = { "type": "github_cli_not_installed" } | { "
 
 export type LinearIssueStateResponse = { issue: LinearIssueWithState, mapped_status: TaskStatus, };
 
-export type LinearIssueWithState = { id: string, title: string, description: string | null, url: string, state: WorkflowState, labels: Array<LinearLabel>, };
+export type LinearIssueWithState = { id: string, title: string, description: string | null, url: string, state: WorkflowState, labels: Array<LinearLabel>, assignee: LinearUser | null, };
 
 export type LinearLabel = { id: string, name: string, color: string, };
+
+export type LinearUser = { id: string, name: string, };
 
 export type WorkflowState = { id: string, name: string, type: string, };
 
