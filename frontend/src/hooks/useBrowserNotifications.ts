@@ -56,7 +56,7 @@ export const useBrowserNotifications = (
 			if (registration) {
 				await registration.showNotification(title, {
 					body,
-					icon: "/vibe.jpeg",
+					icon: "/vibe-192.png",
 					tag: `task-complete-${taskId}`,
 					requireInteraction: true,
 					data: { url: targetUrl },
