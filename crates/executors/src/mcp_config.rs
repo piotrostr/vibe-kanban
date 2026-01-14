@@ -305,3 +305,161 @@ impl CodingAgent {
         apply_adapter(adapter, canonical)
     }
 }
+
+/// API keys/tokens for MCP integrations
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct McpApiKeys {
+    pub linear_api_key: Option<String>,
+    pub sentry_auth_token: Option<String>,
+}
+
+impl McpApiKeys {
+    /// Returns environment variables for the API keys (only non-None values)
+    pub fn to_env_vars(&self) -> Vec<(String, String)> {
+        let mut vars = Vec::new();
+        if let Some(ref key) = self.linear_api_key {
+            vars.push(("LINEAR_API_KEY".to_string(), key.clone()));
+        }
+        if let Some(ref token) = self.sentry_auth_token {
+            // Sentry MCP server expects SENTRY_ACCESS_TOKEN
+            vars.push(("SENTRY_ACCESS_TOKEN".to_string(), token.clone()));
+        }
+        vars
+    }
+}
+
+/// Substitutes ${VAR_NAME} placeholders in a JSON value with actual values
+fn substitute_env_vars(value: &mut Value, api_keys: &McpApiKeys) {
+    match value {
+        Value::String(s) => {
+            if s.starts_with("${") && s.ends_with("}") {
+                let var_name = &s[2..s.len() - 1];
+                let replacement = match var_name {
+                    "LINEAR_API_KEY" => api_keys.linear_api_key.clone(),
+                    "SENTRY_ACCESS_TOKEN" => api_keys.sentry_auth_token.clone(),
+                    _ => None,
+                };
+                if let Some(val) = replacement {
+                    *s = val;
+                }
+            }
+        }
+        Value::Object(obj) => {
+            for (_, v) in obj.iter_mut() {
+                substitute_env_vars(v, api_keys);
+            }
+        }
+        Value::Array(arr) => {
+            for v in arr.iter_mut() {
+                substitute_env_vars(v, api_keys);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Ensures specific MCP servers from the preconfigured list are present in the agent's config.
+/// This is used to conditionally inject MCPs like Linear/Sentry before a task starts.
+pub async fn ensure_mcps_in_config(
+    agent: &CodingAgent,
+    mcp_keys: &[String],
+    api_keys: &McpApiKeys,
+) -> Result<(), ExecutorError> {
+    use crate::executors::StandardCodingAgentExecutor;
+
+    if mcp_keys.is_empty() {
+        return Ok(());
+    }
+
+    let Some(config_path) = agent.default_mcp_config_path() else {
+        tracing::debug!("Agent does not support MCP config, skipping injection");
+        return Ok(());
+    };
+
+    let mcp_config = agent.get_mcp_config();
+
+    // Read existing config
+    let mut config = read_agent_config(&config_path, &mcp_config).await?;
+
+    // Get preconfigured servers (already adapted for this agent)
+    let preconfigured = agent.preconfigured_mcp();
+
+    // Navigate to the servers location in config
+    let mut current = &mut config;
+    for (i, part) in mcp_config.servers_path.iter().enumerate() {
+        if i == mcp_config.servers_path.len() - 1 {
+            // Last part - this is where servers live
+            if current.get(part).is_none() {
+                current
+                    .as_object_mut()
+                    .ok_or_else(|| {
+                        ExecutorError::ConfigParse("Config is not an object".to_string())
+                    })?
+                    .insert(part.clone(), serde_json::json!({}));
+            }
+        } else {
+            // Intermediate path - ensure it exists
+            if current.get(part).is_none() {
+                current
+                    .as_object_mut()
+                    .ok_or_else(|| {
+                        ExecutorError::ConfigParse("Config is not an object".to_string())
+                    })?
+                    .insert(part.clone(), serde_json::json!({}));
+            }
+        }
+        current = current.get_mut(part).ok_or_else(|| {
+            ExecutorError::ConfigParse(format!("Failed to navigate to path: {}", part))
+        })?;
+    }
+
+    let servers = current.as_object_mut().ok_or_else(|| {
+        ExecutorError::ConfigParse("Servers location is not an object".to_string())
+    })?;
+
+    // Get preconfigured servers object (excluding meta)
+    let preconfigured_servers = preconfigured
+        .as_object()
+        .map(|obj| {
+            obj.iter()
+                .filter(|(k, _)| *k != "meta")
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect::<Map<String, Value>>()
+        })
+        .unwrap_or_default();
+
+    // Add requested MCPs if they exist in preconfigured and aren't already present
+    let mut added = Vec::new();
+    for key in mcp_keys {
+        if !servers.contains_key(key) {
+            if let Some(server_config) = preconfigured_servers.get(key) {
+                let mut config_with_keys = server_config.clone();
+                // Substitute API key placeholders with actual values
+                substitute_env_vars(&mut config_with_keys, api_keys);
+                servers.insert(key.clone(), config_with_keys);
+                added.push(key.clone());
+            }
+        }
+    }
+
+    if added.is_empty() {
+        tracing::debug!("All requested MCPs already present or not found in preconfigured");
+        return Ok(());
+    }
+
+    // Ensure parent directory exists
+    if let Some(parent) = config_path.parent() {
+        tokio::fs::create_dir_all(parent).await?;
+    }
+
+    // Write updated config
+    write_agent_config(&config_path, &mcp_config, &config).await?;
+
+    tracing::info!(
+        mcps = ?added,
+        config_path = %config_path.display(),
+        "Injected MCPs into agent config"
+    );
+
+    Ok(())
+}

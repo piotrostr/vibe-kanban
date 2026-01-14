@@ -21,7 +21,7 @@ use db::models::{
     workspace_repo::{CreateWorkspaceRepo, WorkspaceRepo},
 };
 use deployment::Deployment;
-use executors::profile::ExecutorProfileId;
+use executors::{mcp_config::McpApiKeys, profile::ExecutorProfileId};
 use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use services::services::{
@@ -180,6 +180,9 @@ pub struct CreateAndStartTaskRequest {
     pub task: CreateTask,
     pub executor_profile_id: ExecutorProfileId,
     pub repos: Vec<WorkspaceRepoInput>,
+    /// List of MCP server keys to enable for this task (e.g., ["linear", "sentry"])
+    #[serde(default)]
+    pub enabled_mcps: Option<Vec<String>>,
 }
 
 pub async fn create_task_and_start(
@@ -238,9 +241,22 @@ pub async fn create_task_and_start(
         .collect();
     WorkspaceRepo::create_many(&deployment.db().pool, workspace.id, &workspace_repos).await?;
 
+    // Load API keys from user config
+    let config = deployment.config().read().await;
+    let mcp_api_keys = McpApiKeys {
+        linear_api_key: config.integrations.linear_api_key.clone(),
+        sentry_auth_token: config.integrations.sentry_auth_token.clone(),
+    };
+    drop(config);
+
     let is_attempt_running = deployment
         .container()
-        .start_workspace(&workspace, payload.executor_profile_id.clone())
+        .start_workspace(
+            &workspace,
+            payload.executor_profile_id.clone(),
+            payload.enabled_mcps,
+            mcp_api_keys,
+        )
         .await
         .inspect_err(|err| tracing::error!("Failed to start task attempt: {}", err))
         .is_ok();
