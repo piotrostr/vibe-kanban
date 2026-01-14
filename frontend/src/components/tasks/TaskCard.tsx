@@ -334,15 +334,23 @@ export function TaskCard({
 									variant="icon"
 									onClick={(e) => {
 										e.stopPropagation();
-										window.open(
-											task.linear_url!,
-											"_blank",
-											"noopener,noreferrer",
-										);
+										const issueId = extractLinearIssueId(task.linear_url);
+										const forceWeb = e.shiftKey || e.metaKey || e.ctrlKey;
+										if (issueId && !forceWeb) {
+											// Try desktop app first via deep link
+											window.location.href = `linear://issue/${issueId}`;
+										} else {
+											// Open in browser
+											window.open(
+												task.linear_url!,
+												"_blank",
+												"noopener,noreferrer",
+											);
+										}
 									}}
 									onPointerDown={(e) => e.stopPropagation()}
 									onMouseDown={(e) => e.stopPropagation()}
-									title="View in Linear"
+									title="View in Linear (Shift+click for browser)"
 									className="gap-1"
 								>
 									<LinearIcon className="h-4 w-4" />
