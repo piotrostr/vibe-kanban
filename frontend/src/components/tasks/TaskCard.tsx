@@ -334,11 +334,18 @@ export function TaskCard({
 									variant="icon"
 									onClick={(e) => {
 										e.stopPropagation();
-										window.open(
-											task.linear_url!,
-											"_blank",
-											"noopener,noreferrer",
-										);
+										const issueId = extractLinearIssueId(task.linear_url);
+										if (issueId) {
+											// Try desktop app first via deep link
+											window.location.href = `linear://issue/${issueId}`;
+										} else {
+											// Fallback to web URL
+											window.open(
+												task.linear_url!,
+												"_blank",
+												"noopener,noreferrer",
+											);
+										}
 									}}
 									onPointerDown={(e) => e.stopPropagation()}
 									onMouseDown={(e) => e.stopPropagation()}
