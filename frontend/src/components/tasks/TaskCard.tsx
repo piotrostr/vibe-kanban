@@ -335,11 +335,12 @@ export function TaskCard({
 									onClick={(e) => {
 										e.stopPropagation();
 										const issueId = extractLinearIssueId(task.linear_url);
-										if (issueId) {
+										const forceWeb = e.shiftKey || e.metaKey || e.ctrlKey;
+										if (issueId && !forceWeb) {
 											// Try desktop app first via deep link
 											window.location.href = `linear://issue/${issueId}`;
 										} else {
-											// Fallback to web URL
+											// Open in browser
 											window.open(
 												task.linear_url!,
 												"_blank",
@@ -349,7 +350,7 @@ export function TaskCard({
 									}}
 									onPointerDown={(e) => e.stopPropagation()}
 									onMouseDown={(e) => e.stopPropagation()}
-									title="View in Linear"
+									title="View in Linear (Shift+click for browser)"
 									className="gap-1"
 								>
 									<LinearIcon className="h-4 w-4" />
