@@ -119,8 +119,10 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 		? selectedProjectId
 		: initialProjectId;
 
-	const { createTask, createAndStart, updateTask } =
-		useTaskMutations(activeProjectId);
+	const { createTask, createAndStart, updateTask } = useTaskMutations(
+		activeProjectId,
+		{ stayInAllProjectsView: showProjectSelector },
+	);
 
 	const { data: taskImages } = useTaskImages(
 		editMode ? props.task.id : undefined,

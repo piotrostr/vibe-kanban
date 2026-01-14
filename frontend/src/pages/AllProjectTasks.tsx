@@ -251,17 +251,13 @@ export function AllProjectTasks() {
 		selectedProjects.length === 1 ? selectedProjects[0] : null;
 
 	const handleCreateTask = useCallback(() => {
-		if (singleSelectedProject) {
-			// Single project selected - use it directly
-			openTaskForm({ mode: "create", projectId: singleSelectedProject.id });
-		} else if (selectedProjects.length > 0) {
-			// Multiple projects selected - show selector with only selected projects
+		// Always pass projects array to stay in All Projects view after creation
+		if (selectedProjects.length > 0) {
 			openTaskForm({ mode: "create", projects: selectedProjects });
 		} else if (projects.length > 0) {
-			// No projects selected - show all projects in selector
 			openTaskForm({ mode: "create", projects });
 		}
-	}, [singleSelectedProject, selectedProjects, projects]);
+	}, [selectedProjects, projects]);
 
 	const handleImportFromPR = useCallback(() => {
 		// Import from PR only works with a single project selected
