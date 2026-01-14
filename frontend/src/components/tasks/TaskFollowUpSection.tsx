@@ -29,17 +29,16 @@ import { ScratchType, type TaskWithAttemptStatus } from "shared/types";
 import { useBranchStatus } from "@/hooks";
 import { useAttemptRepo } from "@/hooks/useAttemptRepo";
 import { useAttemptExecution } from "@/hooks/useAttemptExecution";
-import { useUserSystem } from "@/components/ConfigProvider";
 import { cn } from "@/lib/utils";
 //
 import { useReview } from "@/contexts/ReviewProvider";
 import { useClickedElements } from "@/contexts/ClickedElementsProvider";
 import { useEntries } from "@/contexts/EntriesContext";
-import { useKeySubmitFollowUp, Scope } from "@/keyboard";
+import { useKeySubmitFollowUp, useKeyToggleMode, Scope } from "@/keyboard";
 import { useHotkeysContext } from "react-hotkeys-hook";
 import { useProject } from "@/contexts/ProjectContext";
 //
-import { VariantSelector } from "@/components/tasks/VariantSelector";
+import { ModeToggle } from "@/components/tasks/ModeToggle";
 import { useAttemptBranch } from "@/hooks/useAttemptBranch";
 import { FollowUpConflictSection } from "@/components/tasks/follow-up/FollowUpConflictSection";
 import { ClickedElementsBanner } from "@/components/tasks/ClickedElementsBanner";
@@ -115,7 +114,6 @@ export function TaskFollowUpSection({
 	);
 	const { branch: attemptBranch, refetch: refetchAttemptBranch } =
 		useAttemptBranch(workspaceId);
-	const { profiles } = useUserSystem();
 	const { comments, generateReviewMarkdown, clearComments } = useReview();
 	const {
 		generateMarkdown: generateClickedMarkdown,
@@ -200,17 +198,15 @@ export function TaskFollowUpSection({
 
 	const processVariant = latestProfileId?.variant ?? null;
 
-	const currentProfile = useMemo(() => {
-		if (!latestProfileId) return null;
-		return profiles?.[latestProfileId.executor] ?? null;
-	}, [latestProfileId, profiles]);
-
-	// Variant selection with priority: user selection > scratch > process
+	// Mode selection: PLAN or DEFAULT (null)
 	const { selectedVariant, setSelectedVariant: setVariantFromHook } =
 		useVariant({
 			processVariant,
 			scratchVariant: scratchData?.variant,
 		});
+
+	// Derive plan mode state from variant
+	const isPlanMode = selectedVariant === "PLAN";
 
 	// Ref to track current variant for use in message save callback
 	const variantRef = useRef<string | null>(selectedVariant);
@@ -255,6 +251,12 @@ export function TaskFollowUpSection({
 		},
 		[setVariantFromHook, saveToScratch, localMessage],
 	);
+
+	// Toggle between PLAN and DEFAULT modes
+	const handleToggleMode = useCallback(() => {
+		const newVariant = isPlanMode ? null : "PLAN";
+		setSelectedVariant(newVariant);
+	}, [isPlanMode, setSelectedVariant]);
 
 	// Debounced save for message changes (uses current variant from ref)
 	const { debounced: setFollowUpMessage, cancel: cancelDebouncedSave } =
@@ -668,6 +670,13 @@ export function TaskFollowUpSection({
 		when: canSendFollowUp && isEditable,
 	});
 
+	// Register mode toggle shortcut (shift+tab)
+	useKeyToggleMode(handleToggleMode, {
+		scope: Scope.FOLLOW_UP,
+		enableOnFormTags: ["textarea", "TEXTAREA"],
+		when: isEditable,
+	});
+
 	// Enable FOLLOW_UP scope when textarea is focused AND editable
 	useEffect(() => {
 		if (isEditable && isTextareaFocused) {
@@ -810,10 +819,9 @@ export function TaskFollowUpSection({
 			<div className="p-4">
 				<div className="flex flex-row gap-2 items-center">
 					<div className="flex-1 flex gap-2">
-						<VariantSelector
-							currentProfile={currentProfile}
-							selectedVariant={selectedVariant}
-							onChange={setSelectedVariant}
+						<ModeToggle
+							isPlanMode={isPlanMode}
+							onToggle={handleToggleMode}
 							disabled={!isEditable}
 						/>
 					</div>

@@ -30,6 +30,7 @@ export enum Action {
 	SUBMIT_TASK_ALT = "submit_task_alt",
 	SUBMIT_COMMENT = "submit_comment",
 	CYCLE_VIEW_BACKWARD = "cycle_view_backward",
+	TOGGLE_MODE = "toggle_mode",
 }
 
 export interface KeyBinding {
@@ -217,6 +218,15 @@ export const keyBindings: KeyBinding[] = [
 		scopes: [Scope.EDIT_COMMENT],
 		description: "Submit review comment",
 		group: "Comments",
+	},
+
+	// Mode toggle actions
+	{
+		action: Action.TOGGLE_MODE,
+		keys: "shift+tab",
+		scopes: [Scope.FOLLOW_UP, Scope.FOLLOW_UP_READY, Scope.DIALOG],
+		description: "Toggle between plan mode and default mode",
+		group: "Mode",
 	},
 ];
 

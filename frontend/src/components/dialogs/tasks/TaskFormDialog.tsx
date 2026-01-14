@@ -28,7 +28,7 @@ import WYSIWYGEditor from "@/components/ui/wysiwyg";
 import type { LocalImageMetadata } from "@/components/ui/wysiwyg/context/task-attempt-context";
 import BranchSelector from "@/components/tasks/BranchSelector";
 import RepoBranchSelector from "@/components/tasks/RepoBranchSelector";
-import { ExecutorProfileSelector } from "@/components/settings";
+import { ModeToggle } from "@/components/tasks/ModeToggle";
 import { useUserSystem } from "@/components/ConfigProvider";
 import {
 	useTaskImages,
@@ -41,10 +41,12 @@ import {
 	useKeySubmitTask,
 	useKeySubmitTaskAlt,
 	useKeyExit,
+	useKeyToggleMode,
 	Scope,
 } from "@/keyboard";
 import { useHotkeysContext } from "react-hotkeys-hook";
 import { cn } from "@/lib/utils";
+import { BaseCodingAgent } from "shared/types";
 import type {
 	TaskStatus,
 	ExecutorProfileId,
@@ -80,7 +82,7 @@ type TaskFormValues = {
 	title: string;
 	description: string;
 	status: TaskStatus;
-	executorProfileId: ExecutorProfileId | null;
+	isPlanMode: boolean;
 	repoBranches: RepoBranch[];
 	autoStart: boolean;
 	selectedProjectId: string;
@@ -100,7 +102,7 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 	const editMode = mode === "edit";
 	const modal = useModal();
 	const { t } = useTranslation(["tasks", "common"]);
-	const { system, profiles, loading: userSystemLoading } = useUserSystem();
+	const { loading: userSystemLoading } = useUserSystem();
 	const { upload, uploadForTask } = useImageUpload();
 	const { enableScope, disableScope } = useHotkeysContext();
 
@@ -147,15 +149,13 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 
 	// Get default form values based on mode
 	const defaultValues = useMemo((): TaskFormValues => {
-		const baseProfile = system.config?.executor_profile || null;
-
 		switch (mode) {
 			case "edit":
 				return {
 					title: props.task.title,
 					description: props.task.description || "",
 					status: props.task.status,
-					executorProfileId: baseProfile,
+					isPlanMode: false,
 					repoBranches: defaultRepoBranches,
 					autoStart: false,
 					selectedProjectId: initialProjectId,
@@ -166,7 +166,7 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 					title: props.initialTask.title,
 					description: props.initialTask.description || "",
 					status: "todo",
-					executorProfileId: baseProfile,
+					isPlanMode: false,
 					repoBranches: defaultRepoBranches,
 					autoStart: true,
 					selectedProjectId: initialProjectId,
@@ -179,19 +179,13 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 					title: "",
 					description: "",
 					status: "todo",
-					executorProfileId: baseProfile,
+					isPlanMode: false,
 					repoBranches: defaultRepoBranches,
 					autoStart: true,
 					selectedProjectId: initialProjectId,
 				};
 		}
-	}, [
-		mode,
-		props,
-		system.config?.executor_profile,
-		defaultRepoBranches,
-		initialProjectId,
-	]);
+	}, [mode, props, defaultRepoBranches, initialProjectId]);
 
 	// Form submission handler
 	const handleSubmit = async ({ value }: { value: TaskFormValues }) => {
@@ -231,10 +225,14 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 					repo_id: rb.repoId,
 					target_branch: rb.branch,
 				}));
+				const executorProfileId: ExecutorProfileId = {
+					executor: BaseCodingAgent.CLAUDE_CODE,
+					variant: value.isPlanMode ? "PLAN" : null,
+				};
 				await createAndStart.mutateAsync(
 					{
 						task,
-						executor_profile_id: value.executorProfileId!,
+						executor_profile_id: executorProfileId,
 						repos,
 					},
 					{ onSuccess: () => modal.remove() },
@@ -248,7 +246,6 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 	const validator = (value: TaskFormValues): string | undefined => {
 		if (!value.title.trim().length) return "need title";
 		if (value.autoStart && !forceCreateOnlyRef.current) {
-			if (!value.executorProfileId) return "need executor profile";
 			if (
 				value.repoBranches.length === 0 ||
 				value.repoBranches.some((rb) => !rb.branch)
@@ -388,6 +385,17 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 		scope: Scope.DIALOG,
 		enableOnFormTags: ["input", "INPUT", "textarea", "TEXTAREA"],
 		preventDefault: true,
+	});
+
+	// Mode toggle keyboard shortcut
+	const handleToggleMode = useCallback(() => {
+		form.setFieldValue("isPlanMode", (prev) => !prev);
+	}, [form]);
+
+	useKeyToggleMode(handleToggleMode, {
+		scope: Scope.DIALOG,
+		enabled: modal.visible && !showDiscardWarning && !editMode,
+		enableOnFormTags: ["input", "INPUT", "textarea", "TEXTAREA"],
 	});
 
 	// Dialog close handling
@@ -584,20 +592,16 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 										)}
 									>
 										<div className="flex items-center gap-2">
-											<form.Field name="executorProfileId">
+											<form.Field name="isPlanMode">
 												{(field) => (
-													<ExecutorProfileSelector
-														profiles={profiles}
-														selectedProfile={field.state.value}
-														onProfileSelect={(profile) =>
-															field.handleChange(profile)
+													<ModeToggle
+														isPlanMode={field.state.value}
+														onToggle={() =>
+															field.handleChange(!field.state.value)
 														}
 														disabled={
 															isSubmitting || !autoStartField.state.value
 														}
-														showLabel={false}
-														className="flex items-center gap-2 flex-row flex-[2] min-w-0"
-														itemClassName="flex-1 min-w-0"
 													/>
 												)}
 											</form.Field>
