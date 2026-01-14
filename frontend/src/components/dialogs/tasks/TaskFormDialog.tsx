@@ -396,6 +396,7 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 		scope: Scope.DIALOG,
 		enabled: modal.visible && !showDiscardWarning && !editMode,
 		enableOnFormTags: ["input", "INPUT", "textarea", "TEXTAREA"],
+		preventDefault: true,
 	});
 
 	// Dialog close handling

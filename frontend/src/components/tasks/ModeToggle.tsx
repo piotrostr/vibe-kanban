@@ -38,16 +38,13 @@ const ModeToggleInner = forwardRef<HTMLButtonElement, Props>(
 					isAnimating && "scale-105",
 					isPlanMode
 						? "text-yellow-600 dark:text-yellow-500 focus:ring-yellow-500"
-						: "text-muted-foreground focus:ring-muted",
+						: "text-red-600 dark:text-red-500 focus:ring-red-500",
 					disabled && "opacity-50 cursor-not-allowed",
 					className,
 				)}
 			>
 				{isPlanMode ? (
-					<>
-						<Pause className="h-3 w-3" />
-						<Pause className="h-3 w-3 -ml-2" />
-					</>
+					<Pause className="h-3 w-3" />
 				) : (
 					<>
 						<Play className="h-3 w-3" />

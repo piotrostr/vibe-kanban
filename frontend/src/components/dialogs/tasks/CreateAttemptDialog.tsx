@@ -176,6 +176,7 @@ const CreateAttemptDialogImpl = NiceModal.create<CreateAttemptDialogProps>(
 		useKeyToggleMode(handleToggleMode, {
 			scope: Scope.DIALOG,
 			enabled: modal.visible,
+			preventDefault: true,
 		});
 
 		return (

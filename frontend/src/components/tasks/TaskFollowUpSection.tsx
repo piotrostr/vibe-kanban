@@ -675,6 +675,7 @@ export function TaskFollowUpSection({
 		scope: Scope.FOLLOW_UP,
 		enableOnFormTags: ["textarea", "TEXTAREA"],
 		when: isEditable,
+		preventDefault: true,
 	});
 
 	// Enable FOLLOW_UP scope when textarea is focused AND editable
