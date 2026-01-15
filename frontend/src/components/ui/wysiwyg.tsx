@@ -74,6 +74,8 @@ type WysiwygProps = {
 	onPasteFiles?: (files: File[]) => void;
 	className?: string;
 	projectId?: string; // for file search in typeahead
+	/** Plain Enter key - sends message (Claude Code style) */
+	onEnter?: () => void;
 	onCmdEnter?: () => void;
 	onShiftCmdEnter?: () => void;
 	/** Shift+Tab callback for mode toggle */
@@ -107,6 +109,7 @@ function WYSIWYGEditor({
 	onPasteFiles,
 	className,
 	projectId,
+	onEnter,
 	onCmdEnter,
 	onShiftCmdEnter,
 	onShiftTab,
@@ -272,6 +275,7 @@ function WYSIWYGEditor({
 									<FileTypeaheadPlugin projectId={projectId} />
 									<SlashCommandTypeaheadPlugin />
 									<KeyboardCommandsPlugin
+										onEnter={onEnter}
 										onCmdEnter={onCmdEnter}
 										onShiftCmdEnter={onShiftCmdEnter}
 										onShiftTab={onShiftTab}

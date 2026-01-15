@@ -824,7 +824,7 @@ export function TaskFollowUpSection({
 								onPasteFiles={handlePasteFiles}
 								projectId={projectId}
 								taskAttemptId={workspaceId}
-								onCmdEnter={handleSubmitShortcut}
+								onEnter={handleSubmitShortcut}
 								onShiftTab={handleToggleMode}
 								onHistoryPrevious={handleHistoryPrevious}
 								onHistoryNext={handleHistoryNext}

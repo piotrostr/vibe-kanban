@@ -9,12 +9,15 @@ import {
 } from "lexical";
 
 type Props = {
+	/** Plain Enter key - sends message (Claude Code style) */
+	onEnter?: () => void;
 	onCmdEnter?: () => void;
 	onShiftCmdEnter?: () => void;
 	onShiftTab?: () => void;
 };
 
 export function KeyboardCommandsPlugin({
+	onEnter,
 	onCmdEnter,
 	onShiftCmdEnter,
 	onShiftTab,
@@ -52,15 +55,46 @@ export function KeyboardCommandsPlugin({
 					COMMAND_PRIORITY_NORMAL,
 				),
 			);
+		}
 
-			// Block KEY_ENTER_COMMAND when CMD/Ctrl is pressed to prevent
-			// RichTextPlugin from inserting a new line
+		// Handle Enter key - Claude Code style:
+		// - Plain Enter: send message (call onEnter)
+		// - Alt/Option+Enter: insert newline (allow default behavior)
+		// - Cmd/Ctrl+Enter: handled above by KEY_MODIFIER_COMMAND
+		if (onEnter) {
+			unregisters.push(
+				editor.registerCommand(
+					KEY_ENTER_COMMAND,
+					(event: KeyboardEvent | null) => {
+						if (!event) return false;
+
+						// Alt/Option+Enter: allow newline insertion
+						if (event.altKey) {
+							return false;
+						}
+
+						// Cmd/Ctrl+Enter: handled by KEY_MODIFIER_COMMAND
+						if (event.metaKey || event.ctrlKey) {
+							return true; // Block default, let modifier handler deal with it
+						}
+
+						// Plain Enter: send message
+						event.preventDefault();
+						event.stopPropagation();
+						onEnter();
+						return true;
+					},
+					COMMAND_PRIORITY_HIGH,
+				),
+			);
+		} else if (onCmdEnter || onShiftCmdEnter) {
+			// Legacy: Block KEY_ENTER_COMMAND when CMD/Ctrl is pressed
 			unregisters.push(
 				editor.registerCommand(
 					KEY_ENTER_COMMAND,
 					(event: KeyboardEvent | null) => {
 						if (event && (event.metaKey || event.ctrlKey)) {
-							return true; // Mark as handled, preventing line break insertion
+							return true;
 						}
 						return false;
 					},
@@ -91,7 +125,7 @@ export function KeyboardCommandsPlugin({
 		return () => {
 			unregisters.forEach((unregister) => unregister());
 		};
-	}, [editor, onCmdEnter, onShiftCmdEnter, onShiftTab]);
+	}, [editor, onEnter, onCmdEnter, onShiftCmdEnter, onShiftTab]);
 
 	return null;
 }
