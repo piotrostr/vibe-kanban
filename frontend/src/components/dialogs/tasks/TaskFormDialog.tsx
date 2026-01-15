@@ -395,7 +395,7 @@ const TaskFormDialogImpl = NiceModal.create<TaskFormDialogProps>((props) => {
 	useKeyToggleMode(handleToggleMode, {
 		scope: Scope.DIALOG,
 		enabled: modal.visible && !showDiscardWarning && !editMode,
-		enableOnFormTags: ["input", "INPUT", "textarea", "TEXTAREA"],
+		enableOnContentEditable: true,
 		preventDefault: true,
 	});
 

@@ -338,6 +338,25 @@ export function TaskFollowUpSection({
 		});
 	}, [entries]);
 
+	// Auto-switch to DEFAULT mode when ExitPlanMode is approved
+	useEffect(() => {
+		if (!isPlanMode) return;
+
+		const exitPlanApproved = entries.some((entry) => {
+			if (entry.type !== "NORMALIZED_ENTRY") return false;
+			const entryType = entry.content.entry_type;
+			return (
+				entryType.type === "tool_use" &&
+				entryType.tool_name === "ExitPlanMode" &&
+				entryType.status.status === "success"
+			);
+		});
+
+		if (exitPlanApproved) {
+			setSelectedVariant(null);
+		}
+	}, [entries, isPlanMode, setSelectedVariant]);
+
 	// Send follow-up action
 	const { isSendingFollowUp, followUpError, setFollowUpError, onSendFollowUp } =
 		useFollowUpSend({
@@ -673,7 +692,7 @@ export function TaskFollowUpSection({
 	// Register mode toggle shortcut (shift+tab)
 	useKeyToggleMode(handleToggleMode, {
 		scope: Scope.FOLLOW_UP,
-		enableOnFormTags: ["textarea", "TEXTAREA"],
+		enableOnContentEditable: true,
 		when: isEditable,
 		preventDefault: true,
 	});

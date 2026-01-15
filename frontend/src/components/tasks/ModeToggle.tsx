@@ -37,7 +37,7 @@ const ModeToggleInner = forwardRef<HTMLButtonElement, Props>(
 					"hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-1",
 					isAnimating && "scale-105",
 					isPlanMode
-						? "text-yellow-600 dark:text-yellow-500 focus:ring-yellow-500"
+						? "text-blue-600 dark:text-blue-400 focus:ring-blue-500"
 						: "text-red-600 dark:text-red-500 focus:ring-red-500",
 					disabled && "opacity-50 cursor-not-allowed",
 					className,
