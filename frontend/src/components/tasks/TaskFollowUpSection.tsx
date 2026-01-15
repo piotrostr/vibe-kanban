@@ -825,6 +825,7 @@ export function TaskFollowUpSection({
 								projectId={projectId}
 								taskAttemptId={workspaceId}
 								onCmdEnter={handleSubmitShortcut}
+								onShiftTab={handleToggleMode}
 								onHistoryPrevious={handleHistoryPrevious}
 								onHistoryNext={handleHistoryNext}
 								onHistoryReset={handleHistoryReset}

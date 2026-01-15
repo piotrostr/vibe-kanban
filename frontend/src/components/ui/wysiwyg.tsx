@@ -76,6 +76,8 @@ type WysiwygProps = {
 	projectId?: string; // for file search in typeahead
 	onCmdEnter?: () => void;
 	onShiftCmdEnter?: () => void;
+	/** Shift+Tab callback for mode toggle */
+	onShiftTab?: () => void;
 	/** Task attempt ID for resolving .vibe-images paths (preferred over taskId) */
 	taskAttemptId?: string;
 	/** Task ID for resolving .vibe-images paths when taskAttemptId is not available */
@@ -107,6 +109,7 @@ function WYSIWYGEditor({
 	projectId,
 	onCmdEnter,
 	onShiftCmdEnter,
+	onShiftTab,
 	taskAttemptId,
 	taskId,
 	localImages,
@@ -271,6 +274,7 @@ function WYSIWYGEditor({
 									<KeyboardCommandsPlugin
 										onCmdEnter={onCmdEnter}
 										onShiftCmdEnter={onShiftCmdEnter}
+										onShiftTab={onShiftTab}
 									/>
 									<ImageKeyboardPlugin />
 									<CodeBlockShortcutPlugin />
