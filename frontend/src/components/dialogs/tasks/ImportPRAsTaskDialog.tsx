@@ -22,10 +22,10 @@ import {
 } from "lucide-react";
 import NiceModal, { useModal } from "@ebay/nice-modal-react";
 import { defineModal } from "@/lib/modals";
+import { BaseCodingAgent } from "shared/types";
 import type { PrListItem, ExecutorProfileId } from "shared/types";
 import { cn } from "@/lib/utils";
-import { useUserSystem } from "@/components/ConfigProvider";
-import { ExecutorProfileSelector } from "@/components/settings";
+import { ModeToggle } from "@/components/tasks/ModeToggle";
 import { useNavigate } from "react-router-dom";
 import {
 	Select,
@@ -71,7 +71,6 @@ const ImportPRAsTaskDialogImpl = NiceModal.create<ImportPRAsTaskDialogProps>(
 		const modal = useModal();
 		const { t } = useTranslation(["tasks", "common"]);
 		const navigate = useNavigate();
-		const { profiles } = useUserSystem();
 		const { data: projectRepos = [] } = useProjectRepos(projectId);
 
 		const [selectedRepoId, setSelectedRepoId] = useState<string | null>(null);
@@ -82,8 +81,7 @@ const ImportPRAsTaskDialogImpl = NiceModal.create<ImportPRAsTaskDialogProps>(
 		const [importing, setImporting] = useState(false);
 		const [error, setError] = useState<string | null>(null);
 		const [selectedPr, setSelectedPr] = useState<PrListItem | null>(null);
-		const [selectedProfile, setSelectedProfile] =
-			useState<ExecutorProfileId | null>(null);
+		const [isPlanMode, setIsPlanMode] = useState(false);
 		const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 		// Set default repo when data loads
@@ -144,7 +142,12 @@ const ImportPRAsTaskDialogImpl = NiceModal.create<ImportPRAsTaskDialogProps>(
 		}, [modal.visible]);
 
 		const handleConfirmImport = useCallback(async () => {
-			if (!selectedRepoId || !selectedPr || !selectedProfile) return;
+			if (!selectedRepoId || !selectedPr) return;
+
+			const executorProfileId: ExecutorProfileId = {
+				executor: BaseCodingAgent.CLAUDE_CODE,
+				variant: isPlanMode ? "PLAN" : null,
+			};
 
 			setError(null);
 			setImporting(true);
@@ -154,7 +157,7 @@ const ImportPRAsTaskDialogImpl = NiceModal.create<ImportPRAsTaskDialogProps>(
 					projectId,
 					repoId: selectedRepoId,
 					prNumber: selectedPr.number,
-					executorProfileId: selectedProfile,
+					executorProfileId,
 				});
 
 				if (result.success) {
@@ -195,15 +198,7 @@ const ImportPRAsTaskDialogImpl = NiceModal.create<ImportPRAsTaskDialogProps>(
 			} finally {
 				setImporting(false);
 			}
-		}, [
-			projectId,
-			selectedRepoId,
-			selectedPr,
-			selectedProfile,
-			modal,
-			navigate,
-			t,
-		]);
+		}, [projectId, selectedRepoId, selectedPr, isPlanMode, modal, navigate, t]);
 
 		const handleCancel = useCallback(() => {
 			modal.reject("canceled");
@@ -220,7 +215,7 @@ const ImportPRAsTaskDialogImpl = NiceModal.create<ImportPRAsTaskDialogProps>(
 			[searchQuery, debouncedQuery],
 		);
 
-		const canImport = selectedRepoId && selectedPr && selectedProfile;
+		const canImport = selectedRepoId && selectedPr;
 
 		return (
 			<Dialog open={modal.visible} onOpenChange={() => handleCancel()}>
@@ -264,13 +259,10 @@ const ImportPRAsTaskDialogImpl = NiceModal.create<ImportPRAsTaskDialogProps>(
 							<span className="text-sm text-muted-foreground min-w-[80px]">
 								{t("importPrDialog.executor")}
 							</span>
-							<ExecutorProfileSelector
-								profiles={profiles}
-								selectedProfile={selectedProfile}
-								onProfileSelect={setSelectedProfile}
+							<ModeToggle
+								isPlanMode={isPlanMode}
+								onToggle={() => setIsPlanMode((prev) => !prev)}
 								disabled={importing}
-								showLabel={false}
-								className="flex-1"
 							/>
 						</div>
 

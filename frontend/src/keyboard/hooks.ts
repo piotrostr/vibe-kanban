@@ -1,5 +1,5 @@
-import { createSemanticHook } from './useSemanticKey';
-import { Action } from './registry';
+import { createSemanticHook } from "./useSemanticKey";
+import { Action } from "./registry";
 
 /**
  * Semantic keyboard shortcut hooks
@@ -143,5 +143,14 @@ export const useKeySubmitComment = createSemanticHook(Action.SUBMIT_COMMENT);
  * useKeyCycleViewBackward(() => cycleBackward(), { scope: Scope.KANBAN });
  */
 export const useKeyCycleViewBackward = createSemanticHook(
-  Action.CYCLE_VIEW_BACKWARD
+	Action.CYCLE_VIEW_BACKWARD,
 );
+
+/**
+ * Toggle mode action - typically Shift+Tab
+ * Toggle between plan mode and default mode
+ *
+ * @example
+ * useKeyToggleMode(() => toggleMode(), { scope: Scope.FOLLOW_UP });
+ */
+export const useKeyToggleMode = createSemanticHook(Action.TOGGLE_MODE);

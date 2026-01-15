@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import RepoBranchSelector from "@/components/tasks/RepoBranchSelector";
-import { ExecutorProfileSelector } from "@/components/settings";
+import { ModeToggle } from "@/components/tasks/ModeToggle";
 import { useAttemptCreation } from "@/hooks/useAttemptCreation";
 import {
 	useNavigateWithSearch,
@@ -20,12 +20,12 @@ import {
 	useProjectRepos,
 } from "@/hooks";
 import { useTaskAttemptsWithSessions } from "@/hooks/useTaskAttempts";
-import { useUserSystem } from "@/components/ConfigProvider";
 import { paths } from "@/lib/paths";
 import NiceModal, { useModal } from "@ebay/nice-modal-react";
 import { defineModal } from "@/lib/modals";
-import type { ExecutorProfileId, BaseCodingAgent } from "shared/types";
-import { useKeySubmitTask, Scope } from "@/keyboard";
+import { BaseCodingAgent } from "shared/types";
+import type { ExecutorProfileId } from "shared/types";
+import { useKeySubmitTask, useKeyToggleMode, Scope } from "@/keyboard";
 import { RepoPickerDialog } from "@/components/dialogs/shared/RepoPickerDialog";
 import { projectsApi } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -42,7 +42,6 @@ const CreateAttemptDialogImpl = NiceModal.create<CreateAttemptDialogProps>(
 		const navigate = useNavigateWithSearch();
 		const { t } = useTranslation("tasks");
 		const queryClient = useQueryClient();
-		const { profiles, config } = useUserSystem();
 		const { createAttempt, isCreating, error } = useAttemptCreation({
 			taskId,
 			onSuccess: (attempt) => {
@@ -52,14 +51,15 @@ const CreateAttemptDialogImpl = NiceModal.create<CreateAttemptDialogProps>(
 			},
 		});
 
-		const [userSelectedProfile, setUserSelectedProfile] =
-			useState<ExecutorProfileId | null>(null);
+		const [isPlanMode, setIsPlanMode] = useState(false);
 
-		const { data: attempts = [], isLoading: isLoadingAttempts } =
-			useTaskAttemptsWithSessions(taskId, {
+		const { isLoading: isLoadingAttempts } = useTaskAttemptsWithSessions(
+			taskId,
+			{
 				enabled: modal.visible,
 				refetchInterval: 5000,
-			});
+			},
+		);
 
 		const { data: task, isLoading: isLoadingTask } = useTask(taskId, {
 			enabled: modal.visible,
@@ -86,43 +86,25 @@ const CreateAttemptDialogImpl = NiceModal.create<CreateAttemptDialogProps>(
 			enabled: modal.visible && projectRepos.length > 0,
 		});
 
-		const latestAttempt = useMemo(() => {
-			if (attempts.length === 0) return null;
-			return attempts.reduce((latest, attempt) =>
-				new Date(attempt.created_at) > new Date(latest.created_at)
-					? attempt
-					: latest,
-			);
-		}, [attempts]);
-
 		useEffect(() => {
 			if (!modal.visible) {
-				setUserSelectedProfile(null);
+				setIsPlanMode(false);
 				resetBranchSelection();
 			}
 		}, [modal.visible, resetBranchSelection]);
 
-		const defaultProfile: ExecutorProfileId | null = useMemo(() => {
-			if (latestAttempt?.session?.executor) {
-				const lastExec = latestAttempt.session.executor as BaseCodingAgent;
-				// If the last attempt used the same executor as the user's current preference,
-				// we assume they want to use their preferred variant as well.
-				// Otherwise, we default to the "default" variant (null) since we don't know
-				// what variant they used last time (TaskAttempt doesn't store it).
-				const variant =
-					config?.executor_profile?.executor === lastExec
-						? config.executor_profile.variant
-						: null;
+		// Always use CLAUDE_CODE with the selected mode
+		const effectiveProfile: ExecutorProfileId = useMemo(
+			() => ({
+				executor: BaseCodingAgent.CLAUDE_CODE,
+				variant: isPlanMode ? "PLAN" : null,
+			}),
+			[isPlanMode],
+		);
 
-				return {
-					executor: lastExec,
-					variant,
-				};
-			}
-			return config?.executor_profile ?? null;
-		}, [latestAttempt?.session?.executor, config?.executor_profile]);
-
-		const effectiveProfile = userSelectedProfile ?? defaultProfile;
+		const handleToggleMode = useCallback(() => {
+			setIsPlanMode((prev) => !prev);
+		}, []);
 
 		const isLoadingInitial =
 			isLoadingRepos ||
@@ -136,20 +118,14 @@ const CreateAttemptDialogImpl = NiceModal.create<CreateAttemptDialogProps>(
 		);
 
 		const canCreate = Boolean(
-			effectiveProfile &&
-				allBranchesSelected &&
+			allBranchesSelected &&
 				projectRepos.length > 0 &&
 				!isCreating &&
 				!isLoadingInitial,
 		);
 
 		const handleCreate = async () => {
-			if (
-				!effectiveProfile ||
-				!allBranchesSelected ||
-				projectRepos.length === 0
-			)
-				return;
+			if (!allBranchesSelected || projectRepos.length === 0) return;
 			try {
 				const repos = getWorkspaceRepoInputs();
 
@@ -197,6 +173,12 @@ const CreateAttemptDialogImpl = NiceModal.create<CreateAttemptDialogProps>(
 			preventDefault: true,
 		});
 
+		useKeyToggleMode(handleToggleMode, {
+			scope: Scope.DIALOG,
+			enabled: modal.visible,
+			preventDefault: true,
+		});
+
 		return (
 			<Dialog open={modal.visible} onOpenChange={handleOpenChange}>
 				<DialogContent className="sm:max-w-[500px]">
@@ -208,16 +190,9 @@ const CreateAttemptDialogImpl = NiceModal.create<CreateAttemptDialogProps>(
 					</DialogHeader>
 
 					<div className="space-y-4 py-4">
-						{profiles && (
-							<div className="space-y-2">
-								<ExecutorProfileSelector
-									profiles={profiles}
-									selectedProfile={effectiveProfile}
-									onProfileSelect={setUserSelectedProfile}
-									showLabel={true}
-								/>
-							</div>
-						)}
+						<div className="space-y-2">
+							<ModeToggle isPlanMode={isPlanMode} onToggle={handleToggleMode} />
+						</div>
 
 						{projectRepos.length > 0 ? (
 							<RepoBranchSelector

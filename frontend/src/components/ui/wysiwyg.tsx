@@ -74,8 +74,12 @@ type WysiwygProps = {
 	onPasteFiles?: (files: File[]) => void;
 	className?: string;
 	projectId?: string; // for file search in typeahead
+	/** Plain Enter key - sends message (Claude Code style) */
+	onEnter?: () => void;
 	onCmdEnter?: () => void;
 	onShiftCmdEnter?: () => void;
+	/** Shift+Tab callback for mode toggle */
+	onShiftTab?: () => void;
 	/** Task attempt ID for resolving .vibe-images paths (preferred over taskId) */
 	taskAttemptId?: string;
 	/** Task ID for resolving .vibe-images paths when taskAttemptId is not available */
@@ -105,8 +109,10 @@ function WYSIWYGEditor({
 	onPasteFiles,
 	className,
 	projectId,
+	onEnter,
 	onCmdEnter,
 	onShiftCmdEnter,
+	onShiftTab,
 	taskAttemptId,
 	taskId,
 	localImages,
@@ -269,8 +275,10 @@ function WYSIWYGEditor({
 									<FileTypeaheadPlugin projectId={projectId} />
 									<SlashCommandTypeaheadPlugin />
 									<KeyboardCommandsPlugin
+										onEnter={onEnter}
 										onCmdEnter={onCmdEnter}
 										onShiftCmdEnter={onShiftCmdEnter}
+										onShiftTab={onShiftTab}
 									/>
 									<ImageKeyboardPlugin />
 									<CodeBlockShortcutPlugin />
