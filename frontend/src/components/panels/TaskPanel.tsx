@@ -31,8 +31,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "../ui/dialog";
-import { usePrivacy } from "@/contexts/PrivacyContext";
-import { maskText } from "@/lib/privacyMask";
 
 function extractLinearIssueId(linearUrl: string | null): string | null {
 	if (!linearUrl) return null;
@@ -61,7 +59,6 @@ const TaskPanel = ({ task, onAttemptClick }: TaskPanelProps) => {
 	const { projectId } = useProject();
 	const { updateTask } = useTaskMutations(projectId || "");
 	const queryClient = useQueryClient();
-	const { privacyMode } = usePrivacy();
 
 	const [title, setTitle] = useState(task?.title || "");
 	const [description, setDescription] = useState(task?.description || "");
@@ -287,10 +284,8 @@ const TaskPanel = ({ task, onAttemptClick }: TaskPanelProps) => {
 		);
 	}
 
-	const displayTitle = privacyMode ? maskText(title) : title;
-	const displayDescription = privacyMode ? maskText(description) : description;
-	const titleContent = `# ${displayTitle || "Task"}`;
-	const descriptionContent = displayDescription || "";
+	const titleContent = `# ${title || "Task"}`;
+	const descriptionContent = description || "";
 
 	const attemptColumns: ColumnDef<WorkspaceWithSession>[] = [
 		{

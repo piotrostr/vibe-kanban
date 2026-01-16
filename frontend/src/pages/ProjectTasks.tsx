@@ -75,8 +75,6 @@ import {
 	LinearSyncConfirmDialog,
 	type LinearSyncConfirmResult,
 } from "@/components/dialogs/tasks/LinearSyncConfirmDialog";
-import { usePrivacy } from "@/contexts/PrivacyContext";
-import { maskText } from "@/lib/privacyMask";
 
 type Task = TaskWithAttemptStatus;
 
@@ -153,7 +151,6 @@ export function ProjectTasks() {
 		new Set(),
 	);
 	const { userId } = useAuth();
-	const { privacyMode } = usePrivacy();
 
 	const handleToggleColumn = useCallback((status: TaskStatus) => {
 		setCollapsedColumns((prev) => {
@@ -808,10 +805,9 @@ export function ProjectTasks() {
 
 	const truncateTitle = (title: string | undefined, maxLength = 20) => {
 		if (!title) return "Task";
-		const displayTitle = privacyMode ? maskText(title) : title;
-		if (displayTitle.length <= maxLength) return displayTitle;
+		if (title.length <= maxLength) return title;
 
-		const truncated = displayTitle.substring(0, maxLength);
+		const truncated = title.substring(0, maxLength);
 		const lastSpace = truncated.lastIndexOf(" ");
 
 		return lastSpace > 0
