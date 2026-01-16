@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
 	isPermissionGranted,
@@ -18,7 +18,7 @@ export const useTauriNotifications = (
 	projectId: string | undefined,
 ) => {
 	const prevTasksRef = useRef<Map<string, string>>(new Map());
-	const permissionGranted = useRef(false);
+	const [permissionGranted, setPermissionGranted] = useState(false);
 	const navigate = useNavigate();
 
 	// Request permission on mount
@@ -29,42 +29,55 @@ export const useTauriNotifications = (
 				const permission = await requestPermission();
 				granted = permission === "granted";
 			}
-			permissionGranted.current = granted;
+			setPermissionGranted(granted);
 		})();
 	}, []);
 
 	// Listen for notification clicks
 	useEffect(() => {
-		const listenerPromise = onAction((notification) => {
-			const data = notification.extra as { url?: string } | undefined;
-			if (data?.url) {
+		let cleanup: (() => void) | null = null;
+
+		onAction((notification) => {
+			const data = notification.extra;
+			if (
+				data &&
+				typeof data === "object" &&
+				"url" in data &&
+				typeof data.url === "string"
+			) {
 				navigate(data.url);
 			}
+		}).then((listener) => {
+			cleanup = () => listener.unregister();
 		});
 
 		return () => {
-			listenerPromise.then((listener) => listener.unregister());
+			cleanup?.();
 		};
 	}, [navigate]);
 
 	const showNotification = useCallback(
 		async (title: string, body: string, taskId: string) => {
-			if (!permissionGranted.current || !projectId) return;
+			if (!permissionGranted || !projectId) return;
 
 			const targetUrl = `/projects/${projectId}/tasks/${taskId}/attempts/latest`;
 
-			await sendNotification({
-				title,
-				body,
-				extra: { url: targetUrl },
-			});
+			try {
+				await sendNotification({
+					title,
+					body,
+					extra: { url: targetUrl },
+				});
+			} catch (error) {
+				console.error("Failed to send notification:", error);
+			}
 		},
-		[projectId],
+		[projectId, permissionGranted],
 	);
 
 	// Watch for task status changes to 'inreview'
 	useEffect(() => {
-		if (!permissionGranted.current) return;
+		if (!permissionGranted) return;
 
 		const prevTasks = prevTasksRef.current;
 
@@ -89,5 +102,5 @@ export const useTauriNotifications = (
 			newPrevTasks.set(task.id, task.status);
 		}
 		prevTasksRef.current = newPrevTasks;
-	}, [tasks, showNotification]);
+	}, [tasks, showNotification, permissionGranted]);
 };
