@@ -1,9 +1,5 @@
 <p align="center">
-  <picture>
-    <source srcset="frontend/public/vibe-kanban-logo-dark.svg" media="(prefers-color-scheme: dark)">
-    <source srcset="frontend/public/vibe-kanban-logo.svg" media="(prefers-color-scheme: light)">
-    <img src="frontend/public/vibe-kanban-logo.svg" alt="Vibe Logo">
-  </picture>
+  <img src="vibe.jpeg" alt="Vibe Logo" width="200">
 </p>
 
 <p align="center">AI agent orchestration for coding tasks</p>
