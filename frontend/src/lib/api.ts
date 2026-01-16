@@ -3,8 +3,10 @@
 import {
 	ApprovalStatus,
 	ApiResponse,
+	CommanderSession,
 	Config,
 	CreateFollowUpAttempt,
+	CreateFollowUpRequest,
 	EditorType,
 	CreateGitHubPrRequest,
 	CreateTask,
@@ -1371,5 +1373,53 @@ export const slashCommandsApi = {
 	list: async (): Promise<SlashCommand[]> => {
 		const response = await makeRequest("/api/slash-commands");
 		return handleApiResponse<SlashCommand[]>(response);
+	},
+};
+
+// Commander API for managing project-scoped Claude Code chat sessions
+export const commanderApi = {
+	/**
+	 * Get or create the commander session for a project
+	 */
+	getOrCreate: async (projectId: string): Promise<CommanderSession> => {
+		const response = await makeRequest(`/api/projects/${projectId}/commander`);
+		return handleApiResponse<CommanderSession>(response);
+	},
+
+	/**
+	 * Get a commander session by ID
+	 */
+	get: async (commanderSessionId: string): Promise<CommanderSession> => {
+		const response = await makeRequest(`/api/commander/${commanderSessionId}`);
+		return handleApiResponse<CommanderSession>(response);
+	},
+
+	/**
+	 * Get all execution processes for a commander session
+	 */
+	getProcesses: async (
+		commanderSessionId: string,
+	): Promise<ExecutionProcess[]> => {
+		const response = await makeRequest(
+			`/api/commander/${commanderSessionId}/processes`,
+		);
+		return handleApiResponse<ExecutionProcess[]>(response);
+	},
+
+	/**
+	 * Send a follow-up message to the commander
+	 */
+	followUp: async (
+		commanderSessionId: string,
+		data: CreateFollowUpRequest,
+	): Promise<ExecutionProcess> => {
+		const response = await makeRequest(
+			`/api/commander/${commanderSessionId}/follow-up`,
+			{
+				method: "POST",
+				body: JSON.stringify(data),
+			},
+		);
+		return handleApiResponse<ExecutionProcess>(response);
 	},
 };

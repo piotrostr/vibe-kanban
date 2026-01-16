@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO commander_sessions (id, project_id, branch, executor)\n               VALUES ($1, $2, $3, $4)\n               RETURNING id AS \"id!: Uuid\",\n                         project_id AS \"project_id!: Uuid\",\n                         container_ref,\n                         branch,\n                         executor,\n                         created_at AS \"created_at!: DateTime<Utc>\",\n                         updated_at AS \"updated_at!: DateTime<Utc>\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "project_id!: Uuid",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "container_ref",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "branch",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "executor",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at!: DateTime<Utc>",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at!: DateTime<Utc>",
+        "ordinal": 6,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "3ad001333a0552f5d2baea1f2354675e57f7d2f77316a37a22c4d535c367b9ca"
+}

@@ -78,7 +78,15 @@ export type Workspace = { id: string, task_id: string, container_ref: string | n
 
 export type Session = { id: string, workspace_id: string, executor: string | null, created_at: string, updated_at: string, };
 
-export type ExecutionProcess = { id: string, session_id: string, run_reason: ExecutionProcessRunReason, executor_action: ExecutorAction, status: ExecutionProcessStatus, exit_code: bigint | null, 
+export type CommanderSession = { id: string, project_id: string, container_ref: string | null, branch: string, executor: string | null, created_at: string, updated_at: string, };
+
+export type CreateCommanderSession = { branch: string, executor: string | null, };
+
+export type ExecutionProcess = { id: string, session_id: string, 
+/**
+ * Commander session ID - set when process belongs to a commander session instead of task session
+ */
+commander_session_id: string | null, run_reason: ExecutionProcessRunReason, executor_action: ExecutorAction, status: ExecutionProcessStatus, exit_code: bigint | null, 
 /**
  * dropped: true if this process is excluded from the current
  * history view (due to restore/trimming). Hidden from logs/timeline;
@@ -235,6 +243,8 @@ export type OpenEditorRequest = { editor_type: string | null, file_path: string 
 export type OpenEditorResponse = { url: string | null, };
 
 export type AssignSharedTaskRequest = { new_assignee_user_id: string | null, };
+
+export type CreateFollowUpRequest = { prompt: string, variant: string | null, };
 
 export type ShareTaskResponse = { shared_task_id: string, };
 

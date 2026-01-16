@@ -13,6 +13,7 @@ use db::{
     DBService,
     models::{
         coding_agent_turn::CodingAgentTurn,
+        commander_session::CommanderSession,
         execution_process::{
             ExecutionContext, ExecutionProcess, ExecutionProcessRunReason, ExecutionProcessStatus,
         },
@@ -50,6 +51,7 @@ use services::services::{
     queued_message::QueuedMessageService,
     share::SharePublisher,
     workspace_manager::{RepoWorkspaceInput, WorkspaceManager},
+    worktree_manager::WorktreeManager,
 };
 use tokio::{sync::RwLock, task::JoinHandle};
 use tokio_util::io::ReaderStream;
@@ -983,6 +985,43 @@ impl ContainerService for LocalContainerService {
         Self::create_workspace_config_files(&workspace_dir, &repositories).await?;
 
         Ok(workspace_dir.to_string_lossy().to_string())
+    }
+
+    async fn ensure_commander_container(
+        &self,
+        commander_session: &CommanderSession,
+        repo: &Repo,
+    ) -> Result<ContainerRef, ContainerError> {
+        let container_name = format!("{}-commander", repo.display_name);
+        let worktree_path = WorkspaceManager::get_workspace_base_dir().join(&container_name);
+
+        // Create worktree if not exists
+        if !worktree_path.exists() {
+            let repo_path = PathBuf::from(&repo.path);
+
+            // Create the worktree with the commander branch
+            // We use "main" as the base branch - commander branch will be created from main
+            WorktreeManager::create_worktree(
+                &repo_path,
+                &commander_session.branch,
+                &worktree_path,
+                "main",
+                true, // create the branch if it doesn't exist
+            )
+            .await?;
+        }
+
+        // Update session with container_ref if not set
+        if commander_session.container_ref.is_none() {
+            CommanderSession::update_container_ref(
+                &self.db.pool,
+                commander_session.id,
+                &worktree_path.to_string_lossy(),
+            )
+            .await?;
+        }
+
+        Ok(worktree_path.to_string_lossy().to_string())
     }
 
     async fn is_container_clean(&self, workspace: &Workspace) -> Result<bool, ContainerError> {
