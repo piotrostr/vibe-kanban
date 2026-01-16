@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="vibe.jpeg" alt="Vibe Logo" width="200">
+  <img src="frontend/public/vibe-512.png" alt="Vibe Logo" width="200">
 </p>
 
 <p align="center">AI agent orchestration for coding tasks</p>
