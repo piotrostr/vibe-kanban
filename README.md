@@ -4,6 +4,10 @@
 
 <p align="center">AI agent orchestration for coding tasks</p>
 
+<p align="center">
+  <img src="docs/images/vibe-1.png" alt="Vibe Demo">
+</p>
+
 Fork of [BloopAI/vibe-kanban](https://github.com/BloopAI/vibe-kanban).
 
 ## What's Different
