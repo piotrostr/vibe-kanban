@@ -1,6 +1,6 @@
 {
 	"$schema": "https://schema.tauri.app/config/2",
-	"productName": "Vibe Kanban",
+	"productName": "Vibe",
 	"version": "0.0.143",
 	"identifier": "com.vibekanban.desktop",
 	"build": {

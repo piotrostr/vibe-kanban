@@ -8,6 +8,8 @@ import {
 } from "@tauri-apps/plugin-notification";
 import type { TaskWithAttemptStatus } from "shared/types";
 
+const isTauri = "__TAURI__" in window;
+
 /**
  * Hook to show native Tauri notifications when tasks complete (status changes to 'inreview')
  * - Always shows notifications, even when app is focused
@@ -23,6 +25,8 @@ export const useTauriNotifications = (
 
 	// Request permission on mount
 	useEffect(() => {
+		if (!isTauri) return;
+
 		(async () => {
 			let granted = await isPermissionGranted();
 			if (!granted) {
@@ -35,6 +39,8 @@ export const useTauriNotifications = (
 
 	// Listen for notification clicks
 	useEffect(() => {
+		if (!isTauri) return;
+
 		let cleanup: (() => void) | null = null;
 
 		onAction((notification) => {
@@ -58,12 +64,12 @@ export const useTauriNotifications = (
 
 	const showNotification = useCallback(
 		async (title: string, body: string, taskId: string) => {
-			if (!permissionGranted || !projectId) return;
+			if (!isTauri || !permissionGranted || !projectId) return;
 
 			const targetUrl = `/projects/${projectId}/tasks/${taskId}/attempts/latest`;
 
 			try {
-				await sendNotification({
+				sendNotification({
 					title,
 					body,
 					extra: { url: targetUrl },
