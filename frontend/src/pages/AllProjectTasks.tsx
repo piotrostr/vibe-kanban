@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,7 @@ import { cn } from "@/lib/utils";
 import { getProjectColor } from "@/utils/projectColors";
 import { usePrivacy } from "@/contexts/PrivacyContext";
 import { maskText } from "@/lib/privacyMask";
+import { ClaudeCommanderIcon } from "@/components/icons/ClaudeCommanderIcon";
 
 type Task = TaskWithAttemptStatus;
 
@@ -792,8 +793,20 @@ export function AllProjectTasks() {
 							</div>
 
 							{singleSelectedProject && (
-								<div className="p-2 border-t text-xs text-muted-foreground">
-									Linear sync enabled
+								<div className="p-2 border-t flex items-center gap-2">
+									<Button
+										variant="outline"
+										size="sm"
+										className="flex-1 justify-start gap-2"
+										asChild
+									>
+										<Link
+											to={`/projects/${singleSelectedProject.id}/commander`}
+										>
+											<ClaudeCommanderIcon className="h-4 w-4" />
+											<span>Commander</span>
+										</Link>
+									</Button>
 								</div>
 							)}
 						</>

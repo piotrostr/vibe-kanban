@@ -50,7 +50,6 @@ import { oauthApi } from "@/lib/api";
 import { HelpCircle, CircleHelp } from "lucide-react";
 import { ImportPRAsTaskDialog } from "@/components/dialogs/tasks/ImportPRAsTaskDialog";
 import { usePrivacy } from "@/contexts/PrivacyContext";
-import { ClaudeCommanderIcon } from "@/components/icons/ClaudeCommanderIcon";
 
 const INTERNAL_NAV = [
 	{ label: "Projects", icon: FolderOpen, to: "/settings/projects" },
@@ -224,24 +223,6 @@ export function Navbar() {
 											className="h-9 w-9"
 										/>
 									)}
-									<TooltipProvider>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<Button
-													variant="ghost"
-													size="icon"
-													className="h-9 w-9"
-													asChild
-													aria-label="Commander"
-												>
-													<Link to={`/projects/${projectId}/commander`}>
-														<ClaudeCommanderIcon className="h-4 w-4" />
-													</Link>
-												</Button>
-											</TooltipTrigger>
-											<TooltipContent side="bottom">Commander</TooltipContent>
-										</Tooltip>
-									</TooltipProvider>
 									<DropdownMenu>
 										<DropdownMenuTrigger asChild>
 											<Button
