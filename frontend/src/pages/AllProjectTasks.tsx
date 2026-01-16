@@ -53,6 +53,8 @@ import { AlertTriangle } from "lucide-react";
 import type { TaskWithAttemptStatus, TaskStatus } from "shared/types";
 import { cn } from "@/lib/utils";
 import { getProjectColor } from "@/utils/projectColors";
+import { usePrivacy } from "@/contexts/PrivacyContext";
+import { maskText } from "@/lib/privacyMask";
 
 type Task = TaskWithAttemptStatus;
 
@@ -124,6 +126,7 @@ export function AllProjectTasks() {
 	const { t } = useTranslation(["tasks", "common"]);
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { query: searchQuery } = useSearch();
+	const { privacyMode } = usePrivacy();
 
 	const { projects, projectsById, isLoading: projectsLoading } = useProjects();
 	const {
@@ -741,7 +744,9 @@ export function AllProjectTasks() {
 											className="h-2 w-2 rounded-full flex-shrink-0"
 											style={{ backgroundColor: getProjectColor(project.id) }}
 										/>
-										<span className="text-sm truncate">{project.name}</span>
+										<span className="text-sm truncate">
+											{privacyMode ? maskText(project.name) : project.name}
+										</span>
 									</label>
 								))}
 
@@ -764,7 +769,7 @@ export function AllProjectTasks() {
 														style={{ backgroundColor: projectColor }}
 													/>
 													<span className="truncate flex-1 min-w-0">
-														{task.title}
+														{privacyMode ? maskText(task.title) : task.title}
 													</span>
 													{task.has_in_progress_attempt && (
 														<Loader2 className="h-3 w-3 animate-spin text-blue-500 flex-shrink-0" />
