@@ -1,0 +1,28 @@
+[package]
+name = "vibe-kanban-desktop"
+version = "0.0.143"
+edition = "2024"
+description = "Vibe Kanban desktop application"
+
+[lib]
+name = "vibe_kanban_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-shell = "2"
+tokio = { workspace = true }
+server = { path = "../crates/server" }
+utils = { path = "../crates/utils" }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-autostart = "2"
