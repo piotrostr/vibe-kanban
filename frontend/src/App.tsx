@@ -24,6 +24,7 @@ import { SearchProvider } from "@/contexts/SearchContext";
 import { HotkeysProvider } from "react-hotkeys-hook";
 
 import { ProjectProvider } from "@/contexts/ProjectContext";
+import { PrivacyProvider } from "@/contexts/PrivacyContext";
 import { ThemeMode } from "shared/types";
 import { Loader } from "@/components/ui/loader";
 
@@ -142,11 +143,15 @@ function App() {
 			<UserSystemProvider>
 				<ClickedElementsProvider>
 					<ProjectProvider>
-						<HotkeysProvider initiallyActiveScopes={["*", "global", "kanban"]}>
-							<NiceModal.Provider>
-								<AppContent />
-							</NiceModal.Provider>
-						</HotkeysProvider>
+						<PrivacyProvider>
+							<HotkeysProvider
+								initiallyActiveScopes={["*", "global", "kanban"]}
+							>
+								<NiceModal.Provider>
+									<AppContent />
+								</NiceModal.Provider>
+							</HotkeysProvider>
+						</PrivacyProvider>
 					</ProjectProvider>
 				</ClickedElementsProvider>
 			</UserSystemProvider>

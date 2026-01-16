@@ -19,6 +19,8 @@ import {
 	LogOut,
 	LogIn,
 	GitPullRequest,
+	Eye,
+	EyeOff,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { SearchBar } from "@/components/SearchBar";
@@ -47,6 +49,7 @@ import { useUserSystem } from "@/components/ConfigProvider";
 import { oauthApi } from "@/lib/api";
 import { HelpCircle, CircleHelp } from "lucide-react";
 import { ImportPRAsTaskDialog } from "@/components/dialogs/tasks/ImportPRAsTaskDialog";
+import { usePrivacy } from "@/contexts/PrivacyContext";
 
 const INTERNAL_NAV = [
 	{ label: "Projects", icon: FolderOpen, to: "/settings/projects" },
@@ -83,6 +86,7 @@ export function Navbar() {
 	const { query, setQuery, active, clear, registerInputRef } = useSearch();
 	const handleOpenInEditor = useOpenProjectInEditor(project || null);
 	const { loginStatus, reloadSystem, updateAndSaveConfig } = useUserSystem();
+	const { privacyMode, togglePrivacy } = usePrivacy();
 
 	const { data: repos } = useProjectRepos(projectId);
 	const isSingleRepoProject = repos?.length === 1;
@@ -261,6 +265,29 @@ export function Navbar() {
 										</Button>
 									</TooltipTrigger>
 									<TooltipContent side="bottom">Feature guide</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+
+							<TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											variant="ghost"
+											size="icon"
+											className="h-9 w-9"
+											onClick={togglePrivacy}
+											aria-label="Toggle privacy mode"
+										>
+											{privacyMode ? (
+												<EyeOff className="h-4 w-4" />
+											) : (
+												<Eye className="h-4 w-4" />
+											)}
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent side="bottom">
+										{privacyMode ? "Show content" : "Hide content"}
+									</TooltipContent>
 								</Tooltip>
 							</TooltipProvider>
 
