@@ -14,6 +14,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-autostart = "2"
+tauri-plugin-notification = "2"
 tauri-plugin-shell = "2"
 tokio = { workspace = true }
 server = { path = "../crates/server" }
