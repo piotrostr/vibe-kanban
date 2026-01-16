@@ -8,7 +8,7 @@
 <img width="6400" height="2620" alt="image" src="https://github.com/user-attachments/assets/f45434b5-f177-4277-a42c-8318567573a6" />
 </p>
 
-Fork of [BloopAI/vibe-kanban](https://github.com/BloopAI/vibe-kanban).
+Fork of [BloopAI/vibe-kanban](https://github.com/BloopAI/vibe-kanban) - [vibekanban.com](https://www.vibekanban.com/).
 
 ## What's Different
 
