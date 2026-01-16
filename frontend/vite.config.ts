@@ -1,7 +1,6 @@
 // vite.config.ts
 import { defineConfig, Plugin } from "vite";
 import react from "@vitejs/plugin-react";
-import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 import fs from "fs";
 
@@ -50,25 +49,7 @@ export default schemas;
 }
 
 export default defineConfig({
-	plugins: [
-		react(),
-		executorSchemasPlugin(),
-		VitePWA({
-			strategies: "injectManifest",
-			srcDir: "src",
-			filename: "sw.ts",
-			registerType: "autoUpdate",
-			includeAssets: ["vibe-192.png", "vibe-512.png", "vibe-apple-touch.png"],
-			manifest: false, // Use existing site.webmanifest
-			injectManifest: {
-				maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MiB
-				globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
-			},
-			devOptions: {
-				enabled: false,
-			},
-		}),
-	],
+	plugins: [react(), executorSchemasPlugin()],
 	resolve: {
 		alias: {
 			"@": path.resolve(__dirname, "./src"),

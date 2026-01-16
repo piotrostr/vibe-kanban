@@ -47,7 +47,7 @@ import {
 	useProjectTasks,
 	type SharedTaskRecord,
 } from "@/hooks/useProjectTasks";
-import { useBrowserNotifications } from "@/hooks/useBrowserNotifications";
+import { useTauriNotifications } from "@/hooks/useTauriNotifications";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useHotkeysContext } from "react-hotkeys-hook";
 import { TasksLayout, type LayoutMode } from "@/components/layout/TasksLayout";
@@ -233,8 +233,8 @@ export function ProjectTasks() {
 	const isSharedPanelOpen = Boolean(selectedSharedTask);
 	const isPanelOpen = isTaskPanelOpen || isSharedPanelOpen;
 
-	// Browser notifications for task completion (always enabled)
-	useBrowserNotifications(tasks, projectId);
+	// Tauri notifications for task completion (always enabled)
+	useTauriNotifications(tasks, projectId);
 
 	const isLatest = attemptId === "latest";
 	const { data: attempts = [], isLoading: isAttemptsLoading } = useTaskAttempts(
