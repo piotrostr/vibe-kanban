@@ -27,6 +27,8 @@ import { TaskCardHeader } from "./TaskCardHeader";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks";
 import { cn } from "@/lib/utils";
+import { usePrivacy } from "@/contexts/PrivacyContext";
+import { maskText } from "@/lib/privacyMask";
 
 function parseLinearLabels(labelsJson: string | null): LinearLabel[] {
 	if (!labelsJson) return [];
@@ -171,6 +173,7 @@ export function TaskCard({
 	const navigate = useNavigateWithSearch();
 	const [isNavigatingToParent, setIsNavigatingToParent] = useState(false);
 	const { isSignedIn } = useAuth();
+	const { privacyMode } = usePrivacy();
 
 	const handleClick = useCallback(() => {
 		onViewDetails(task);
@@ -253,17 +256,19 @@ export function TaskCard({
 				{projectName && (
 					<div
 						className="flex items-center gap-1.5 text-xs text-muted-foreground"
-						title={projectName}
+						title={privacyMode ? maskText(projectName) : projectName}
 					>
 						<span
 							className="h-2 w-2 rounded-full flex-shrink-0"
 							style={{ backgroundColor: projectColor }}
 						/>
-						<span className="truncate max-w-[150px]">{projectName}</span>
+						<span className="truncate max-w-[150px]">
+							{privacyMode ? maskText(projectName) : projectName}
+						</span>
 					</div>
 				)}
 				<TaskCardHeader
-					title={task.title}
+					title={privacyMode ? maskText(task.title) : task.title}
 					avatar={
 						sharedTask
 							? {
@@ -367,9 +372,15 @@ export function TaskCard({
 				/>
 				{task.description && (
 					<p className="text-sm text-secondary-foreground break-words">
-						{task.description.length > 130
-							? `${task.description.substring(0, 130)}...`
-							: task.description}
+						{privacyMode
+							? maskText(
+									task.description.length > 130
+										? `${task.description.substring(0, 130)}...`
+										: task.description,
+								)
+							: task.description.length > 130
+								? `${task.description.substring(0, 130)}...`
+								: task.description}
 					</p>
 				)}
 				{linearLabels.length > 0 && (
