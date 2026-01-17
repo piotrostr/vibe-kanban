@@ -96,6 +96,11 @@ import {
 	ListRecentPrsError,
 	ImportTaskFromPrRequest,
 	ImportTaskFromPrError,
+	PreviewClaudeSessionRequest,
+	PreviewClaudeSessionResponse,
+	ImportFromClaudeSessionRequest,
+	ImportFromClaudeSessionResponse,
+	ListClaudeSessionsResponse,
 } from "shared/types";
 import type { WorkspaceWithSession } from "@/types/attempt";
 import { createWorkspaceWithSession } from "@/types/attempt";
@@ -544,6 +549,40 @@ export const tasksApi = {
 			TaskWithAttemptStatus,
 			ImportTaskFromPrError
 		>(response);
+	},
+
+	listClaudeSessions: async (
+		projectPath?: string,
+	): Promise<ListClaudeSessionsResponse> => {
+		const params = projectPath
+			? `?project_path=${encodeURIComponent(projectPath)}`
+			: "";
+		const response = await makeRequest(`/api/tasks/claude-sessions${params}`);
+		return handleApiResponse<ListClaudeSessionsResponse>(response);
+	},
+
+	previewClaudeSession: async (
+		data: PreviewClaudeSessionRequest,
+	): Promise<PreviewClaudeSessionResponse> => {
+		const response = await makeRequest(`/api/tasks/preview-claude-session`, {
+			method: "POST",
+			body: JSON.stringify(data),
+		});
+		return handleApiResponse<PreviewClaudeSessionResponse>(response);
+	},
+
+	importFromClaudeSession: async (
+		projectId: string,
+		data: ImportFromClaudeSessionRequest,
+	): Promise<ImportFromClaudeSessionResponse> => {
+		const response = await makeRequest(
+			`/api/tasks/import-from-claude-session?project_id=${encodeURIComponent(projectId)}`,
+			{
+				method: "POST",
+				body: JSON.stringify(data),
+			},
+		);
+		return handleApiResponse<ImportFromClaudeSessionResponse>(response);
 	},
 };
 

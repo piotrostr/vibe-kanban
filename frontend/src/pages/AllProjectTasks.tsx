@@ -17,6 +17,7 @@ import { Loader } from "@/components/ui/loader";
 import { tasksApi, projectsApi, attemptsApi } from "@/lib/api";
 import { openTaskForm } from "@/lib/openTaskForm";
 import { ImportPRAsTaskDialog } from "@/components/dialogs/tasks/ImportPRAsTaskDialog";
+import { ImportFromClaudeDialog } from "@/components/dialogs/tasks/ImportFromClaudeDialog";
 import { useProjects } from "@/hooks/useProjects";
 import { useAllProjectTasks } from "@/hooks/useAllProjectTasks";
 import { useTaskAttemptWithSession } from "@/hooks/useTaskAttempt";
@@ -271,6 +272,15 @@ export function AllProjectTasks() {
 		}
 	}, [singleSelectedProject]);
 
+	const handleImportFromClaude = useCallback(() => {
+		// Import from Claude works with a single project selected
+		if (singleSelectedProject) {
+			ImportFromClaudeDialog.show({
+				projectId: singleSelectedProject.id,
+			});
+		}
+	}, [singleSelectedProject]);
+
 	const handleRefreshBacklog = useCallback(async () => {
 		if (!singleSelectedProject || isRefreshingBacklog) return;
 		setIsRefreshingBacklog(true);
@@ -448,6 +458,9 @@ export function AllProjectTasks() {
 					onCreateTask={handleCreateTask}
 					onImportFromPR={
 						singleSelectedProject ? handleImportFromPR : undefined
+					}
+					onImportFromClaude={
+						singleSelectedProject ? handleImportFromClaude : undefined
 					}
 					projectId={singleSelectedProject?.id ?? ""}
 					projectsById={projectsById}

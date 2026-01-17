@@ -1,3 +1,4 @@
+pub mod claude_session;
 pub mod error;
 pub mod mcp;
 pub mod middleware;

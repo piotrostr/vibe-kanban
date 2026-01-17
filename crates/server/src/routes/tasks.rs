@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow;
 use axum::{
@@ -16,7 +16,7 @@ use db::models::{
     image::TaskImage,
     project::{Project, ProjectError},
     repo::Repo,
-    task::{CreateTask, Task, TaskWithAttemptStatus, UpdateTask},
+    task::{CreateTask, Task, TaskStatus, TaskWithAttemptStatus, UpdateTask},
     workspace::{CreateWorkspace, Workspace},
     workspace_repo::{CreateWorkspaceRepo, WorkspaceRepo},
 };
@@ -34,6 +34,11 @@ use sqlx::Error as SqlxError;
 use ts_rs::TS;
 use utils::{api::oauth::LoginStatus, response::ApiResponse};
 use uuid::Uuid;
+
+use crate::claude_session::{
+    self, ImportFromClaudeSessionRequest, ImportFromClaudeSessionResponse,
+    ListClaudeSessionsResponse, PreviewClaudeSessionRequest, PreviewClaudeSessionResponse,
+};
 
 use crate::{
     DeploymentImpl, error::ApiError, middleware::load_task_middleware,
@@ -847,6 +852,121 @@ pub async fn push_to_linear(
     Ok(ResponseJson(ApiResponse::success(())))
 }
 
+// Claude Session Import Routes
+
+#[derive(Debug, Deserialize)]
+pub struct ListClaudeSessionsQuery {
+    pub project_path: Option<String>,
+}
+
+pub async fn list_claude_sessions(
+    Query(query): Query<ListClaudeSessionsQuery>,
+) -> Result<ResponseJson<ApiResponse<ListClaudeSessionsResponse>>, ApiError> {
+    let sessions = claude_session::list_available_sessions(query.project_path.as_deref())
+        .map_err(|e| ApiError::BadRequest(format!("Failed to list sessions: {}", e)))?;
+
+    Ok(ResponseJson(ApiResponse::success(
+        ListClaudeSessionsResponse { sessions },
+    )))
+}
+
+pub async fn preview_claude_session(
+    Json(payload): Json<PreviewClaudeSessionRequest>,
+) -> Result<ResponseJson<ApiResponse<PreviewClaudeSessionResponse>>, ApiError> {
+    let path = Path::new(&payload.session_path);
+    if !path.exists() {
+        return Err(ApiError::BadRequest(format!(
+            "Session file not found: {}",
+            payload.session_path
+        )));
+    }
+
+    let items = claude_session::parse_session_file(path)
+        .map_err(|e| ApiError::BadRequest(format!("Failed to parse session: {}", e)))?;
+
+    let session_summary = claude_session::get_session_summary(path)
+        .map_err(|e| ApiError::BadRequest(format!("Failed to get session summary: {}", e)))?;
+
+    Ok(ResponseJson(ApiResponse::success(
+        PreviewClaudeSessionResponse {
+            items,
+            session_summary,
+        },
+    )))
+}
+
+pub async fn import_from_claude_session(
+    State(deployment): State<DeploymentImpl>,
+    Query(query): Query<TaskQuery>,
+    Json(payload): Json<ImportFromClaudeSessionRequest>,
+) -> Result<ResponseJson<ApiResponse<ImportFromClaudeSessionResponse>>, ApiError> {
+    let path = Path::new(&payload.session_path);
+    if !path.exists() {
+        return Err(ApiError::BadRequest(format!(
+            "Session file not found: {}",
+            payload.session_path
+        )));
+    }
+
+    let items = claude_session::parse_session_file(path)
+        .map_err(|e| ApiError::BadRequest(format!("Failed to parse session: {}", e)))?;
+
+    let default_status = payload
+        .default_status
+        .as_deref()
+        .and_then(|s| match s.to_lowercase().as_str() {
+            "backlog" => Some(TaskStatus::Backlog),
+            "todo" => Some(TaskStatus::Todo),
+            "inprogress" => Some(TaskStatus::InProgress),
+            _ => None,
+        })
+        .unwrap_or(TaskStatus::Backlog);
+
+    let selected_ids: std::collections::HashSet<_> =
+        payload.selected_item_ids.iter().cloned().collect();
+
+    let items_to_import: Vec<_> = items
+        .into_iter()
+        .filter(|item| selected_ids.contains(&item.id))
+        .collect();
+
+    let mut imported_count = 0;
+    let mut errors = Vec::new();
+
+    for item in items_to_import {
+        let task_id = Uuid::new_v4();
+        let create_task = CreateTask {
+            project_id: query.project_id,
+            title: item.title,
+            description: item.description,
+            status: Some(default_status.clone()),
+            parent_workspace_id: None,
+            image_ids: None,
+            shared_task_id: None,
+            linear_issue_id: None,
+            linear_url: None,
+        };
+
+        match Task::create(&deployment.db().pool, &create_task, task_id).await {
+            Ok(_) => {
+                imported_count += 1;
+                tracing::info!("Imported task {} from Claude session", task_id);
+            }
+            Err(e) => {
+                errors.push(format!("Failed to import task '{}': {}", item.id, e));
+                tracing::error!("Failed to import task from Claude session: {}", e);
+            }
+        }
+    }
+
+    Ok(ResponseJson(ApiResponse::success(
+        ImportFromClaudeSessionResponse {
+            imported_count,
+            errors,
+        },
+    )))
+}
+
 pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
     let task_actions_router = Router::new()
         .route("/", put(update_task))
@@ -866,6 +986,12 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
         .route("/stream/ws", get(stream_tasks_ws))
         .route("/create-and-start", post(create_task_and_start))
         .route("/import-from-pr", post(import_task_from_pr))
+        .route("/claude-sessions", get(list_claude_sessions))
+        .route("/preview-claude-session", post(preview_claude_session))
+        .route(
+            "/import-from-claude-session",
+            post(import_from_claude_session),
+        )
         .nest("/{task_id}", task_id_router);
 
     // Top-level tasks routes (not scoped to a project)

@@ -256,6 +256,22 @@ export type ImportTaskFromPrError = { "type": "github_cli_not_installed" } | { "
 
 export type LinearIssueStateResponse = { issue: LinearIssueWithState, mapped_status: TaskStatus, };
 
+export type ExtractedTask = { id: string, title: string, description: string | null, timestamp: string, branch: string | null, sessionId: string | null, };
+
+export type SessionInfo = { path: string, sessionId: string, lastModified: string, summary: string | null, messageCount: number, gitBranch: string | null, };
+
+export type PreviewClaudeSessionRequest = { sessionPath: string, };
+
+export type PreviewClaudeSessionResponse = { items: Array<ExtractedTask>, sessionSummary: string | null, };
+
+export type ImportFromClaudeSessionRequest = { sessionPath: string, selectedItemIds: Array<string>, defaultStatus: string | null, };
+
+export type ImportFromClaudeSessionResponse = { importedCount: number, errors: Array<string>, };
+
+export type ListClaudeSessionsRequest = { projectPath: string | null, };
+
+export type ListClaudeSessionsResponse = { sessions: Array<SessionInfo>, };
+
 export type LinearIssueWithState = { id: string, title: string, description: string | null, url: string, state: WorkflowState, labels: Array<LinearLabel>, assignee: LinearUser | null, };
 
 export type LinearLabel = { id: string, name: string, color: string, };

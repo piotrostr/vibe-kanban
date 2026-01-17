@@ -9,6 +9,7 @@
 		"addTask": "Add task",
 		"newTask": "New Task",
 		"importFromPr": "Import from PR",
+		"importFromClaude": "Import from Claude",
 		"refreshBacklog": "Sync backlog from Linear",
 		"collapseColumn": "Collapse column",
 		"expandColumn": "Expand column"

@@ -21,7 +21,14 @@ import {
 import { type ReactNode, type Ref, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Plus, RefreshCw, Eye, EyeOff, GitPullRequest } from "lucide-react";
+import {
+	Plus,
+	RefreshCw,
+	Eye,
+	EyeOff,
+	GitPullRequest,
+	FileText,
+} from "lucide-react";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -164,6 +171,7 @@ export type KanbanHeaderProps =
 			count?: number;
 			onAddTask?: () => void;
 			onImportFromPR?: () => void;
+			onImportFromClaude?: () => void;
 			onRefresh?: () => void;
 			isRefreshing?: boolean;
 			onToggleCollapse?: () => void;
@@ -263,6 +271,12 @@ export const KanbanHeader = (props: KanbanHeaderProps) => {
 						<DropdownMenuItem onSelect={props.onImportFromPR}>
 							<GitPullRequest className="h-4 w-4 mr-2" />
 							{t("actions.importFromPr")}
+						</DropdownMenuItem>
+					)}
+					{props.onImportFromClaude && (
+						<DropdownMenuItem onSelect={props.onImportFromClaude}>
+							<FileText className="h-4 w-4 mr-2" />
+							{t("actions.importFromClaude")}
 						</DropdownMenuItem>
 					)}
 				</DropdownMenuContent>
