@@ -78,9 +78,9 @@ export type Workspace = { id: string, task_id: string, container_ref: string | n
 
 export type Session = { id: string, workspace_id: string, executor: string | null, created_at: string, updated_at: string, };
 
-export type CommanderSession = { id: string, project_id: string, container_ref: string | null, branch: string, executor: string | null, created_at: string, updated_at: string, };
+export type CommanderSession = { id: string, project_id: string, container_ref: string | null, executor: string | null, system_prompt: string, created_at: string, updated_at: string, };
 
-export type CreateCommanderSession = { branch: string, executor: string | null, };
+export type CreateCommanderSession = { executor: string | null, system_prompt: string | null, };
 
 export type ExecutionProcess = { id: string, session_id: string, 
 /**

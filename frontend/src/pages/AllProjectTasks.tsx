@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 import { Button } from "@/components/ui/button";
@@ -158,6 +158,7 @@ export function AllProjectTasks() {
 	);
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 	const [isRefreshingBacklog, setIsRefreshingBacklog] = useState(false);
+	const [showCommander, setShowCommander] = useState(false);
 	const initializedRef = useRef(false);
 	const [mode, setMode] = useState<LayoutMode>(null);
 
@@ -792,20 +793,16 @@ export function AllProjectTasks() {
 								)}
 							</div>
 
-							{singleSelectedProject && (
+							{selectedProjects.length > 0 && (
 								<div className="p-2 border-t flex items-center gap-2">
 									<Button
-										variant="outline"
+										variant={showCommander ? "default" : "outline"}
 										size="sm"
 										className="flex-1 justify-start gap-2"
-										asChild
+										onClick={() => setShowCommander(!showCommander)}
 									>
-										<Link
-											to={`/projects/${singleSelectedProject.id}/commander`}
-										>
-											<ClaudeCommanderIcon className="h-4 w-4" />
-											<span>Commander</span>
-										</Link>
+										<ClaudeCommanderIcon className="h-4 w-4" />
+										<span>Commander</span>
 									</Button>
 								</div>
 							)}
@@ -815,7 +812,38 @@ export function AllProjectTasks() {
 
 				{/* Main content area with optional panel */}
 				<div className="flex-1 min-w-0 min-h-0 overflow-hidden">
-					{attemptViewContent && mode ? (
+					{showCommander && selectedProjects.length > 0 ? (
+						// Commander view - full width chat interface
+						<div className="h-full flex flex-col">
+							<div className="shrink-0 border-b bg-background p-4 flex items-center justify-between">
+								<div className="flex items-center gap-2">
+									<ClaudeCommanderIcon className="h-5 w-5" />
+									<span className="font-medium">Commander</span>
+									<span className="text-sm text-muted-foreground">
+										{selectedProjects.length === 1
+											? selectedProjects[0].name
+											: `${selectedProjects.length} projects selected`}
+									</span>
+								</div>
+								<Button
+									variant="ghost"
+									size="sm"
+									onClick={() => setShowCommander(false)}
+								>
+									Close
+								</Button>
+							</div>
+							<div className="flex-1 min-h-0 flex items-center justify-center text-muted-foreground">
+								<div className="text-center space-y-2">
+									<p>Commander chat coming soon</p>
+									<p className="text-sm">
+										Selected projects:{" "}
+										{selectedProjects.map((p) => p.name).join(", ")}
+									</p>
+								</div>
+							</div>
+						</div>
+					) : attemptViewContent && mode ? (
 						// When mode is set, attemptViewContent handles its own layout (attempt | aux)
 						// Hide kanban and show full-width attemptViewContent
 						<div className="h-full">{attemptViewContent}</div>

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!: Uuid\",\n                      project_id AS \"project_id!: Uuid\",\n                      container_ref,\n                      branch,\n                      executor,\n                      created_at AS \"created_at!: DateTime<Utc>\",\n                      updated_at AS \"updated_at!: DateTime<Utc>\"\n               FROM commander_sessions\n               WHERE project_id = $1",
+  "query": "SELECT id AS \"id!: Uuid\",\n                      project_id AS \"project_id!: Uuid\",\n                      container_ref,\n                      executor,\n                      system_prompt,\n                      created_at AS \"created_at!: DateTime<Utc>\",\n                      updated_at AS \"updated_at!: DateTime<Utc>\"\n               FROM commander_sessions\n               WHERE project_id = $1",
   "describe": {
     "columns": [
       {
@@ -19,12 +19,12 @@
         "type_info": "Text"
       },
       {
-        "name": "branch",
+        "name": "executor",
         "ordinal": 3,
         "type_info": "Text"
       },
       {
-        "name": "executor",
+        "name": "system_prompt",
         "ordinal": 4,
         "type_info": "Text"
       },
@@ -46,11 +46,11 @@
       true,
       false,
       true,
-      false,
       true,
+      false,
       false,
       false
     ]
   },
-  "hash": "52a1740be06b58cff9c76897f3d72894862da22734beff4eeb113e290584de75"
+  "hash": "41196eba6776c926b9bcedc39f92256180e8373b82ace8a44dfd22cf68e74cae"
 }

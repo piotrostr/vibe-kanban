@@ -10,7 +10,6 @@ use db::{
     DBService,
     models::{
         coding_agent_turn::{CodingAgentTurn, CreateCodingAgentTurn},
-        commander_session::CommanderSession,
         execution_process::{
             CreateExecutionProcess, ExecutionContext, ExecutionProcess, ExecutionProcessRunReason,
             ExecutionProcessStatus,
@@ -569,13 +568,6 @@ pub trait ContainerService {
     async fn ensure_container_exists(
         &self,
         workspace: &Workspace,
-    ) -> Result<ContainerRef, ContainerError>;
-
-    /// Ensure the commander worktree exists for a commander session
-    async fn ensure_commander_container(
-        &self,
-        commander_session: &CommanderSession,
-        repo: &Repo,
     ) -> Result<ContainerRef, ContainerError>;
 
     async fn is_container_clean(&self, workspace: &Workspace) -> Result<bool, ContainerError>;

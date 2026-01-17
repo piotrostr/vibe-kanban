@@ -94,7 +94,7 @@ export function CommanderPage() {
 				<div className="flex-1">
 					<h1 className="font-semibold">Commander</h1>
 					<p className="text-xs text-muted-foreground">
-						{project?.name || "Project"} - {commanderSession?.branch}
+						{project?.name || "Project"}
 					</p>
 				</div>
 			</header>

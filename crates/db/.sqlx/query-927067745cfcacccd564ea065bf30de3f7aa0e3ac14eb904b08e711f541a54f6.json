@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "INSERT INTO commander_sessions (id, project_id, branch, executor)\n               VALUES ($1, $2, $3, $4)\n               RETURNING id AS \"id!: Uuid\",\n                         project_id AS \"project_id!: Uuid\",\n                         container_ref,\n                         branch,\n                         executor,\n                         created_at AS \"created_at!: DateTime<Utc>\",\n                         updated_at AS \"updated_at!: DateTime<Utc>\"",
+  "query": "INSERT INTO commander_sessions (id, project_id, executor, system_prompt)\n               VALUES ($1, $2, $3, $4)\n               RETURNING id AS \"id!: Uuid\",\n                         project_id AS \"project_id!: Uuid\",\n                         container_ref,\n                         executor,\n                         system_prompt,\n                         created_at AS \"created_at!: DateTime<Utc>\",\n                         updated_at AS \"updated_at!: DateTime<Utc>\"",
   "describe": {
     "columns": [
       {
@@ -19,12 +19,12 @@
         "type_info": "Text"
       },
       {
-        "name": "branch",
+        "name": "executor",
         "ordinal": 3,
         "type_info": "Text"
       },
       {
-        "name": "executor",
+        "name": "system_prompt",
         "ordinal": 4,
         "type_info": "Text"
       },
@@ -46,11 +46,11 @@
       true,
       false,
       true,
-      false,
       true,
+      false,
       false,
       false
     ]
   },
-  "hash": "3ad001333a0552f5d2baea1f2354675e57f7d2f77316a37a22c4d535c367b9ca"
+  "hash": "927067745cfcacccd564ea065bf30de3f7aa0e3ac14eb904b08e711f541a54f6"
 }

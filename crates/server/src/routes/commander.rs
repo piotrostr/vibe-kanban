@@ -6,15 +6,10 @@ use axum::{
     routing::{get, post},
 };
 use db::models::{
-    commander_session::CommanderSession,
-    execution_process::ExecutionProcess,
-    project::Project,
-    project_repo::ProjectRepo,
-    repo::Repo,
+    commander_session::CommanderSession, execution_process::ExecutionProcess, project::Project,
 };
 use deployment::Deployment;
 use serde::Deserialize;
-use services::services::container::ContainerService;
 use ts_rs::TS;
 use utils::response::ApiResponse;
 use uuid::Uuid;
@@ -34,22 +29,8 @@ pub async fn get_or_create_commander(
 ) -> Result<ResponseJson<ApiResponse<CommanderSession>>, ApiError> {
     let pool = &deployment.db().pool;
 
-    // Get the first (and only) repo for this project
-    let project_repos = ProjectRepo::find_by_project_id(pool, project.id).await?;
-    let project_repo = project_repos
-        .first()
-        .ok_or_else(|| ApiError::BadRequest("Project has no repositories configured".to_string()))?;
-
-    let repo = Repo::find_by_id(pool, project_repo.repo_id)
-        .await?
-        .ok_or_else(|| ApiError::BadRequest("Repository not found".to_string()))?;
-
-    // Create branch name from repo display_name
-    let branch = format!("{}-commander", repo.display_name);
-
     // Find or create commander session
-    let commander_session =
-        CommanderSession::find_or_create(pool, project.id, &branch, None).await?;
+    let commander_session = CommanderSession::find_or_create(pool, project.id, None).await?;
 
     Ok(ResponseJson(ApiResponse::success(commander_session)))
 }
@@ -76,35 +57,17 @@ pub async fn get_commander_processes(
 
 /// Send a follow-up message to the commander
 pub async fn follow_up(
-    Extension(commander_session): Extension<CommanderSession>,
-    State(deployment): State<DeploymentImpl>,
+    Extension(_commander_session): Extension<CommanderSession>,
+    State(_deployment): State<DeploymentImpl>,
     Json(_payload): Json<CreateFollowUpRequest>,
 ) -> Result<ResponseJson<ApiResponse<ExecutionProcess>>, ApiError> {
-    let pool = &deployment.db().pool;
-
-    // Get project
-    let project = Project::find_by_id(pool, commander_session.project_id)
-        .await?
-        .ok_or_else(|| ApiError::BadRequest("Project not found".to_string()))?;
-
-    // Get the first repo for this project
-    let project_repos = ProjectRepo::find_by_project_id(pool, project.id).await?;
-    let project_repo = project_repos
-        .first()
-        .ok_or_else(|| ApiError::BadRequest("Project has no repositories configured".to_string()))?;
-
-    let repo = Repo::find_by_id(pool, project_repo.repo_id)
-        .await?
-        .ok_or_else(|| ApiError::BadRequest("Repository not found".to_string()))?;
-
-    // Ensure commander worktree exists
-    deployment
-        .container()
-        .ensure_commander_container(&commander_session, &repo)
-        .await?;
+    // Commander works directly in the main repo (no worktree)
+    // The container_ref will be set to the repo path when execution starts
 
     // TODO: Start execution process for commander
-    // For now, return an error indicating this is not yet implemented
+    // - Get repo path from project
+    // - Create ExecutionProcess with commander_session_id
+    // - Start Claude Code in repo path with commander's system_prompt
     Err(ApiError::BadRequest(
         "Commander execution not yet implemented".to_string(),
     ))

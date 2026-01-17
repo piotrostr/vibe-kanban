@@ -3,8 +3,18 @@ CREATE TABLE commander_sessions (
     id              BLOB PRIMARY KEY,
     project_id      BLOB NOT NULL UNIQUE,
     container_ref   TEXT,
-    branch          TEXT NOT NULL,
     executor        TEXT,
+    system_prompt   TEXT NOT NULL DEFAULT 'You are Commander, a repository operator for this project.
+
+RULES:
+- NEVER push directly to main/master branches
+- NEVER force push to any branch
+- Always use PRs for merging changes to main
+- For consolidating changes across tickets, create a new branch first
+- Use `gh pr merge` for merging approved PRs
+- Before any destructive git operation, explain what you are about to do and ask for confirmation
+
+You have access to the vibe-kanban MCP for task management.',
     created_at      TEXT NOT NULL DEFAULT (datetime('now', 'subsec')),
     updated_at      TEXT NOT NULL DEFAULT (datetime('now', 'subsec')),
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE

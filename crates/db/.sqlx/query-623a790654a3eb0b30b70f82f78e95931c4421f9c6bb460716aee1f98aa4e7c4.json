@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE commander_sessions\n               SET system_prompt = $1, updated_at = datetime('now', 'subsec')\n               WHERE id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "623a790654a3eb0b30b70f82f78e95931c4421f9c6bb460716aee1f98aa4e7c4"
+}
