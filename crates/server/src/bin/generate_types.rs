@@ -130,6 +130,8 @@ fn generate_types_content() -> String {
         server::claude_session::PreviewClaudeSessionResponse::decl(),
         server::claude_session::ImportFromClaudeSessionRequest::decl(),
         server::claude_session::ImportFromClaudeSessionResponse::decl(),
+        server::claude_session::ImportWithHistoryRequest::decl(),
+        server::claude_session::ImportWithHistoryResponse::decl(),
         server::claude_session::ListClaudeSessionsRequest::decl(),
         server::claude_session::ListClaudeSessionsResponse::decl(),
         services::services::linear::LinearIssueWithState::decl(),

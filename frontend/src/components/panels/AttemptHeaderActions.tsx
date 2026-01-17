@@ -25,7 +25,6 @@ import type {
 } from "shared/types";
 import type { Workspace } from "shared/types";
 import { ActionsDropdown } from "../ui/actions-dropdown";
-import type { SharedTaskRecord } from "@/hooks/useProjectTasks";
 import { usePlanFromEntries } from "@/hooks/usePlanFromEntries";
 import { ViewPlanDialog } from "@/components/dialogs";
 import { BindPRDialog } from "@/components/dialogs/tasks/BindPRDialog";
@@ -57,7 +56,6 @@ interface AttemptHeaderActionsProps {
 	onModeChange?: (mode: LayoutMode) => void;
 	task: TaskWithAttemptStatus;
 	attempt?: Workspace | null;
-	sharedTask?: SharedTaskRecord;
 	branchStatus?: RepoBranchStatus[] | null;
 }
 
@@ -67,7 +65,6 @@ export const AttemptHeaderActions = ({
 	onModeChange,
 	task,
 	attempt,
-	sharedTask,
 	branchStatus,
 }: AttemptHeaderActionsProps) => {
 	const { t } = useTranslation("tasks");
@@ -197,7 +194,7 @@ export const AttemptHeaderActions = ({
 			{typeof mode !== "undefined" && onModeChange && (
 				<div className="h-4 w-px bg-border" />
 			)}
-			<ActionsDropdown task={task} attempt={attempt} sharedTask={sharedTask} />
+			<ActionsDropdown task={task} attempt={attempt} />
 			<Button variant="icon" aria-label="Close" onClick={onClose}>
 				<X size={16} />
 			</Button>

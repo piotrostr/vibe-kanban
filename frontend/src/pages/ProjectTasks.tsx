@@ -770,17 +770,6 @@ export function ProjectTasks() {
 		[tasksById],
 	);
 
-	const getSharedTask = useCallback(
-		(task: Task | null | undefined) => {
-			if (!task) return undefined;
-			if (task.shared_task_id) {
-				return sharedTasksById[task.shared_task_id];
-			}
-			return sharedTasksById[task.id];
-		},
-		[sharedTasksById],
-	);
-
 	const isInitialTasksLoad = isLoading && tasks.length === 0;
 
 	if (projectError) {
@@ -862,7 +851,6 @@ export function ProjectTasks() {
 						mode={mode}
 						onModeChange={setMode}
 						task={selectedTask}
-						sharedTask={getSharedTask(selectedTask)}
 						attempt={attempt ?? null}
 						onClose={() =>
 							navigate(`/projects/${projectId}/tasks`, { replace: true })

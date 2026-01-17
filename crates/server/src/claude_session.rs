@@ -115,6 +115,24 @@ pub struct ListClaudeSessionsResponse {
     pub sessions: Vec<SessionInfo>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportWithHistoryRequest {
+    pub session_path: String,
+    pub task_title: Option<String>,
+    pub default_status: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportWithHistoryResponse {
+    pub task_id: String,
+    pub workspace_id: String,
+    pub session_id: String,
+    pub execution_process_id: String,
+    pub log_lines_imported: usize,
+}
+
 fn extract_text_content(content: &ContentValue) -> String {
     match content {
         ContentValue::String(s) => s.clone(),
@@ -339,6 +357,68 @@ fn parse_session_info(path: &Path) -> Result<Option<SessionInfo>, ClaudeSessionE
         message_count,
         git_branch,
     }))
+}
+
+/// Extract all conversation log lines from a session file for import.
+/// Returns raw JSONL lines that can be stored in execution_process_logs.
+pub fn extract_session_logs(path: &Path) -> Result<Vec<String>, ClaudeSessionError> {
+    let content = std::fs::read_to_string(path)?;
+    let mut logs = Vec::new();
+
+    for line in content.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        // Parse to check if it's a valid message and filter sidechains
+        if let Ok(msg) = serde_json::from_str::<RawMessage>(line) {
+            // Skip sidechain messages (agent warmups, etc.)
+            if msg.is_sidechain == Some(true) || msg.agent_id.is_some() {
+                continue;
+            }
+
+            // Skip non-conversation types (summaries, progress, file-history-snapshot, etc.)
+            match msg.msg_type.as_str() {
+                "user" | "assistant" => {
+                    logs.push(line.to_string());
+                }
+                _ => {}
+            }
+        }
+    }
+
+    Ok(logs)
+}
+
+/// Get the first user message content for use as task title/description
+pub fn get_first_user_message(path: &Path) -> Result<Option<(String, String)>, ClaudeSessionError> {
+    let content = std::fs::read_to_string(path)?;
+
+    for line in content.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        if let Ok(msg) = serde_json::from_str::<RawMessage>(line) {
+            if msg.is_sidechain == Some(true) || msg.agent_id.is_some() {
+                continue;
+            }
+
+            if msg.msg_type == "user" && msg.parent_uuid.is_none() {
+                if let Some(MessageContent::Object { content, .. }) = msg.message {
+                    let text = extract_text_content(&content);
+                    let trimmed = text.trim();
+
+                    if !trimmed.is_empty() && !trimmed.eq_ignore_ascii_case("warmup") {
+                        let title = truncate_title(&text, 100);
+                        return Ok(Some((title, text)));
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(None)
 }
 
 pub fn get_session_summary(path: &Path) -> Result<Option<String>, ClaudeSessionError> {

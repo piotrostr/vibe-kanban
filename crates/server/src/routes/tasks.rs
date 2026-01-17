@@ -13,15 +13,25 @@ use axum::{
     routing::{delete, get, post, put},
 };
 use db::models::{
+    execution_process::{
+        CreateExecutionProcess, ExecutionProcess, ExecutionProcessRunReason,
+        ExecutionProcessStatus,
+    },
+    execution_process_logs::ExecutionProcessLogs,
     image::TaskImage,
     project::{Project, ProjectError},
     repo::Repo,
+    session::{CreateSession, Session},
     task::{CreateTask, Task, TaskStatus, TaskWithAttemptStatus, UpdateTask},
     workspace::{CreateWorkspace, Workspace},
     workspace_repo::{CreateWorkspaceRepo, WorkspaceRepo},
 };
 use deployment::Deployment;
-use executors::profile::ExecutorProfileId;
+use executors::{
+    actions::{coding_agent_initial::CodingAgentInitialRequest, ExecutorAction, ExecutorActionType},
+    executors::BaseCodingAgent,
+    profile::ExecutorProfileId,
+};
 use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use services::services::{
@@ -32,12 +42,13 @@ use services::services::{
 };
 use sqlx::Error as SqlxError;
 use ts_rs::TS;
-use utils::{api::oauth::LoginStatus, response::ApiResponse};
+use utils::{api::oauth::LoginStatus, log_msg::LogMsg, response::ApiResponse};
 use uuid::Uuid;
 
 use crate::claude_session::{
     self, ImportFromClaudeSessionRequest, ImportFromClaudeSessionResponse,
-    ListClaudeSessionsResponse, PreviewClaudeSessionRequest, PreviewClaudeSessionResponse,
+    ImportWithHistoryRequest, ImportWithHistoryResponse, ListClaudeSessionsResponse,
+    PreviewClaudeSessionRequest, PreviewClaudeSessionResponse,
 };
 
 use crate::{
@@ -967,6 +978,181 @@ pub async fn import_from_claude_session(
     )))
 }
 
+/// Import a Claude Code session with full conversation history.
+/// Creates: Task -> Workspace -> Session -> ExecutionProcess -> ExecutionProcessLogs
+pub async fn import_with_history(
+    State(deployment): State<DeploymentImpl>,
+    Query(query): Query<TaskQuery>,
+    Json(payload): Json<ImportWithHistoryRequest>,
+) -> Result<ResponseJson<ApiResponse<ImportWithHistoryResponse>>, ApiError> {
+    let path = Path::new(&payload.session_path);
+    if !path.exists() {
+        return Err(ApiError::BadRequest(format!(
+            "Session file not found: {}",
+            payload.session_path
+        )));
+    }
+
+    let pool = &deployment.db().pool;
+
+    // Get task title from the request or extract from the session
+    let (title, description) = if let Some(custom_title) = &payload.task_title {
+        (custom_title.clone(), None)
+    } else {
+        // Try to get the first user message as title/description
+        match claude_session::get_first_user_message(path) {
+            Ok(Some((title, desc))) => (title, Some(desc)),
+            _ => {
+                // Fall back to session summary
+                let summary = claude_session::get_session_summary(path)
+                    .map_err(|e| ApiError::BadRequest(format!("Failed to parse session: {}", e)))?;
+                (
+                    summary.unwrap_or_else(|| "Imported from Claude Code".to_string()),
+                    None,
+                )
+            }
+        }
+    };
+
+    // Parse status
+    let status = payload
+        .default_status
+        .as_deref()
+        .and_then(|s| match s.to_lowercase().as_str() {
+            "backlog" => Some(TaskStatus::Backlog),
+            "todo" => Some(TaskStatus::Todo),
+            "inprogress" => Some(TaskStatus::InProgress),
+            "done" => Some(TaskStatus::Done),
+            _ => None,
+        })
+        .unwrap_or(TaskStatus::Todo);
+
+    // Extract session logs
+    let log_lines = claude_session::extract_session_logs(path)
+        .map_err(|e| ApiError::BadRequest(format!("Failed to extract logs: {}", e)))?;
+
+    // Get session info for branch name
+    let session_info = claude_session::list_available_sessions(None)
+        .map_err(|e| ApiError::BadRequest(format!("Failed to list sessions: {}", e)))?
+        .into_iter()
+        .find(|s| s.path == payload.session_path);
+
+    let branch = session_info
+        .as_ref()
+        .and_then(|s| s.git_branch.clone())
+        .unwrap_or_else(|| format!("imported-{}", chrono::Utc::now().format("%Y%m%d-%H%M%S")));
+
+    let claude_session_id = session_info
+        .as_ref()
+        .map(|s| s.session_id.clone())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+
+    // 1. Create Task
+    let task_id = Uuid::new_v4();
+    let task = Task::create(
+        pool,
+        &CreateTask {
+            project_id: query.project_id,
+            title,
+            description,
+            status: Some(status),
+            parent_workspace_id: None,
+            image_ids: None,
+            shared_task_id: None,
+            linear_issue_id: None,
+            linear_url: None,
+        },
+        task_id,
+    )
+    .await?;
+
+    // 2. Create Workspace
+    let workspace_id = Uuid::new_v4();
+    let workspace = Workspace::create(
+        pool,
+        &CreateWorkspace {
+            branch: branch.clone(),
+            agent_working_dir: None,
+        },
+        workspace_id,
+        task.id,
+    )
+    .await?;
+
+    // 3. Create Session
+    let session_id = Uuid::new_v4();
+    let session = Session::create(
+        pool,
+        &CreateSession {
+            executor: Some("CLAUDE_CODE".to_string()),
+        },
+        session_id,
+        workspace.id,
+    )
+    .await
+    .map_err(|e| ApiError::BadRequest(format!("Failed to create session: {}", e)))?;
+
+    // 4. Create ExecutionProcess (marked as Completed)
+    let execution_process_id = Uuid::new_v4();
+    let executor_action = ExecutorAction::new(
+        ExecutorActionType::CodingAgentInitialRequest(CodingAgentInitialRequest {
+            prompt: format!("Imported from Claude Code session: {}", claude_session_id),
+            executor_profile_id: ExecutorProfileId {
+                executor: BaseCodingAgent::ClaudeCode,
+                variant: None,
+            },
+            working_dir: None,
+        }),
+        None,
+    );
+
+    let execution_process = ExecutionProcess::create(
+        pool,
+        &CreateExecutionProcess {
+            session_id: session.id,
+            executor_action,
+            run_reason: ExecutionProcessRunReason::CodingAgent,
+        },
+        execution_process_id,
+        &[], // No repo states for imported sessions
+    )
+    .await?;
+
+    // Mark the execution process as completed
+    ExecutionProcess::update_completion(
+        pool,
+        execution_process.id,
+        ExecutionProcessStatus::Completed,
+        Some(0), // exit code 0 for success
+    )
+    .await?;
+
+    // 5. Import log lines
+    let log_lines_count = log_lines.len();
+    for line in log_lines {
+        // Wrap the raw JSONL line in a LogMsg::Stdout for display
+        let log_msg = LogMsg::Stdout(line);
+        let jsonl = serde_json::to_string(&log_msg)
+            .map_err(|e| ApiError::BadRequest(format!("Failed to serialize log: {}", e)))?;
+        ExecutionProcessLogs::append_log_line(pool, execution_process.id, &jsonl).await?;
+    }
+
+    tracing::info!(
+        "Imported Claude session '{}' as task {} with {} log lines",
+        claude_session_id,
+        task.id,
+        log_lines_count
+    );
+
+    Ok(ResponseJson(ApiResponse::success(ImportWithHistoryResponse {
+        task_id: task.id.to_string(),
+        workspace_id: workspace.id.to_string(),
+        session_id: session.id.to_string(),
+        execution_process_id: execution_process.id.to_string(),
+        log_lines_imported: log_lines_count,
+    })))
+}
+
 pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
     let task_actions_router = Router::new()
         .route("/", put(update_task))
@@ -992,6 +1178,7 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
             "/import-from-claude-session",
             post(import_from_claude_session),
         )
+        .route("/import-with-history", post(import_with_history))
         .nest("/{task_id}", task_id_router);
 
     // Top-level tasks routes (not scoped to a project)

@@ -268,6 +268,10 @@ export type ImportFromClaudeSessionRequest = { sessionPath: string, selectedItem
 
 export type ImportFromClaudeSessionResponse = { importedCount: number, errors: Array<string>, };
 
+export type ImportWithHistoryRequest = { sessionPath: string, taskTitle: string | null, defaultStatus: string | null, };
+
+export type ImportWithHistoryResponse = { taskId: string, workspaceId: string, sessionId: string, executionProcessId: string, logLinesImported: number, };
+
 export type ListClaudeSessionsRequest = { projectPath: string | null, };
 
 export type ListClaudeSessionsResponse = { sessions: Array<SessionInfo>, };

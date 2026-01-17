@@ -100,6 +100,8 @@ import {
 	PreviewClaudeSessionResponse,
 	ImportFromClaudeSessionRequest,
 	ImportFromClaudeSessionResponse,
+	ImportWithHistoryRequest,
+	ImportWithHistoryResponse,
 	ListClaudeSessionsResponse,
 } from "shared/types";
 import type { WorkspaceWithSession } from "@/types/attempt";
@@ -583,6 +585,20 @@ export const tasksApi = {
 			},
 		);
 		return handleApiResponse<ImportFromClaudeSessionResponse>(response);
+	},
+
+	importWithHistory: async (
+		projectId: string,
+		data: ImportWithHistoryRequest,
+	): Promise<ImportWithHistoryResponse> => {
+		const response = await makeRequest(
+			`/api/tasks/import-with-history?project_id=${encodeURIComponent(projectId)}`,
+			{
+				method: "POST",
+				body: JSON.stringify(data),
+			},
+		);
+		return handleApiResponse<ImportWithHistoryResponse>(response);
 	},
 };
 
