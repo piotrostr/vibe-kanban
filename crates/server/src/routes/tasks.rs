@@ -20,6 +20,7 @@ use db::models::{
     execution_process_logs::ExecutionProcessLogs,
     image::TaskImage,
     project::{Project, ProjectError},
+    project_repo::ProjectRepo,
     repo::Repo,
     session::{CreateSession, Session},
     task::{CreateTask, Task, TaskStatus, TaskWithAttemptStatus, UpdateTask},
@@ -30,6 +31,7 @@ use deployment::Deployment;
 use executors::{
     actions::{coding_agent_initial::CodingAgentInitialRequest, ExecutorAction, ExecutorActionType},
     executors::BaseCodingAgent,
+    logs::{ActionType, NormalizedEntry, NormalizedEntryType, ToolStatus},
     profile::ExecutorProfileId,
 };
 use futures_util::{SinkExt, StreamExt, TryStreamExt};
@@ -995,23 +997,22 @@ pub async fn import_with_history(
 
     let pool = &deployment.db().pool;
 
-    // Get task title from the request or extract from the session
+    // Get session slug for plan path and default title
+    let session_slug = claude_session::get_session_slug(path)
+        .map_err(|e| ApiError::BadRequest(format!("Failed to get session slug: {}", e)))?;
+
+    // Get task title from the request or use slug/session_id
     let (title, description) = if let Some(custom_title) = &payload.task_title {
         (custom_title.clone(), None)
     } else {
-        // Try to get the first user message as title/description
-        match claude_session::get_first_user_message(path) {
-            Ok(Some((title, desc))) => (title, Some(desc)),
-            _ => {
-                // Fall back to session summary
-                let summary = claude_session::get_session_summary(path)
-                    .map_err(|e| ApiError::BadRequest(format!("Failed to parse session: {}", e)))?;
-                (
-                    summary.unwrap_or_else(|| "Imported from Claude Code".to_string()),
-                    None,
-                )
-            }
-        }
+        // Use slug as title (user can rename later), empty description
+        let session_id = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("imported")
+            .to_string();
+        let title = session_slug.clone().unwrap_or(session_id);
+        (title, None)
     };
 
     // Parse status
@@ -1027,8 +1028,8 @@ pub async fn import_with_history(
         })
         .unwrap_or(TaskStatus::Todo);
 
-    // Extract session logs
-    let log_lines = claude_session::extract_session_logs(path)
+    // Extract raw session logs (1:1 parity with Claude Code JSONL)
+    let log_lines = claude_session::extract_raw_session_logs(path)
         .map_err(|e| ApiError::BadRequest(format!("Failed to extract logs: {}", e)))?;
 
     // Get session info for branch name
@@ -1079,6 +1080,19 @@ pub async fn import_with_history(
     )
     .await?;
 
+    // 2b. Add project repos to workspace (required for container operations)
+    let project_repos = ProjectRepo::find_by_project_id(pool, query.project_id).await?;
+    if !project_repos.is_empty() {
+        let workspace_repos: Vec<CreateWorkspaceRepo> = project_repos
+            .iter()
+            .map(|pr| CreateWorkspaceRepo {
+                repo_id: pr.repo_id,
+                target_branch: String::new(), // Use default branch
+            })
+            .collect();
+        WorkspaceRepo::create_many(pool, workspace.id, &workspace_repos).await?;
+    }
+
     // 3. Create Session
     let session_id = Uuid::new_v4();
     let session = Session::create(
@@ -1111,7 +1125,7 @@ pub async fn import_with_history(
         &CreateExecutionProcess {
             session_id: session.id,
             executor_action,
-            run_reason: ExecutionProcessRunReason::CodingAgent,
+            run_reason: ExecutionProcessRunReason::ImportedSession,
         },
         execution_process_id,
         &[], // No repo states for imported sessions
@@ -1127,14 +1141,48 @@ pub async fn import_with_history(
     )
     .await?;
 
-    // 5. Import log lines
+    // 5. Import log lines as a single batch (one row in the database)
     let log_lines_count = log_lines.len();
-    for line in log_lines {
-        // Wrap the raw JSONL line in a LogMsg::Stdout for display
-        let log_msg = LogMsg::Stdout(line);
-        let jsonl = serde_json::to_string(&log_msg)
-            .map_err(|e| ApiError::BadRequest(format!("Failed to serialize log: {}", e)))?;
-        ExecutionProcessLogs::append_log_line(pool, execution_process.id, &jsonl).await?;
+    let jsonl_lines: Vec<String> = log_lines
+        .into_iter()
+        .map(|line| {
+            let log_msg = LogMsg::Stdout(line);
+            serde_json::to_string(&log_msg)
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| ApiError::BadRequest(format!("Failed to serialize log: {}", e)))?;
+
+    ExecutionProcessLogs::append_log_lines_batch(pool, execution_process.id, &jsonl_lines).await?;
+
+    // 6. Import plan file if it exists
+    if let Ok(Some(plan_path)) = claude_session::get_plan_path(path) {
+        if let Ok(plan_content) = std::fs::read_to_string(&plan_path) {
+            let plan_entry = NormalizedEntry {
+                timestamp: None,
+                entry_type: NormalizedEntryType::ToolUse {
+                    tool_name: "ExitPlanMode".to_string(),
+                    action_type: ActionType::PlanPresentation {
+                        plan: plan_content.clone(),
+                    },
+                    status: ToolStatus::Success,
+                },
+                content: "Plan".to_string(),
+                metadata: None,
+            };
+            // Wrap in LogMsg::Stdout containing the serialized NormalizedEntry
+            let plan_json = serde_json::to_string(&plan_entry)
+                .map_err(|e| ApiError::BadRequest(format!("Failed to serialize plan: {}", e)))?;
+            let plan_log = LogMsg::Stdout(plan_json);
+            let plan_log_str = serde_json::to_string(&plan_log)
+                .map_err(|e| ApiError::BadRequest(format!("Failed to serialize plan log: {}", e)))?;
+            ExecutionProcessLogs::append_log_lines_batch(pool, execution_process.id, &[plan_log_str])
+                .await?;
+            tracing::info!(
+                "Imported plan from '{}' for task {}",
+                plan_path.display(),
+                task.id
+            );
+        }
     }
 
     tracing::info!(

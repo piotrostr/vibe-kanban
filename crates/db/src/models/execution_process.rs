@@ -57,6 +57,7 @@ pub enum ExecutionProcessRunReason {
     DevServer,
     QuickCommand,
     SlashCommand,
+    ImportedSession,
 }
 
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize, TS)]

@@ -698,8 +698,22 @@ pub trait ContainerService {
                     }
                 };
 
+            tracing::debug!(
+                "Loading logs for execution {}: {} records, {} total bytes",
+                id,
+                log_records.len(),
+                log_records.iter().map(|r| r.byte_size).sum::<i64>()
+            );
+
             let raw_messages = match ExecutionProcessLogs::parse_logs(&log_records) {
-                Ok(msgs) => msgs,
+                Ok(msgs) => {
+                    tracing::debug!(
+                        "Parsed {} raw messages for execution {}",
+                        msgs.len(),
+                        id
+                    );
+                    msgs
+                }
                 Err(e) => {
                     tracing::error!("Failed to parse logs for execution {}: {}", id, e);
                     return None;
@@ -773,15 +787,22 @@ pub trait ContainerService {
             };
 
             // Spawn normalizer on populated store
+            tracing::debug!(
+                "Normalizing logs for execution {}, temp_store has {} messages",
+                id,
+                temp_store.get_history().len()
+            );
             match executor_action.typ() {
                 ExecutorActionType::CodingAgentInitialRequest(request) => {
                     let executor = ExecutorConfigs::get_cached()
                         .get_coding_agent_or_default(&request.executor_profile_id);
+                    tracing::debug!("Using executor {:?} for normalization", request.executor_profile_id);
                     executor.normalize_logs(temp_store.clone(), &current_dir);
                 }
                 ExecutorActionType::CodingAgentFollowUpRequest(request) => {
                     let executor = ExecutorConfigs::get_cached()
                         .get_coding_agent_or_default(&request.executor_profile_id);
+                    tracing::debug!("Using executor {:?} for normalization", request.executor_profile_id);
                     executor.normalize_logs(temp_store.clone(), &current_dir);
                 }
                 _ => {
@@ -792,6 +813,10 @@ pub trait ContainerService {
                     return None;
                 }
             }
+            tracing::debug!(
+                "After normalization, temp_store has {} messages",
+                temp_store.get_history().len()
+            );
             Some(
                 temp_store
                     .history_plus_stream()
