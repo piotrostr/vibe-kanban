@@ -30,6 +30,7 @@ struct RawMessage {
     is_sidechain: Option<bool>,
     agent_id: Option<String>,
     slug: Option<String>,
+    cwd: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -599,6 +600,25 @@ pub fn get_plan_path(session_path: &Path) -> Result<Option<PathBuf>, ClaudeSessi
             .join(format!("{}.md", slug));
         if plan_path.exists() {
             return Ok(Some(plan_path));
+        }
+    }
+    Ok(None)
+}
+
+/// Extract the working directory (cwd) from a Claude Code session file.
+/// The cwd is stored in "system" type entries.
+pub fn get_session_cwd(path: &Path) -> Result<Option<String>, ClaudeSessionError> {
+    let content = std::fs::read_to_string(path)?;
+    for line in content.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        if let Ok(msg) = serde_json::from_str::<RawMessage>(line) {
+            if msg.msg_type == "system" {
+                if let Some(cwd) = msg.cwd {
+                    return Ok(Some(cwd));
+                }
+            }
         }
     }
     Ok(None)

@@ -50,7 +50,7 @@ use uuid::Uuid;
 use crate::claude_session::{
     self, ImportFromClaudeSessionRequest, ImportFromClaudeSessionResponse,
     ImportWithHistoryRequest, ImportWithHistoryResponse, ListClaudeSessionsResponse,
-    PreviewClaudeSessionRequest, PreviewClaudeSessionResponse,
+    PreviewClaudeSessionRequest, PreviewClaudeSessionResponse, get_session_cwd,
 };
 
 use crate::{
@@ -1080,17 +1080,41 @@ pub async fn import_with_history(
     )
     .await?;
 
-    // 2b. Add project repos to workspace (required for container operations)
-    let project_repos = ProjectRepo::find_by_project_id(pool, query.project_id).await?;
-    if !project_repos.is_empty() {
-        let workspace_repos: Vec<CreateWorkspaceRepo> = project_repos
-            .iter()
-            .map(|pr| CreateWorkspaceRepo {
-                repo_id: pr.repo_id,
-                target_branch: String::new(), // Use default branch
-            })
-            .collect();
-        WorkspaceRepo::create_many(pool, workspace.id, &workspace_repos).await?;
+    // 2b. Extract cwd from session and check if it's an existing worktree
+    let session_cwd = get_session_cwd(path)
+        .map_err(|e| ApiError::BadRequest(format!("Failed to get session cwd: {}", e)))?;
+
+    // Check if the cwd is already a registered worktree
+    // Worktrees have .git as a file (pointing to main repo), not a directory
+    let is_existing_worktree = session_cwd.as_ref().map_or(false, |cwd| {
+        let git_path = Path::new(cwd).join(".git");
+        git_path.is_file()
+    });
+
+    if is_existing_worktree {
+        // Case 1: Already a worktree - use it directly as container_ref
+        if let Some(cwd) = &session_cwd {
+            Workspace::update_container_ref(pool, workspace.id, cwd).await?;
+            tracing::info!(
+                "Imported session uses existing worktree: {} for workspace {}",
+                cwd,
+                workspace.id
+            );
+        }
+        // Skip workspace repo creation - we're using existing worktree as-is
+    } else {
+        // Case 2: Not a worktree - add repos so the system creates one
+        let project_repos = ProjectRepo::find_by_project_id(pool, query.project_id).await?;
+        if !project_repos.is_empty() {
+            let workspace_repos: Vec<CreateWorkspaceRepo> = project_repos
+                .iter()
+                .map(|pr| CreateWorkspaceRepo {
+                    repo_id: pr.repo_id,
+                    target_branch: String::new(), // Use default branch
+                })
+                .collect();
+            WorkspaceRepo::create_many(pool, workspace.id, &workspace_repos).await?;
+        }
     }
 
     // 3. Create Session
