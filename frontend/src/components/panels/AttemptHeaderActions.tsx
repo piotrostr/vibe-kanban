@@ -1,6 +1,5 @@
 import { useTranslation } from "react-i18next";
 import {
-	Eye,
 	FileDiff,
 	ClipboardList,
 	X,
@@ -159,21 +158,6 @@ export const AttemptHeaderActions = ({
 						className="inline-flex gap-4"
 						aria-label="Layout mode"
 					>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<ToggleGroupItem
-									value="preview"
-									aria-label="Preview"
-									active={mode === "preview"}
-								>
-									<Eye className="h-4 w-4" />
-								</ToggleGroupItem>
-							</TooltipTrigger>
-							<TooltipContent side="bottom">
-								{t("attemptHeaderActions.preview")}
-							</TooltipContent>
-						</Tooltip>
-
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<ToggleGroupItem
