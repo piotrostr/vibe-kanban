@@ -5,9 +5,9 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use db::models::{
-    execution_process::ExecutionProcessError, project::ProjectError,
-    project_repo::ProjectRepoError, repo::RepoError, scratch::ScratchError, session::SessionError,
-    workspace::WorkspaceError,
+    commander_session::CommanderSessionError, execution_process::ExecutionProcessError,
+    project::ProjectError, project_repo::ProjectRepoError, repo::RepoError, scratch::ScratchError,
+    session::SessionError, workspace::WorkspaceError,
 };
 use deployment::{DeploymentError, RemoteClientNotConfigured};
 use executors::executors::ExecutorError;
@@ -385,6 +385,20 @@ impl From<ProjectRepoError> for ApiError {
             }
             ProjectRepoError::AlreadyExists => {
                 ApiError::Conflict("Repository already exists in project".to_string())
+            }
+        }
+    }
+}
+
+impl From<CommanderSessionError> for ApiError {
+    fn from(err: CommanderSessionError) -> Self {
+        match err {
+            CommanderSessionError::Database(db_err) => ApiError::Database(db_err),
+            CommanderSessionError::NotFound => {
+                ApiError::BadRequest("Commander session not found".to_string())
+            }
+            CommanderSessionError::ProjectNotFound => {
+                ApiError::BadRequest("Project not found".to_string())
             }
         }
     }

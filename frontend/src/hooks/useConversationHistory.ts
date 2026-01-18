@@ -121,7 +121,8 @@ export const useConversationHistory = ({
 				ep.run_reason === "cleanupscript" ||
 				ep.run_reason === "codingagent" ||
 				ep.run_reason === "quickcommand" ||
-				ep.run_reason === "slashcommand",
+				ep.run_reason === "slashcommand" ||
+				ep.run_reason === "importedsession",
 		);
 	}, [executionProcessesRaw]);
 
@@ -129,10 +130,11 @@ export const useConversationHistory = ({
 		executionProcess: ExecutionProcess,
 	) => {
 		let url = "";
-		// Use raw logs for scripts and slash commands (slash commands output to stdout, not structured JSON)
+		// Use raw logs for scripts, slash commands, and imported sessions
 		if (
 			executionProcess.executor_action.typ.type === "ScriptRequest" ||
-			executionProcess.run_reason === "slashcommand"
+			executionProcess.run_reason === "slashcommand" ||
+			executionProcess.run_reason === "importedsession"
 		) {
 			url = `/api/execution-processes/${executionProcess.id}/raw-logs/ws`;
 		} else {
@@ -232,6 +234,84 @@ export const useConversationHistory = ({
 				)
 				.flatMap((p, index) => {
 					const entries: PatchTypeWithKey[] = [];
+
+					// Handle imported sessions - parse raw Claude Code JSONL
+					if (p.executionProcess.run_reason === "importedsession") {
+						for (let i = 0; i < p.entries.length; i++) {
+							const line = p.entries[i];
+							if (typeof line.content !== "string") continue;
+
+							// Handle NormalizedEntry directly (e.g., plan entries)
+							if (line.type === "NORMALIZED_ENTRY") {
+								entries.push(line);
+								continue;
+							}
+
+							try {
+								const parsed = JSON.parse(line.content);
+
+								// Skip non-message types (system, tool_use, tool_result, queue-operation, etc.)
+								if (parsed.type !== "user" && parsed.type !== "assistant")
+									continue;
+
+								// Extract text content from message.content array
+								const message = parsed.message;
+								if (!message?.content) continue;
+
+								const textContent = message.content
+									.filter((block: { type: string }) => block.type === "text")
+									.map((block: { text?: string }) => block.text || "")
+									.join("\n");
+
+								if (!textContent.trim()) continue;
+
+								const entryType =
+									parsed.type === "user" ? "user_message" : "assistant_message";
+								const entry: NormalizedEntry = {
+									entry_type: { type: entryType },
+									content: textContent,
+									timestamp: parsed.timestamp || null,
+								};
+								entries.push(
+									patchWithKey(
+										{ type: "NORMALIZED_ENTRY", content: entry },
+										p.executionProcess.id,
+										i,
+									),
+								);
+							} catch {
+								// Try legacy format: "User: ..." or "Assistant: ..."
+								if (line.content.startsWith("User: ")) {
+									const userEntry: NormalizedEntry = {
+										entry_type: { type: "user_message" },
+										content: line.content.slice(6),
+										timestamp: null,
+									};
+									entries.push(
+										patchWithKey(
+											{ type: "NORMALIZED_ENTRY", content: userEntry },
+											p.executionProcess.id,
+											i,
+										),
+									);
+								} else if (line.content.startsWith("Assistant: ")) {
+									const assistantEntry: NormalizedEntry = {
+										entry_type: { type: "assistant_message" },
+										content: line.content.slice(11),
+										timestamp: null,
+									};
+									entries.push(
+										patchWithKey(
+											{ type: "NORMALIZED_ENTRY", content: assistantEntry },
+											p.executionProcess.id,
+											i,
+										),
+									);
+								}
+							}
+						}
+						return entries;
+					}
 
 					// Handle slash commands - show as user message + raw output (like QuickCommand)
 					if (p.executionProcess.run_reason === "slashcommand") {
@@ -579,10 +659,11 @@ export const useConversationHistory = ({
 		(executionProcess: ExecutionProcess): Promise<void> => {
 			return new Promise((resolve, reject) => {
 				let url = "";
-				// Use raw logs for scripts and slash commands (slash commands output to stdout, not structured JSON)
+				// Use raw logs for scripts, slash commands, and imported sessions
 				if (
 					executionProcess.executor_action.typ.type === "ScriptRequest" ||
-					executionProcess.run_reason === "slashcommand"
+					executionProcess.run_reason === "slashcommand" ||
+					executionProcess.run_reason === "importedsession"
 				) {
 					url = `/api/execution-processes/${executionProcess.id}/raw-logs/ws`;
 				} else {

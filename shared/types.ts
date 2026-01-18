@@ -78,7 +78,15 @@ export type Workspace = { id: string, task_id: string, container_ref: string | n
 
 export type Session = { id: string, workspace_id: string, executor: string | null, created_at: string, updated_at: string, };
 
-export type ExecutionProcess = { id: string, session_id: string, run_reason: ExecutionProcessRunReason, executor_action: ExecutorAction, status: ExecutionProcessStatus, exit_code: bigint | null, 
+export type CommanderSession = { id: string, project_id: string, container_ref: string | null, executor: string | null, system_prompt: string, created_at: string, updated_at: string, };
+
+export type CreateCommanderSession = { executor: string | null, system_prompt: string | null, };
+
+export type ExecutionProcess = { id: string, session_id: string, 
+/**
+ * Commander session ID - set when process belongs to a commander session instead of task session
+ */
+commander_session_id: string | null, run_reason: ExecutionProcessRunReason, executor_action: ExecutorAction, status: ExecutionProcessStatus, exit_code: bigint | null, 
 /**
  * dropped: true if this process is excluded from the current
  * history view (due to restore/trimming). Hidden from logs/timeline;
@@ -88,7 +96,7 @@ dropped: boolean, started_at: string, completed_at: string | null, created_at: s
 
 export enum ExecutionProcessStatus { running = "running", completed = "completed", failed = "failed", killed = "killed" }
 
-export type ExecutionProcessRunReason = "setupscript" | "cleanupscript" | "codingagent" | "devserver" | "quickcommand" | "slashcommand";
+export type ExecutionProcessRunReason = "setupscript" | "cleanupscript" | "codingagent" | "devserver" | "quickcommand" | "slashcommand" | "importedsession";
 
 export type ExecutionProcessRepoState = { id: string, execution_process_id: string, repo_id: string, before_head_commit: string | null, after_head_commit: string | null, merge_commit: string | null, created_at: Date, updated_at: Date, };
 
@@ -236,6 +244,8 @@ export type OpenEditorResponse = { url: string | null, };
 
 export type AssignSharedTaskRequest = { new_assignee_user_id: string | null, };
 
+export type CreateFollowUpRequest = { prompt: string, variant: string | null, };
+
 export type ShareTaskResponse = { shared_task_id: string, };
 
 export type CreateAndStartTaskRequest = { task: CreateTask, executor_profile_id: ExecutorProfileId, repos: Array<WorkspaceRepoInput>, };
@@ -245,6 +255,26 @@ export type ImportTaskFromPrRequest = { projectId: string, repoId: string, prNum
 export type ImportTaskFromPrError = { "type": "github_cli_not_installed" } | { "type": "github_cli_not_logged_in" } | { "type": "pr_not_found_or_no_access", pr_number: bigint, };
 
 export type LinearIssueStateResponse = { issue: LinearIssueWithState, mapped_status: TaskStatus, };
+
+export type ExtractedTask = { id: string, title: string, description: string | null, timestamp: string, branch: string | null, sessionId: string | null, };
+
+export type SessionInfo = { path: string, sessionId: string, lastModified: string, summary: string | null, messageCount: number, gitBranch: string | null, firstUserMessage: string | null, slug: string | null, };
+
+export type PreviewClaudeSessionRequest = { sessionPath: string, };
+
+export type PreviewClaudeSessionResponse = { items: Array<ExtractedTask>, sessionSummary: string | null, };
+
+export type ImportFromClaudeSessionRequest = { sessionPath: string, selectedItemIds: Array<string>, defaultStatus: string | null, };
+
+export type ImportFromClaudeSessionResponse = { importedCount: number, errors: Array<string>, };
+
+export type ImportWithHistoryRequest = { sessionPath: string, taskTitle: string | null, defaultStatus: string | null, };
+
+export type ImportWithHistoryResponse = { taskId: string, workspaceId: string, sessionId: string, executionProcessId: string, logLinesImported: number, };
+
+export type ListClaudeSessionsRequest = { projectPath: string | null, };
+
+export type ListClaudeSessionsResponse = { sessions: Array<SessionInfo>, };
 
 export type LinearIssueWithState = { id: string, title: string, description: string | null, url: string, state: WorkflowState, labels: Array<LinearLabel>, assignee: LinearUser | null, };
 

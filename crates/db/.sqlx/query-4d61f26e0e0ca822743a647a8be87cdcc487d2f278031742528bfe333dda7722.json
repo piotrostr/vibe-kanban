@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE commander_sessions\n               SET container_ref = $1, updated_at = datetime('now', 'subsec')\n               WHERE id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "4d61f26e0e0ca822743a647a8be87cdcc487d2f278031742528bfe333dda7722"
+}

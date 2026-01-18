@@ -66,4 +66,28 @@ impl ExecutionProcessLogs {
 
         Ok(())
     }
+
+    /// Append multiple JSONL lines as a single batch (one row in the database)
+    pub async fn append_log_lines_batch(
+        pool: &SqlitePool,
+        execution_id: Uuid,
+        jsonl_lines: &[String],
+    ) -> Result<(), sqlx::Error> {
+        if jsonl_lines.is_empty() {
+            return Ok(());
+        }
+        let combined = jsonl_lines.join("\n");
+        let byte_size = combined.len() as i64;
+        sqlx::query!(
+            r#"INSERT INTO execution_process_logs (execution_id, logs, byte_size, inserted_at)
+               VALUES ($1, $2, $3, datetime('now', 'subsec'))"#,
+            execution_id,
+            combined,
+            byte_size
+        )
+        .execute(pool)
+        .await?;
+
+        Ok(())
+    }
 }

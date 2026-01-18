@@ -57,12 +57,15 @@ pub enum ExecutionProcessRunReason {
     DevServer,
     QuickCommand,
     SlashCommand,
+    ImportedSession,
 }
 
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize, TS)]
 pub struct ExecutionProcess {
     pub id: Uuid,
     pub session_id: Uuid,
+    /// Commander session ID - set when process belongs to a commander session instead of task session
+    pub commander_session_id: Option<Uuid>,
     pub run_reason: ExecutionProcessRunReason,
     #[ts(type = "ExecutorAction")]
     pub executor_action: sqlx::types::Json<ExecutorActionField>,
@@ -81,6 +84,14 @@ pub struct ExecutionProcess {
 #[derive(Debug, Deserialize, TS)]
 pub struct CreateExecutionProcess {
     pub session_id: Uuid,
+    pub executor_action: ExecutorAction,
+    pub run_reason: ExecutionProcessRunReason,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateCommanderExecutionProcess {
+    pub session_id: Uuid,
+    pub commander_session_id: Uuid,
     pub executor_action: ExecutorAction,
     pub run_reason: ExecutionProcessRunReason,
 }
@@ -129,6 +140,7 @@ impl ExecutionProcess {
             r#"SELECT
                     ep.id as "id!: Uuid",
                     ep.session_id as "session_id!: Uuid",
+                    ep.commander_session_id as "commander_session_id?: Uuid",
                     ep.run_reason as "run_reason!: ExecutionProcessRunReason",
                     ep.executor_action as "executor_action!: sqlx::types::Json<ExecutorActionField>",
                     ep.status as "status!: ExecutionProcessStatus",
@@ -203,6 +215,7 @@ impl ExecutionProcess {
             r#"SELECT
                     ep.id as "id!: Uuid",
                     ep.session_id as "session_id!: Uuid",
+                    ep.commander_session_id as "commander_session_id?: Uuid",
                     ep.run_reason as "run_reason!: ExecutionProcessRunReason",
                     ep.executor_action as "executor_action!: sqlx::types::Json<ExecutorActionField>",
                     ep.status as "status!: ExecutionProcessStatus",
@@ -230,6 +243,7 @@ impl ExecutionProcess {
             r#"SELECT
                       ep.id              as "id!: Uuid",
                       ep.session_id      as "session_id!: Uuid",
+                      ep.commander_session_id as "commander_session_id?: Uuid",
                       ep.run_reason      as "run_reason!: ExecutionProcessRunReason",
                       ep.executor_action as "executor_action!: sqlx::types::Json<ExecutorActionField>",
                       ep.status          as "status!: ExecutionProcessStatus",
@@ -250,6 +264,35 @@ impl ExecutionProcess {
         .await
     }
 
+    /// Find all execution processes for a commander session
+    pub async fn find_by_commander_session_id(
+        pool: &SqlitePool,
+        commander_session_id: Uuid,
+    ) -> Result<Vec<Self>, sqlx::Error> {
+        sqlx::query_as!(
+            ExecutionProcess,
+            r#"SELECT
+                      ep.id              as "id!: Uuid",
+                      ep.session_id      as "session_id!: Uuid",
+                      ep.commander_session_id as "commander_session_id?: Uuid",
+                      ep.run_reason      as "run_reason!: ExecutionProcessRunReason",
+                      ep.executor_action as "executor_action!: sqlx::types::Json<ExecutorActionField>",
+                      ep.status          as "status!: ExecutionProcessStatus",
+                      ep.exit_code,
+                      ep.dropped as "dropped!: bool",
+                      ep.started_at      as "started_at!: DateTime<Utc>",
+                      ep.completed_at    as "completed_at?: DateTime<Utc>",
+                      ep.created_at      as "created_at!: DateTime<Utc>",
+                      ep.updated_at      as "updated_at!: DateTime<Utc>"
+               FROM execution_processes ep
+               WHERE ep.commander_session_id = ?
+               ORDER BY ep.created_at ASC"#,
+            commander_session_id
+        )
+        .fetch_all(pool)
+        .await
+    }
+
     /// Find running execution processes
     pub async fn find_running(pool: &SqlitePool) -> Result<Vec<Self>, sqlx::Error> {
         sqlx::query_as!(
@@ -257,6 +300,7 @@ impl ExecutionProcess {
             r#"SELECT
                     ep.id as "id!: Uuid",
                     ep.session_id as "session_id!: Uuid",
+                    ep.commander_session_id as "commander_session_id?: Uuid",
                     ep.run_reason as "run_reason!: ExecutionProcessRunReason",
                     ep.executor_action as "executor_action!: sqlx::types::Json<ExecutorActionField>",
                     ep.status as "status!: ExecutionProcessStatus",
@@ -279,7 +323,7 @@ impl ExecutionProcess {
     ) -> Result<Vec<Self>, sqlx::Error> {
         sqlx::query_as!(
             ExecutionProcess,
-            r#"SELECT ep.id as "id!: Uuid", ep.session_id as "session_id!: Uuid", ep.run_reason as "run_reason!: ExecutionProcessRunReason", ep.executor_action as "executor_action!: sqlx::types::Json<ExecutorActionField>",
+            r#"SELECT ep.id as "id!: Uuid", ep.session_id as "session_id!: Uuid", ep.commander_session_id as "commander_session_id?: Uuid", ep.run_reason as "run_reason!: ExecutionProcessRunReason", ep.executor_action as "executor_action!: sqlx::types::Json<ExecutorActionField>",
                       ep.status as "status!: ExecutionProcessStatus", ep.exit_code,
                       ep.dropped as "dropped!: bool", ep.started_at as "started_at!: DateTime<Utc>", ep.completed_at as "completed_at?: DateTime<Utc>", ep.created_at as "created_at!: DateTime<Utc>", ep.updated_at as "updated_at!: DateTime<Utc>"
                FROM execution_processes ep
@@ -324,6 +368,7 @@ impl ExecutionProcess {
         SELECT
             ep.id as "id!: Uuid",
             ep.session_id as "session_id!: Uuid",
+            ep.commander_session_id as "commander_session_id?: Uuid",
             ep.run_reason as "run_reason!: ExecutionProcessRunReason",
             ep.executor_action as "executor_action!: sqlx::types::Json<ExecutorActionField>",
             ep.status as "status!: ExecutionProcessStatus",
@@ -386,6 +431,7 @@ impl ExecutionProcess {
             r#"SELECT
                     ep.id as "id!: Uuid",
                     ep.session_id as "session_id!: Uuid",
+                    ep.commander_session_id as "commander_session_id?: Uuid",
                     ep.run_reason as "run_reason!: ExecutionProcessRunReason",
                     ep.executor_action as "executor_action!: sqlx::types::Json<ExecutorActionField>",
                     ep.status as "status!: ExecutionProcessStatus",
@@ -416,6 +462,7 @@ impl ExecutionProcess {
             r#"SELECT
                     ep.id as "id!: Uuid",
                     ep.session_id as "session_id!: Uuid",
+                    ep.commander_session_id as "commander_session_id?: Uuid",
                     ep.run_reason as "run_reason!: ExecutionProcessRunReason",
                     ep.executor_action as "executor_action!: sqlx::types::Json<ExecutorActionField>",
                     ep.status as "status!: ExecutionProcessStatus",
@@ -459,6 +506,43 @@ impl ExecutionProcess {
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
             process_id,
             data.session_id,
+            data.run_reason,
+            executor_action_json,
+            ExecutionProcessStatus::Running,
+            None::<i64>,
+            now,
+            None::<DateTime<Utc>>,
+            now,
+            now
+        )
+        .execute(pool)
+        .await?;
+
+        ExecutionProcessRepoState::create_many(pool, process_id, repo_states).await?;
+
+        Self::find_by_id(pool, process_id)
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)
+    }
+
+    /// Create a new execution process for a commander session
+    pub async fn create_for_commander(
+        pool: &SqlitePool,
+        data: &CreateCommanderExecutionProcess,
+        process_id: Uuid,
+        repo_states: &[CreateExecutionProcessRepoState],
+    ) -> Result<Self, sqlx::Error> {
+        let now = Utc::now();
+        let executor_action_json = sqlx::types::Json(&data.executor_action);
+
+        sqlx::query!(
+            r#"INSERT INTO execution_processes (
+                    id, session_id, commander_session_id, run_reason, executor_action,
+                    status, exit_code, started_at, completed_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+            process_id,
+            data.session_id,
+            data.commander_session_id,
             data.run_reason,
             executor_action_json,
             ExecutionProcessStatus::Running,
@@ -642,6 +726,7 @@ impl ExecutionProcess {
             r#"SELECT
                     ep.id as "id!: Uuid",
                     ep.session_id as "session_id!: Uuid",
+                    ep.commander_session_id as "commander_session_id?: Uuid",
                     ep.run_reason as "run_reason!: ExecutionProcessRunReason",
                     ep.executor_action as "executor_action!: sqlx::types::Json<ExecutorActionField>",
                     ep.status as "status!: ExecutionProcessStatus",

@@ -3,8 +3,10 @@
 import {
 	ApprovalStatus,
 	ApiResponse,
+	CommanderSession,
 	Config,
 	CreateFollowUpAttempt,
+	CreateFollowUpRequest,
 	EditorType,
 	CreateGitHubPrRequest,
 	CreateTask,
@@ -94,6 +96,13 @@ import {
 	ListRecentPrsError,
 	ImportTaskFromPrRequest,
 	ImportTaskFromPrError,
+	PreviewClaudeSessionRequest,
+	PreviewClaudeSessionResponse,
+	ImportFromClaudeSessionRequest,
+	ImportFromClaudeSessionResponse,
+	ImportWithHistoryRequest,
+	ImportWithHistoryResponse,
+	ListClaudeSessionsResponse,
 } from "shared/types";
 import type { WorkspaceWithSession } from "@/types/attempt";
 import { createWorkspaceWithSession } from "@/types/attempt";
@@ -542,6 +551,54 @@ export const tasksApi = {
 			TaskWithAttemptStatus,
 			ImportTaskFromPrError
 		>(response);
+	},
+
+	listClaudeSessions: async (
+		projectPath?: string,
+	): Promise<ListClaudeSessionsResponse> => {
+		const params = projectPath
+			? `?project_path=${encodeURIComponent(projectPath)}`
+			: "";
+		const response = await makeRequest(`/api/tasks/claude-sessions${params}`);
+		return handleApiResponse<ListClaudeSessionsResponse>(response);
+	},
+
+	previewClaudeSession: async (
+		data: PreviewClaudeSessionRequest,
+	): Promise<PreviewClaudeSessionResponse> => {
+		const response = await makeRequest(`/api/tasks/preview-claude-session`, {
+			method: "POST",
+			body: JSON.stringify(data),
+		});
+		return handleApiResponse<PreviewClaudeSessionResponse>(response);
+	},
+
+	importFromClaudeSession: async (
+		projectId: string,
+		data: ImportFromClaudeSessionRequest,
+	): Promise<ImportFromClaudeSessionResponse> => {
+		const response = await makeRequest(
+			`/api/tasks/import-from-claude-session?project_id=${encodeURIComponent(projectId)}`,
+			{
+				method: "POST",
+				body: JSON.stringify(data),
+			},
+		);
+		return handleApiResponse<ImportFromClaudeSessionResponse>(response);
+	},
+
+	importWithHistory: async (
+		projectId: string,
+		data: ImportWithHistoryRequest,
+	): Promise<ImportWithHistoryResponse> => {
+		const response = await makeRequest(
+			`/api/tasks/import-with-history?project_id=${encodeURIComponent(projectId)}`,
+			{
+				method: "POST",
+				body: JSON.stringify(data),
+			},
+		);
+		return handleApiResponse<ImportWithHistoryResponse>(response);
 	},
 };
 
@@ -1371,5 +1428,53 @@ export const slashCommandsApi = {
 	list: async (): Promise<SlashCommand[]> => {
 		const response = await makeRequest("/api/slash-commands");
 		return handleApiResponse<SlashCommand[]>(response);
+	},
+};
+
+// Commander API for managing project-scoped Claude Code chat sessions
+export const commanderApi = {
+	/**
+	 * Get or create the commander session for a project
+	 */
+	getOrCreate: async (projectId: string): Promise<CommanderSession> => {
+		const response = await makeRequest(`/api/projects/${projectId}/commander`);
+		return handleApiResponse<CommanderSession>(response);
+	},
+
+	/**
+	 * Get a commander session by ID
+	 */
+	get: async (commanderSessionId: string): Promise<CommanderSession> => {
+		const response = await makeRequest(`/api/commander/${commanderSessionId}`);
+		return handleApiResponse<CommanderSession>(response);
+	},
+
+	/**
+	 * Get all execution processes for a commander session
+	 */
+	getProcesses: async (
+		commanderSessionId: string,
+	): Promise<ExecutionProcess[]> => {
+		const response = await makeRequest(
+			`/api/commander/${commanderSessionId}/processes`,
+		);
+		return handleApiResponse<ExecutionProcess[]>(response);
+	},
+
+	/**
+	 * Send a follow-up message to the commander
+	 */
+	followUp: async (
+		commanderSessionId: string,
+		data: CreateFollowUpRequest,
+	): Promise<ExecutionProcess> => {
+		const response = await makeRequest(
+			`/api/commander/${commanderSessionId}/follow-up`,
+			{
+				method: "POST",
+				body: JSON.stringify(data),
+			},
+		);
+		return handleApiResponse<ExecutionProcess>(response);
 	},
 };

@@ -37,6 +37,7 @@ interface TaskKanbanBoardProps {
 	selectedSharedTaskId?: string | null;
 	onCreateTask?: () => void;
 	onImportFromPR?: () => void;
+	onImportFromClaude?: () => void;
 	projectId: string;
 	onRefreshBacklog?: () => void;
 	isRefreshingBacklog?: boolean;
@@ -55,6 +56,7 @@ function TaskKanbanBoard({
 	selectedSharedTaskId,
 	onCreateTask,
 	onImportFromPR,
+	onImportFromClaude,
 	projectId,
 	onRefreshBacklog,
 	isRefreshingBacklog,
@@ -92,6 +94,7 @@ function TaskKanbanBoard({
 							count={items.length}
 							onAddTask={onCreateTask}
 							onImportFromPR={onImportFromPR}
+							onImportFromClaude={onImportFromClaude}
 							onRefresh={isBacklog ? onRefreshBacklog : undefined}
 							isRefreshing={isBacklog ? isRefreshingBacklog : undefined}
 							onToggleCollapse={

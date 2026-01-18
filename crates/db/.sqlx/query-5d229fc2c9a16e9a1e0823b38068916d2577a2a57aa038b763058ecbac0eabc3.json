@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO execution_processes (\n                    id, session_id, commander_session_id, run_reason, executor_action,\n                    status, exit_code, started_at, completed_at, created_at, updated_at\n                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": []
+  },
+  "hash": "5d229fc2c9a16e9a1e0823b38068916d2577a2a57aa038b763058ecbac0eabc3"
+}

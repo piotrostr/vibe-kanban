@@ -5,6 +5,7 @@ import i18n from "@/i18n";
 import { ProjectTasks } from "@/pages/ProjectTasks";
 import { AllProjectTasks } from "@/pages/AllProjectTasks";
 import { FullAttemptLogsPage } from "@/pages/FullAttemptLogs";
+import { CommanderPage } from "@/pages/CommanderPage";
 import { NormalLayout } from "@/components/layout/NormalLayout";
 import { useAuth } from "@/hooks";
 import { usePreviousPath } from "@/hooks/usePreviousPath";
@@ -92,6 +93,12 @@ function AppContent() {
 								<Route
 									path="/projects/:projectId/tasks/:taskId/attempts/:attemptId/full"
 									element={<FullAttemptLogsPage />}
+								/>
+
+								{/* Commander route (full-page chat interface) */}
+								<Route
+									path="/projects/:projectId/commander"
+									element={<CommanderPage />}
 								/>
 
 								<Route element={<NormalLayout />}>

@@ -947,6 +947,10 @@ impl ContainerService for LocalContainerService {
             WorkspaceRepo::find_repos_for_workspace(&self.db.pool, workspace.id).await?;
 
         if repositories.is_empty() {
+            // For imported sessions with existing worktrees: container_ref is pre-set
+            if let Some(container_ref) = &workspace.container_ref {
+                return Ok(container_ref.clone());
+            }
             return Err(ContainerError::Other(anyhow!(
                 "Workspace has no repositories configured"
             )));

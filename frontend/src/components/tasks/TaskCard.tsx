@@ -366,7 +366,7 @@ export function TaskCard({
 									)}
 								</Button>
 							)}
-							<ActionsDropdown task={task} sharedTask={sharedTask} />
+							<ActionsDropdown task={task} />
 						</>
 					}
 				/>

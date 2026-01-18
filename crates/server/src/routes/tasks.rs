@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow;
 use axum::{
@@ -13,15 +13,27 @@ use axum::{
     routing::{delete, get, post, put},
 };
 use db::models::{
+    execution_process::{
+        CreateExecutionProcess, ExecutionProcess, ExecutionProcessRunReason,
+        ExecutionProcessStatus,
+    },
+    execution_process_logs::ExecutionProcessLogs,
     image::TaskImage,
     project::{Project, ProjectError},
+    project_repo::ProjectRepo,
     repo::Repo,
-    task::{CreateTask, Task, TaskWithAttemptStatus, UpdateTask},
+    session::{CreateSession, Session},
+    task::{CreateTask, Task, TaskStatus, TaskWithAttemptStatus, UpdateTask},
     workspace::{CreateWorkspace, Workspace},
     workspace_repo::{CreateWorkspaceRepo, WorkspaceRepo},
 };
 use deployment::Deployment;
-use executors::profile::ExecutorProfileId;
+use executors::{
+    actions::{coding_agent_initial::CodingAgentInitialRequest, ExecutorAction, ExecutorActionType},
+    executors::BaseCodingAgent,
+    logs::{ActionType, NormalizedEntry, NormalizedEntryType, ToolStatus},
+    profile::ExecutorProfileId,
+};
 use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use services::services::{
@@ -32,8 +44,14 @@ use services::services::{
 };
 use sqlx::Error as SqlxError;
 use ts_rs::TS;
-use utils::{api::oauth::LoginStatus, response::ApiResponse};
+use utils::{api::oauth::LoginStatus, log_msg::LogMsg, response::ApiResponse};
 use uuid::Uuid;
+
+use crate::claude_session::{
+    self, ImportFromClaudeSessionRequest, ImportFromClaudeSessionResponse,
+    ImportWithHistoryRequest, ImportWithHistoryResponse, ListClaudeSessionsResponse,
+    PreviewClaudeSessionRequest, PreviewClaudeSessionResponse,
+};
 
 use crate::{
     DeploymentImpl, error::ApiError, middleware::load_task_middleware,
@@ -847,6 +865,359 @@ pub async fn push_to_linear(
     Ok(ResponseJson(ApiResponse::success(())))
 }
 
+// Claude Session Import Routes
+
+#[derive(Debug, Deserialize)]
+pub struct ListClaudeSessionsQuery {
+    pub project_path: Option<String>,
+}
+
+pub async fn list_claude_sessions(
+    Query(query): Query<ListClaudeSessionsQuery>,
+) -> Result<ResponseJson<ApiResponse<ListClaudeSessionsResponse>>, ApiError> {
+    let sessions = claude_session::list_available_sessions(query.project_path.as_deref())
+        .map_err(|e| ApiError::BadRequest(format!("Failed to list sessions: {}", e)))?;
+
+    Ok(ResponseJson(ApiResponse::success(
+        ListClaudeSessionsResponse { sessions },
+    )))
+}
+
+pub async fn preview_claude_session(
+    Json(payload): Json<PreviewClaudeSessionRequest>,
+) -> Result<ResponseJson<ApiResponse<PreviewClaudeSessionResponse>>, ApiError> {
+    let path = Path::new(&payload.session_path);
+    if !path.exists() {
+        return Err(ApiError::BadRequest(format!(
+            "Session file not found: {}",
+            payload.session_path
+        )));
+    }
+
+    let items = claude_session::parse_session_file(path)
+        .map_err(|e| ApiError::BadRequest(format!("Failed to parse session: {}", e)))?;
+
+    let session_summary = claude_session::get_session_summary(path)
+        .map_err(|e| ApiError::BadRequest(format!("Failed to get session summary: {}", e)))?;
+
+    Ok(ResponseJson(ApiResponse::success(
+        PreviewClaudeSessionResponse {
+            items,
+            session_summary,
+        },
+    )))
+}
+
+pub async fn import_from_claude_session(
+    State(deployment): State<DeploymentImpl>,
+    Query(query): Query<TaskQuery>,
+    Json(payload): Json<ImportFromClaudeSessionRequest>,
+) -> Result<ResponseJson<ApiResponse<ImportFromClaudeSessionResponse>>, ApiError> {
+    let path = Path::new(&payload.session_path);
+    if !path.exists() {
+        return Err(ApiError::BadRequest(format!(
+            "Session file not found: {}",
+            payload.session_path
+        )));
+    }
+
+    let items = claude_session::parse_session_file(path)
+        .map_err(|e| ApiError::BadRequest(format!("Failed to parse session: {}", e)))?;
+
+    let default_status = payload
+        .default_status
+        .as_deref()
+        .and_then(|s| match s.to_lowercase().as_str() {
+            "backlog" => Some(TaskStatus::Backlog),
+            "todo" => Some(TaskStatus::Todo),
+            "inprogress" => Some(TaskStatus::InProgress),
+            _ => None,
+        })
+        .unwrap_or(TaskStatus::Backlog);
+
+    let selected_ids: std::collections::HashSet<_> =
+        payload.selected_item_ids.iter().cloned().collect();
+
+    let items_to_import: Vec<_> = items
+        .into_iter()
+        .filter(|item| selected_ids.contains(&item.id))
+        .collect();
+
+    let mut imported_count = 0;
+    let mut errors = Vec::new();
+
+    for item in items_to_import {
+        let task_id = Uuid::new_v4();
+        let create_task = CreateTask {
+            project_id: query.project_id,
+            title: item.title,
+            description: item.description,
+            status: Some(default_status.clone()),
+            parent_workspace_id: None,
+            image_ids: None,
+            shared_task_id: None,
+            linear_issue_id: None,
+            linear_url: None,
+        };
+
+        match Task::create(&deployment.db().pool, &create_task, task_id).await {
+            Ok(_) => {
+                imported_count += 1;
+                tracing::info!("Imported task {} from Claude session", task_id);
+            }
+            Err(e) => {
+                errors.push(format!("Failed to import task '{}': {}", item.id, e));
+                tracing::error!("Failed to import task from Claude session: {}", e);
+            }
+        }
+    }
+
+    Ok(ResponseJson(ApiResponse::success(
+        ImportFromClaudeSessionResponse {
+            imported_count,
+            errors,
+        },
+    )))
+}
+
+/// Import a Claude Code session with full conversation history.
+/// Creates: Task -> Workspace -> Session -> ExecutionProcess -> ExecutionProcessLogs
+pub async fn import_with_history(
+    State(deployment): State<DeploymentImpl>,
+    Query(query): Query<TaskQuery>,
+    Json(payload): Json<ImportWithHistoryRequest>,
+) -> Result<ResponseJson<ApiResponse<ImportWithHistoryResponse>>, ApiError> {
+    let path = Path::new(&payload.session_path);
+    if !path.exists() {
+        return Err(ApiError::BadRequest(format!(
+            "Session file not found: {}",
+            payload.session_path
+        )));
+    }
+
+    let pool = &deployment.db().pool;
+
+    // Extract session metadata in a single pass (slug, branch, cwd, session_id)
+    let metadata = claude_session::parse_session_metadata(path)
+        .map_err(|e| ApiError::BadRequest(format!("Failed to parse session metadata: {}", e)))?;
+
+    // Get task title from the request or use slug/session_id
+    let (title, description) = if let Some(custom_title) = &payload.task_title {
+        (custom_title.clone(), None)
+    } else {
+        // Use slug as title (user can rename later), empty description
+        let file_session_id = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("imported")
+            .to_string();
+        let title = metadata.slug.clone().unwrap_or(file_session_id);
+        (title, None)
+    };
+
+    // Parse status
+    let status = payload
+        .default_status
+        .as_deref()
+        .and_then(|s| match s.to_lowercase().as_str() {
+            "backlog" => Some(TaskStatus::Backlog),
+            "todo" => Some(TaskStatus::Todo),
+            "inprogress" => Some(TaskStatus::InProgress),
+            "done" => Some(TaskStatus::Done),
+            _ => None,
+        })
+        .unwrap_or(TaskStatus::Todo);
+
+    // Extract raw session logs (1:1 parity with Claude Code JSONL)
+    let log_lines = claude_session::extract_raw_session_logs(path)
+        .map_err(|e| ApiError::BadRequest(format!("Failed to extract logs: {}", e)))?;
+
+    let branch = metadata
+        .git_branch
+        .clone()
+        .unwrap_or_else(|| format!("imported-{}", chrono::Utc::now().format("%Y%m%d-%H%M%S")));
+
+    let claude_session_id = metadata
+        .session_id
+        .clone()
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+
+    // 1. Create Task
+    let task_id = Uuid::new_v4();
+    let task = Task::create(
+        pool,
+        &CreateTask {
+            project_id: query.project_id,
+            title,
+            description,
+            status: Some(status),
+            parent_workspace_id: None,
+            image_ids: None,
+            shared_task_id: None,
+            linear_issue_id: None,
+            linear_url: None,
+        },
+        task_id,
+    )
+    .await?;
+
+    // 2. Create Workspace
+    let workspace_id = Uuid::new_v4();
+    let workspace = Workspace::create(
+        pool,
+        &CreateWorkspace {
+            branch: branch.clone(),
+            agent_working_dir: None,
+        },
+        workspace_id,
+        task.id,
+    )
+    .await?;
+
+    // 2b. Use cwd from metadata to check if it's an existing worktree
+    let session_cwd = metadata.cwd.clone();
+
+    // Check if the cwd is already a registered worktree
+    // Worktrees have .git as a file (pointing to main repo), not a directory
+    let is_existing_worktree = session_cwd.as_ref().map_or(false, |cwd| {
+        let git_path = Path::new(cwd).join(".git");
+        git_path.is_file()
+    });
+
+    if is_existing_worktree {
+        // Case 1: Already a worktree - use it directly as container_ref
+        if let Some(cwd) = &session_cwd {
+            Workspace::update_container_ref(pool, workspace.id, cwd).await?;
+            tracing::info!(
+                "Imported session uses existing worktree: {} for workspace {}",
+                cwd,
+                workspace.id
+            );
+        }
+        // Skip workspace repo creation - we're using existing worktree as-is
+    } else {
+        // Case 2: Not a worktree - add repos so the system creates one
+        let project_repos = ProjectRepo::find_by_project_id(pool, query.project_id).await?;
+        if !project_repos.is_empty() {
+            let workspace_repos: Vec<CreateWorkspaceRepo> = project_repos
+                .iter()
+                .map(|pr| CreateWorkspaceRepo {
+                    repo_id: pr.repo_id,
+                    target_branch: String::new(), // Use default branch
+                })
+                .collect();
+            WorkspaceRepo::create_many(pool, workspace.id, &workspace_repos).await?;
+        }
+    }
+
+    // 3. Create Session
+    let session_id = Uuid::new_v4();
+    let session = Session::create(
+        pool,
+        &CreateSession {
+            executor: Some("CLAUDE_CODE".to_string()),
+        },
+        session_id,
+        workspace.id,
+    )
+    .await
+    .map_err(|e| ApiError::BadRequest(format!("Failed to create session: {}", e)))?;
+
+    // 4. Create ExecutionProcess (marked as Completed)
+    let execution_process_id = Uuid::new_v4();
+    let executor_action = ExecutorAction::new(
+        ExecutorActionType::CodingAgentInitialRequest(CodingAgentInitialRequest {
+            prompt: format!("Imported from Claude Code session: {}", claude_session_id),
+            executor_profile_id: ExecutorProfileId {
+                executor: BaseCodingAgent::ClaudeCode,
+                variant: None,
+            },
+            working_dir: None,
+        }),
+        None,
+    );
+
+    let execution_process = ExecutionProcess::create(
+        pool,
+        &CreateExecutionProcess {
+            session_id: session.id,
+            executor_action,
+            run_reason: ExecutionProcessRunReason::ImportedSession,
+        },
+        execution_process_id,
+        &[], // No repo states for imported sessions
+    )
+    .await?;
+
+    // Mark the execution process as completed
+    ExecutionProcess::update_completion(
+        pool,
+        execution_process.id,
+        ExecutionProcessStatus::Completed,
+        Some(0), // exit code 0 for success
+    )
+    .await?;
+
+    // 5. Import log lines as a single batch (one row in the database)
+    let log_lines_count = log_lines.len();
+    let jsonl_lines: Vec<String> = log_lines
+        .into_iter()
+        .map(|line| {
+            let log_msg = LogMsg::Stdout(line);
+            serde_json::to_string(&log_msg)
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| ApiError::BadRequest(format!("Failed to serialize log: {}", e)))?;
+
+    ExecutionProcessLogs::append_log_lines_batch(pool, execution_process.id, &jsonl_lines).await?;
+
+    // 6. Import plan file if it exists
+    if let Ok(Some(plan_path)) = claude_session::get_plan_path(path) {
+        if let Ok(plan_content) = std::fs::read_to_string(&plan_path) {
+            let plan_entry = NormalizedEntry {
+                timestamp: None,
+                entry_type: NormalizedEntryType::ToolUse {
+                    tool_name: "ExitPlanMode".to_string(),
+                    action_type: ActionType::PlanPresentation {
+                        plan: plan_content.clone(),
+                    },
+                    status: ToolStatus::Success,
+                },
+                content: "Plan".to_string(),
+                metadata: None,
+            };
+            // Wrap in LogMsg::Stdout containing the serialized NormalizedEntry
+            let plan_json = serde_json::to_string(&plan_entry)
+                .map_err(|e| ApiError::BadRequest(format!("Failed to serialize plan: {}", e)))?;
+            let plan_log = LogMsg::Stdout(plan_json);
+            let plan_log_str = serde_json::to_string(&plan_log)
+                .map_err(|e| ApiError::BadRequest(format!("Failed to serialize plan log: {}", e)))?;
+            ExecutionProcessLogs::append_log_lines_batch(pool, execution_process.id, &[plan_log_str])
+                .await?;
+            tracing::info!(
+                "Imported plan from '{}' for task {}",
+                plan_path.display(),
+                task.id
+            );
+        }
+    }
+
+    tracing::info!(
+        "Imported Claude session '{}' as task {} with {} log lines",
+        claude_session_id,
+        task.id,
+        log_lines_count
+    );
+
+    Ok(ResponseJson(ApiResponse::success(ImportWithHistoryResponse {
+        task_id: task.id.to_string(),
+        workspace_id: workspace.id.to_string(),
+        session_id: session.id.to_string(),
+        execution_process_id: execution_process.id.to_string(),
+        log_lines_imported: log_lines_count,
+    })))
+}
+
 pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
     let task_actions_router = Router::new()
         .route("/", put(update_task))
@@ -866,6 +1237,13 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
         .route("/stream/ws", get(stream_tasks_ws))
         .route("/create-and-start", post(create_task_and_start))
         .route("/import-from-pr", post(import_task_from_pr))
+        .route("/claude-sessions", get(list_claude_sessions))
+        .route("/preview-claude-session", post(preview_claude_session))
+        .route(
+            "/import-from-claude-session",
+            post(import_from_claude_session),
+        )
+        .route("/import-with-history", post(import_with_history))
         .nest("/{task_id}", task_id_router);
 
     // Top-level tasks routes (not scoped to a project)
