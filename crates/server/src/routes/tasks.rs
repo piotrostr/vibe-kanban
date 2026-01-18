@@ -50,7 +50,7 @@ use uuid::Uuid;
 use crate::claude_session::{
     self, ImportFromClaudeSessionRequest, ImportFromClaudeSessionResponse,
     ImportWithHistoryRequest, ImportWithHistoryResponse, ListClaudeSessionsResponse,
-    PreviewClaudeSessionRequest, PreviewClaudeSessionResponse, get_session_cwd,
+    PreviewClaudeSessionRequest, PreviewClaudeSessionResponse,
 };
 
 use crate::{
@@ -997,21 +997,21 @@ pub async fn import_with_history(
 
     let pool = &deployment.db().pool;
 
-    // Get session slug for plan path and default title
-    let session_slug = claude_session::get_session_slug(path)
-        .map_err(|e| ApiError::BadRequest(format!("Failed to get session slug: {}", e)))?;
+    // Extract session metadata in a single pass (slug, branch, cwd, session_id)
+    let metadata = claude_session::parse_session_metadata(path)
+        .map_err(|e| ApiError::BadRequest(format!("Failed to parse session metadata: {}", e)))?;
 
     // Get task title from the request or use slug/session_id
     let (title, description) = if let Some(custom_title) = &payload.task_title {
         (custom_title.clone(), None)
     } else {
         // Use slug as title (user can rename later), empty description
-        let session_id = path
+        let file_session_id = path
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("imported")
             .to_string();
-        let title = session_slug.clone().unwrap_or(session_id);
+        let title = metadata.slug.clone().unwrap_or(file_session_id);
         (title, None)
     };
 
@@ -1032,20 +1032,14 @@ pub async fn import_with_history(
     let log_lines = claude_session::extract_raw_session_logs(path)
         .map_err(|e| ApiError::BadRequest(format!("Failed to extract logs: {}", e)))?;
 
-    // Get session info for branch name
-    let session_info = claude_session::list_available_sessions(None)
-        .map_err(|e| ApiError::BadRequest(format!("Failed to list sessions: {}", e)))?
-        .into_iter()
-        .find(|s| s.path == payload.session_path);
-
-    let branch = session_info
-        .as_ref()
-        .and_then(|s| s.git_branch.clone())
+    let branch = metadata
+        .git_branch
+        .clone()
         .unwrap_or_else(|| format!("imported-{}", chrono::Utc::now().format("%Y%m%d-%H%M%S")));
 
-    let claude_session_id = session_info
-        .as_ref()
-        .map(|s| s.session_id.clone())
+    let claude_session_id = metadata
+        .session_id
+        .clone()
         .unwrap_or_else(|| Uuid::new_v4().to_string());
 
     // 1. Create Task
@@ -1080,9 +1074,8 @@ pub async fn import_with_history(
     )
     .await?;
 
-    // 2b. Extract cwd from session and check if it's an existing worktree
-    let session_cwd = get_session_cwd(path)
-        .map_err(|e| ApiError::BadRequest(format!("Failed to get session cwd: {}", e)))?;
+    // 2b. Use cwd from metadata to check if it's an existing worktree
+    let session_cwd = metadata.cwd.clone();
 
     // Check if the cwd is already a registered worktree
     // Worktrees have .git as a file (pointing to main repo), not a directory

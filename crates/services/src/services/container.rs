@@ -1036,7 +1036,9 @@ pub trait ContainerService {
         // Capture current HEAD per repository as the "before" commit for this execution
         let repositories =
             WorkspaceRepo::find_repos_for_workspace(&self.db().pool, workspace.id).await?;
-        if repositories.is_empty() {
+        // For imported sessions with existing worktrees, repositories will be empty
+        // but we still have a valid container_ref to use
+        if repositories.is_empty() && workspace.container_ref.is_none() {
             return Err(ContainerError::Other(anyhow!(
                 "Workspace has no repositories configured"
             )));
