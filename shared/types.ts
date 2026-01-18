@@ -258,7 +258,7 @@ export type LinearIssueStateResponse = { issue: LinearIssueWithState, mapped_sta
 
 export type ExtractedTask = { id: string, title: string, description: string | null, timestamp: string, branch: string | null, sessionId: string | null, };
 
-export type SessionInfo = { path: string, sessionId: string, lastModified: string, summary: string | null, messageCount: number, gitBranch: string | null, };
+export type SessionInfo = { path: string, sessionId: string, lastModified: string, summary: string | null, messageCount: number, gitBranch: string | null, firstUserMessage: string | null, slug: string | null, };
 
 export type PreviewClaudeSessionRequest = { sessionPath: string, };
 

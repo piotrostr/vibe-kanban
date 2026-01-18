@@ -98,6 +98,8 @@ pub struct SessionInfo {
     pub summary: Option<String>,
     pub message_count: usize,
     pub git_branch: Option<String>,
+    pub first_user_message: Option<String>,
+    pub slug: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -156,6 +158,54 @@ pub struct ImportWithHistoryResponse {
     pub session_id: String,
     pub execution_process_id: String,
     pub log_lines_imported: usize,
+}
+
+/// Metadata extracted from a Claude Code session file in a single pass.
+/// Used to avoid reading the session file multiple times during import.
+#[derive(Debug, Clone, Default)]
+pub struct SessionMetadata {
+    pub session_id: Option<String>,
+    pub git_branch: Option<String>,
+    pub cwd: Option<String>,
+    pub slug: Option<String>,
+}
+
+/// Extract all session metadata in a single pass.
+/// Stops early once all fields are found.
+pub fn parse_session_metadata(path: &Path) -> Result<SessionMetadata, ClaudeSessionError> {
+    let content = std::fs::read_to_string(path)?;
+
+    let mut metadata = SessionMetadata::default();
+
+    for line in content.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        if let Ok(msg) = serde_json::from_str::<RawMessage>(line) {
+            if metadata.session_id.is_none() {
+                metadata.session_id = msg.session_id.clone();
+            }
+            if metadata.git_branch.is_none() {
+                metadata.git_branch = msg.git_branch.clone();
+            }
+            if metadata.slug.is_none() {
+                metadata.slug = msg.slug.clone();
+            }
+            if metadata.cwd.is_none() && msg.msg_type == "system" {
+                metadata.cwd = msg.cwd.clone();
+            }
+            // Early exit once all fields found
+            if metadata.session_id.is_some()
+                && metadata.git_branch.is_some()
+                && metadata.slug.is_some()
+                && metadata.cwd.is_some()
+            {
+                break;
+            }
+        }
+    }
+
+    Ok(metadata)
 }
 
 fn extract_text_content(content: &ContentValue) -> String {
@@ -345,25 +395,29 @@ pub fn list_available_sessions(project_path: Option<&str>) -> Result<Vec<Session
 }
 
 fn parse_session_info(path: &Path) -> Result<Option<SessionInfo>, ClaudeSessionError> {
-    let content = std::fs::read_to_string(path)?;
-    let lines: Vec<&str> = content.lines().collect();
+    use std::io::{BufRead, BufReader};
 
-    if lines.is_empty() {
-        return Ok(None);
-    }
+    let file = std::fs::File::open(path)?;
+    let reader = BufReader::new(file);
 
     let mut session_id = None;
     let mut git_branch = None;
     let mut last_summary = None;
     let mut message_count = 0;
     let mut last_timestamp = None;
+    let mut first_user_message = None;
+    let mut slug = None;
+    let mut has_any_line = false;
 
-    for line in lines.iter() {
+    for line_result in reader.lines() {
+        let line = line_result?;
         if line.trim().is_empty() {
             continue;
         }
 
-        if let Ok(msg) = serde_json::from_str::<RawMessage>(line) {
+        has_any_line = true;
+
+        if let Ok(msg) = serde_json::from_str::<RawMessage>(&line) {
             message_count += 1;
 
             if session_id.is_none() {
@@ -372,13 +426,36 @@ fn parse_session_info(path: &Path) -> Result<Option<SessionInfo>, ClaudeSessionE
             if git_branch.is_none() {
                 git_branch = msg.git_branch.clone();
             }
+            if slug.is_none() {
+                slug = msg.slug.clone();
+            }
             if msg.timestamp.is_some() {
                 last_timestamp = msg.timestamp.clone();
             }
             if msg.msg_type == "summary" {
                 last_summary = msg.summary;
             }
+
+            // Extract first user message for preview
+            if first_user_message.is_none()
+                && msg.msg_type == "user"
+                && msg.parent_uuid.is_none()
+                && msg.is_sidechain != Some(true)
+                && msg.agent_id.is_none()
+            {
+                if let Some(MessageContent::Object { content, .. }) = msg.message {
+                    let text = extract_text_content(&content);
+                    let trimmed = text.trim();
+                    if !trimmed.is_empty() && !trimmed.eq_ignore_ascii_case("warmup") {
+                        first_user_message = Some(truncate_title(&text, 200));
+                    }
+                }
+            }
         }
+    }
+
+    if !has_any_line {
+        return Ok(None);
     }
 
     let session_id = session_id.unwrap_or_else(|| {
@@ -406,6 +483,8 @@ fn parse_session_info(path: &Path) -> Result<Option<SessionInfo>, ClaudeSessionE
         summary: last_summary,
         message_count,
         git_branch,
+        first_user_message,
+        slug,
     }))
 }
 
