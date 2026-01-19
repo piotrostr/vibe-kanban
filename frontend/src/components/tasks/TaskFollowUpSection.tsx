@@ -5,7 +5,6 @@ import {
 	AlertCircle,
 	Clock,
 	X,
-	Paperclip,
 	Terminal,
 	MessageSquare,
 } from "lucide-react";
@@ -563,25 +562,6 @@ export function TaskFollowUpSection({
 		[workspaceId],
 	);
 
-	// Attachment button - file input ref and handlers
-	const fileInputRef = useRef<HTMLInputElement>(null);
-	const handleAttachClick = useCallback(() => {
-		fileInputRef.current?.click();
-	}, []);
-	const handleFileInputChange = useCallback(
-		(e: React.ChangeEvent<HTMLInputElement>) => {
-			const files = Array.from(e.target.files || []).filter((f) =>
-				f.type.startsWith("image/"),
-			);
-			if (files.length > 0) {
-				handlePasteFiles(files);
-			}
-			// Reset input so same file can be selected again
-			e.target.value = "";
-		},
-		[handlePasteFiles],
-	);
-
 	// Handler for GitHub comments insertion
 	const handleGitHubCommentClick = useCallback(async () => {
 		if (!workspaceId) return;
@@ -846,28 +826,6 @@ export function TaskFollowUpSection({
 							disabled={!isEditable}
 						/>
 					</div>
-
-					{/* Hidden file input for attachment - always present */}
-					<input
-						ref={fileInputRef}
-						type="file"
-						accept="image/*"
-						multiple
-						className="hidden"
-						onChange={handleFileInputChange}
-					/>
-
-					{/* Attach button - always visible */}
-					<Button
-						onClick={handleAttachClick}
-						disabled={!isEditable}
-						size="sm"
-						variant="outline"
-						title="Attach image"
-						aria-label="Attach image"
-					>
-						<Paperclip className="h-4 w-4" />
-					</Button>
 
 					{/* GitHub Comments button */}
 					<Button
