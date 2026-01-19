@@ -1,6 +1,7 @@
 import { Button } from "../ui/button";
 import { GitPullRequest, X } from "lucide-react";
 import type { TaskWithAttemptStatus } from "shared/types";
+import { openExternal } from "@/lib/openExternal";
 import {
 	Tooltip,
 	TooltipContent,
@@ -27,7 +28,7 @@ export const TaskPanelHeaderActions = ({
 						<Button
 							variant="icon"
 							aria-label="View Pull Request"
-							onClick={() => window.open(task.pr_url!, "_blank")}
+							onClick={() => void openExternal(task.pr_url!)}
 						>
 							<GitPullRequest className="h-4 w-4" />
 						</Button>

@@ -31,6 +31,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "../ui/dialog";
+import { openExternal } from "@/lib/openExternal";
 
 function extractLinearIssueId(linearUrl: string | null): string | null {
 	if (!linearUrl) return null;
@@ -333,13 +334,7 @@ const TaskPanel = ({ task, onAttemptClick }: TaskPanelProps) => {
 								<div className="flex items-center gap-2">
 									<button
 										type="button"
-										onClick={() =>
-											window.open(
-												task.linear_url!,
-												"_blank",
-												"noopener,noreferrer",
-											)
-										}
+										onClick={() => void openExternal(task.linear_url!)}
 										className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
 									>
 										<LinearIcon className="h-4 w-4" />
