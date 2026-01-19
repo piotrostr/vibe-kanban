@@ -32,6 +32,7 @@ import { useTranslation } from "react-i18next";
 import { useAttemptRepo } from "@/hooks/useAttemptRepo";
 import { useGitOperations } from "@/hooks/useGitOperations";
 import { useRepoBranches } from "@/hooks";
+import { openExternal } from "@/lib/openExternal";
 
 interface GitOperationsProps {
 	selectedAttempt: Workspace;
@@ -321,7 +322,7 @@ function GitOperations({
 					const prMerge = mergeInfo.openPR;
 					return (
 						<button
-							onClick={() => window.open(prMerge.pr_info.url, "_blank")}
+							onClick={() => void openExternal(prMerge.pr_info.url)}
 							className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-100/60 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 hover:underline truncate max-w-[180px] sm:max-w-none"
 							aria-label={t("git.pr.open", {
 								number: Number(prMerge.pr_info.number),

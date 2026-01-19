@@ -29,6 +29,7 @@ import { useAuth } from "@/hooks";
 import { cn } from "@/lib/utils";
 import { usePrivacy } from "@/contexts/PrivacyContext";
 import { maskText } from "@/lib/privacyMask";
+import { openExternal } from "@/lib/openExternal";
 
 function parseLinearLabels(labelsJson: string | null): LinearLabel[] {
 	if (!labelsJson) return [];
@@ -307,11 +308,7 @@ export function TaskCard({
 										variant="icon"
 										onClick={(e) => {
 											e.stopPropagation();
-											window.open(
-												task.pr_url!,
-												"_blank",
-												"noopener,noreferrer",
-											);
+											void openExternal(task.pr_url!);
 										}}
 										onPointerDown={(e) => e.stopPropagation()}
 										onMouseDown={(e) => e.stopPropagation()}
@@ -343,14 +340,10 @@ export function TaskCard({
 										const forceWeb = e.shiftKey || e.metaKey || e.ctrlKey;
 										if (issueId && !forceWeb) {
 											// Try desktop app first via deep link
-											window.location.href = `linear://issue/${issueId}`;
+											void openExternal(`linear://issue/${issueId}`);
 										} else {
 											// Open in browser
-											window.open(
-												task.linear_url!,
-												"_blank",
-												"noopener,noreferrer",
-											);
+											void openExternal(task.linear_url!);
 										}
 									}}
 									onPointerDown={(e) => e.stopPropagation()}

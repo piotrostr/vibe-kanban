@@ -50,6 +50,7 @@ import { oauthApi } from "@/lib/api";
 import { HelpCircle, CircleHelp } from "lucide-react";
 import { ImportPRAsTaskDialog } from "@/components/dialogs/tasks/ImportPRAsTaskDialog";
 import { usePrivacy } from "@/contexts/PrivacyContext";
+import { openExternal } from "@/lib/openExternal";
 
 const INTERNAL_NAV = [
 	{ label: "Projects", icon: FolderOpen, to: "/settings/projects" },
@@ -344,15 +345,12 @@ export function Navbar() {
 									{EXTERNAL_LINKS.map((item) => {
 										const Icon = item.icon;
 										return (
-											<DropdownMenuItem key={item.href} asChild>
-												<a
-													href={item.href}
-													target="_blank"
-													rel="noopener noreferrer"
-												>
-													<Icon className="mr-2 h-4 w-4" />
-													{item.label}
-												</a>
+											<DropdownMenuItem
+												key={item.href}
+												onSelect={() => void openExternal(item.href)}
+											>
+												<Icon className="mr-2 h-4 w-4" />
+												{item.label}
 											</DropdownMenuItem>
 										);
 									})}

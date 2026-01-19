@@ -29,6 +29,7 @@ import { usePlanFromEntries } from "@/hooks/usePlanFromEntries";
 import { ViewPlanDialog } from "@/components/dialogs";
 import { BindPRDialog } from "@/components/dialogs/tasks/BindPRDialog";
 import { cn } from "@/lib/utils";
+import { openExternal } from "@/lib/openExternal";
 
 function getChecksIcon(status: ChecksStatus | null | undefined) {
 	if (!status || status === "pending") {
@@ -75,7 +76,7 @@ export const AttemptHeaderActions = ({
 
 	const handlePrClick = () => {
 		if (hasPr) {
-			window.open(task.pr_url!, "_blank", "noopener,noreferrer");
+			void openExternal(task.pr_url!);
 		} else if (repoId && attempt?.id) {
 			BindPRDialog.show({
 				attemptId: attempt.id,
