@@ -6,9 +6,15 @@ use ratatui::{
     Frame,
 };
 
-use crate::state::{TaskStatus, TasksState};
+use crate::state::{SessionsState, TaskStatus, TasksState, WorktreesState};
 
-pub fn render_kanban_board(frame: &mut Frame, area: Rect, state: &TasksState) {
+pub fn render_kanban_board(
+    frame: &mut Frame,
+    area: Rect,
+    tasks: &TasksState,
+    worktrees: &WorktreesState,
+    sessions: &SessionsState,
+) {
     // Split into 4 columns (Backlog, In Progress, In Review, Done)
     let columns = Layout::default()
         .direction(Direction::Horizontal)
@@ -21,19 +27,21 @@ pub fn render_kanban_board(frame: &mut Frame, area: Rect, state: &TasksState) {
         .split(area);
 
     for (i, status) in TaskStatus::VISIBLE.iter().enumerate() {
-        let is_selected = state.selected_column == i;
-        render_column(frame, columns[i], state, *status, is_selected);
+        let is_selected = tasks.selected_column == i;
+        render_column(frame, columns[i], tasks, worktrees, sessions, *status, is_selected);
     }
 }
 
 fn render_column(
     frame: &mut Frame,
     area: Rect,
-    state: &TasksState,
+    tasks_state: &TasksState,
+    worktrees: &WorktreesState,
+    sessions: &SessionsState,
     status: TaskStatus,
     is_selected: bool,
 ) {
-    let tasks = state.tasks_in_column(status);
+    let tasks = tasks_state.tasks_in_column(status);
     let count = tasks.len();
     let column_index = status.column_index();
 
@@ -48,28 +56,71 @@ fn render_column(
     let items: Vec<ListItem> = tasks
         .iter()
         .map(|task| {
-            let mut spans = vec![Span::raw(&task.title)];
+            // Row 1: Worktree/session status
+            let mut row1_spans: Vec<Span> = vec![];
 
-            // Add status indicators
-            if task.has_in_progress_attempt {
-                spans.push(Span::styled(" [running]", Style::default().fg(Color::Yellow)));
-            }
-            if task.last_attempt_failed {
-                spans.push(Span::styled(" [failed]", Style::default().fg(Color::Red)));
-            }
-            if task.pr_url.is_some() {
-                let pr_color = match task.pr_status.as_deref() {
-                    Some("merged") => Color::Magenta,
-                    Some("closed") => Color::Red,
-                    _ => Color::Green,
+            // Try to find matching worktree by task title (simplified matching)
+            let task_slug = task.title.to_lowercase().replace(' ', "-");
+            let matching_worktree = worktrees
+                .worktrees
+                .iter()
+                .find(|w| w.branch.to_lowercase().contains(&task_slug) || task_slug.contains(&w.branch.to_lowercase()));
+
+            if let Some(wt) = matching_worktree {
+                // Show branch name
+                let branch_display = if wt.branch.len() > 20 {
+                    format!("{}...", &wt.branch[..17])
+                } else {
+                    wt.branch.clone()
                 };
-                spans.push(Span::styled(" [PR]", Style::default().fg(pr_color)));
-            }
-            if task.linear_issue_id.is_some() {
-                spans.push(Span::styled(" [Linear]", Style::default().fg(Color::Blue)));
+                row1_spans.push(Span::styled(
+                    format!(" {}", branch_display),
+                    Style::default().fg(Color::Cyan),
+                ));
+
+                // Check for session
+                if let Some(session) = sessions.session_for_branch(&wt.branch) {
+                    if session.needs_attention {
+                        row1_spans.push(Span::styled(" !", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)));
+                    } else {
+                        row1_spans.push(Span::styled(" ", Style::default().fg(Color::Green)));
+                    }
+                }
+            } else {
+                row1_spans.push(Span::styled(" no worktree", Style::default().fg(Color::DarkGray)));
             }
 
-            ListItem::new(Line::from(spans))
+            // Row 2: Title + status indicators
+            let mut row2_spans = vec![Span::raw(&task.title)];
+
+            // PR status with more detail
+            if task.pr_url.is_some() {
+                let (pr_icon, pr_color) = match task.pr_status.as_deref() {
+                    Some("merged") => ("", Color::Magenta),
+                    Some("closed") => ("", Color::Red),
+                    _ => {
+                        // Check review/checks status for open PRs
+                        match (task.pr_review_decision.as_deref(), task.pr_checks_status.as_deref()) {
+                            (Some("APPROVED"), _) => ("", Color::Green),
+                            (Some("CHANGES_REQUESTED"), _) => ("", Color::Yellow),
+                            (_, Some("FAILURE")) => ("", Color::Red),
+                            (_, Some("SUCCESS")) => ("", Color::Green),
+                            _ => ("", Color::Cyan),
+                        }
+                    }
+                };
+                row2_spans.push(Span::styled(format!(" {}", pr_icon), Style::default().fg(pr_color)));
+
+                if task.pr_has_conflicts == Some(true) {
+                    row2_spans.push(Span::styled(" !", Style::default().fg(Color::Red)));
+                }
+            }
+
+            if task.linear_issue_id.is_some() {
+                row2_spans.push(Span::styled(" ", Style::default().fg(Color::Blue)));
+            }
+
+            ListItem::new(vec![Line::from(row1_spans), Line::from(row2_spans)])
         })
         .collect();
 
@@ -89,7 +140,7 @@ fn render_column(
 
     let mut list_state = ListState::default();
     if is_selected && !tasks.is_empty() {
-        list_state.select(Some(state.selected_card_per_column[column_index]));
+        list_state.select(Some(tasks_state.selected_card_per_column[column_index]));
     }
 
     frame.render_stateful_widget(list, area, &mut list_state);

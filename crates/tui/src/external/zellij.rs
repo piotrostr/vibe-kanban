@@ -6,6 +6,7 @@ use std::process::Command;
 pub struct ZellijSession {
     pub name: String,
     pub is_current: bool,
+    pub needs_attention: bool,
 }
 
 pub fn list_sessions() -> Result<Vec<ZellijSession>> {
@@ -32,10 +33,67 @@ pub fn list_sessions() -> Result<Vec<ZellijSession>> {
                 .trim_end_matches("(current)")
                 .trim()
                 .to_string();
-            ZellijSession { name, is_current }
+            ZellijSession {
+                name,
+                is_current,
+                needs_attention: false,
+            }
         })
         .collect();
 
+    Ok(sessions)
+}
+
+/// Check if a session is waiting for user input by dumping screen content
+pub fn check_session_needs_attention(session_name: &str) -> bool {
+    // Dump the last few lines of the session screen
+    let output = Command::new("zellij")
+        .args([
+            "action",
+            "--session",
+            session_name,
+            "dump-screen",
+            "/dev/stdout",
+        ])
+        .output();
+
+    let Ok(output) = output else {
+        return false;
+    };
+
+    if !output.status.success() {
+        return false;
+    }
+
+    let screen = String::from_utf8_lossy(&output.stdout);
+    let last_lines: String = screen.lines().rev().take(10).collect::<Vec<_>>().join("\n");
+
+    // Patterns that indicate Claude is waiting for input
+    let attention_patterns = [
+        "? ",                            // Interactive prompt
+        "[y/n]",                         // Yes/no prompt
+        "(y/N)",                         // Yes/no with default
+        "(Y/n)",                         // Yes/no with default
+        "Continue?",                     // Confirmation
+        "Press Enter",                   // Waiting for enter
+        "Proceed?",                      // Confirmation
+        "Do you want to",                // Confirmation question
+        ">",                             // Generic prompt at end of line
+        "waiting for",                   // Waiting state
+        "permission",                    // Permission request
+    ];
+
+    attention_patterns
+        .iter()
+        .any(|pattern| last_lines.to_lowercase().contains(&pattern.to_lowercase()))
+}
+
+/// List sessions with attention status (slower, checks each session)
+pub fn list_sessions_with_status() -> Result<Vec<ZellijSession>> {
+    let mut sessions = list_sessions()?;
+    for session in &mut sessions {
+        session.needs_attention = check_session_needs_attention(&session.name);
+    }
     Ok(sessions)
 }
 
@@ -103,7 +161,7 @@ pub fn sanitize_session_name(branch: &str) -> String {
 }
 
 pub fn session_name_for_branch(branch: &str) -> String {
-    format!("vibe-{}", sanitize_session_name(branch))
+    sanitize_session_name(branch)
 }
 
 pub fn is_zellij_installed() -> bool {

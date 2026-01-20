@@ -49,11 +49,13 @@ impl SessionsState {
         }
     }
 
-    pub fn vibe_sessions(&self) -> Vec<&ZellijSession> {
-        self.sessions
-            .iter()
-            .filter(|s| s.name.starts_with("vibe-"))
-            .collect()
+    pub fn active_sessions(&self) -> &[ZellijSession] {
+        &self.sessions
+    }
+
+    pub fn session_for_branch(&self, branch: &str) -> Option<&ZellijSession> {
+        let sanitized = crate::external::session_name_for_branch(branch);
+        self.sessions.iter().find(|s| s.name == sanitized)
     }
 }
 

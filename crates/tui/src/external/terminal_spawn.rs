@@ -116,20 +116,54 @@ fn shell_escape(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
-/// Launch claude directly in the worktree directory (blocks)
-/// This suspends the TUI and gives control to claude
-/// Uses --continue to resume the most recent session in that directory
-pub fn launch_zellij_claude_foreground(_session_name: &str, cwd: &Path) -> Result<()> {
-    // Run claude with --continue to resume the most recent session in this directory
-    // Claude Code manages sessions per-directory via ~/.claude/projects/
-    let status = Command::new("claude")
-        .current_dir(cwd)
-        .arg("--continue")
-        .arg("--dangerously-skip-permissions")
-        .status()?;
+/// Launch claude in a zellij session (detachable with Ctrl+q)
+/// Creates session if it doesn't exist, attaches if it does
+/// User can detach with Ctrl+q to return to TUI while claude keeps running
+pub fn launch_zellij_claude_foreground(session_name: &str, cwd: &Path) -> Result<()> {
+    use std::io::Write;
 
-    if !status.success() {
-        anyhow::bail!("claude exited with error");
+    // Check if session already exists
+    let existing = Command::new("zellij")
+        .args(["list-sessions", "-n"])
+        .output()?;
+
+    let sessions = String::from_utf8_lossy(&existing.stdout);
+    let session_exists = sessions.lines().any(|line| line.trim() == session_name);
+
+    if session_exists {
+        // Attach to existing session
+        let status = Command::new("zellij")
+            .args(["attach", session_name])
+            .status()?;
+
+        if !status.success() {
+            anyhow::bail!("zellij attach exited with error");
+        }
+    } else {
+        // Create temp layout file that runs claude
+        let layout = format!(
+            r#"layout {{
+    cwd "{}"
+    pane command="claude" {{
+        args "--continue" "--dangerously-skip-permissions"
+    }}
+}}
+"#,
+            cwd.to_string_lossy().replace('\\', "\\\\").replace('"', "\\\"")
+        );
+
+        let mut temp_file = tempfile::NamedTempFile::with_suffix(".kdl")?;
+        temp_file.write_all(layout.as_bytes())?;
+        let layout_path = temp_file.path().to_string_lossy().to_string();
+
+        // Create new session with layout
+        let status = Command::new("zellij")
+            .args(["-s", session_name, "-l", &layout_path])
+            .status()?;
+
+        if !status.success() {
+            anyhow::bail!("zellij create exited with error");
+        }
     }
     Ok(())
 }

@@ -8,8 +8,8 @@ use crate::api::{
     UpdateTask,
 };
 use crate::external::{
-    attach_zellij_foreground, edit_markdown, launch_zellij_claude_foreground, list_sessions,
-    list_worktrees, session_name_for_branch,
+    attach_zellij_foreground, edit_markdown, launch_zellij_claude_foreground,
+    list_sessions_with_status, list_worktrees, session_name_for_branch,
 };
 use crate::input::{extract_key_event, key_to_action, Action, EventStream};
 use crate::state::{AppState, Modal, View};
@@ -26,6 +26,7 @@ pub struct App {
     port: u16,
     ws_task: Option<JoinHandle<()>>,
     task_receiver: Option<TaskUpdateReceiver>,
+    last_session_poll: std::time::Instant,
 }
 
 impl App {
@@ -48,13 +49,23 @@ impl App {
             port,
             ws_task: None,
             task_receiver: None,
+            last_session_poll: std::time::Instant::now(),
         })
     }
 
     pub async fn run(&mut self, terminal: &mut Terminal) -> Result<()> {
+        // Poll session status every 5 seconds
+        const SESSION_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
+
         loop {
             // Check for WebSocket updates
             self.check_ws_updates();
+
+            // Poll session status periodically (non-blocking)
+            if self.last_session_poll.elapsed() >= SESSION_POLL_INTERVAL {
+                self.poll_sessions();
+                self.last_session_poll = std::time::Instant::now();
+            }
 
             // Render
             self.render(terminal)?;
@@ -104,7 +115,13 @@ impl App {
                     render_project_list(frame, chunks[1], &self.state.projects);
                 }
                 View::Kanban => {
-                    render_kanban_board(frame, chunks[1], &self.state.tasks);
+                    render_kanban_board(
+                        frame,
+                        chunks[1],
+                        &self.state.tasks,
+                        &self.state.worktrees,
+                        &self.state.sessions,
+                    );
                 }
                 View::TaskDetail => {
                     // Find the selected task
@@ -577,7 +594,7 @@ impl App {
         self.state.sessions.loading = true;
         self.state.sessions.error = None;
 
-        match list_sessions() {
+        match list_sessions_with_status() {
             Ok(sessions) => {
                 self.state.sessions.set_sessions(sessions);
                 self.state.sessions.loading = false;
@@ -586,6 +603,19 @@ impl App {
                 self.state.sessions.error = Some(e.to_string());
                 self.state.sessions.loading = false;
             }
+        }
+    }
+
+    fn poll_sessions(&mut self) {
+        // Only poll if sessions have been loaded at least once
+        if self.state.sessions.sessions.is_empty() && self.state.worktrees.worktrees.is_empty() {
+            // Initial load of worktrees and sessions
+            self.load_worktrees();
+        }
+
+        // Update session status (checks for attention needed)
+        if let Ok(sessions) = list_sessions_with_status() {
+            self.state.sessions.set_sessions(sessions);
         }
     }
 

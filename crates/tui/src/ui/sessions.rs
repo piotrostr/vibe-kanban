@@ -51,45 +51,41 @@ pub fn render_sessions(frame: &mut Frame, area: Rect, state: &SessionsState) {
         .enumerate()
         .map(|(i, session)| {
             let is_selected = i == state.selected_index;
-            let is_vibe = session.name.starts_with("vibe-");
 
             let base_style = if is_selected {
                 Style::default()
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD)
-            } else if is_vibe {
-                Style::default().fg(Color::Green)
             } else {
-                Style::default().fg(Color::DarkGray)
+                Style::default().fg(Color::White)
             };
 
-            let current_marker = if session.is_current {
+            let status_marker = if session.is_current {
                 Span::styled(" (attached)", Style::default().fg(Color::Yellow))
+            } else if session.needs_attention {
+                Span::styled(" [!]", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))
             } else {
-                Span::raw("")
-            };
-
-            let vibe_marker = if is_vibe {
-                Span::styled("[vibe] ", Style::default().fg(Color::Magenta))
-            } else {
-                Span::raw("")
+                Span::styled(" ", Style::default().fg(Color::Green))
             };
 
             ListItem::new(Line::from(vec![
                 Span::raw(if is_selected { "> " } else { "  " }),
-                vibe_marker,
                 Span::styled(&session.name, base_style),
-                current_marker,
+                status_marker,
             ]))
         })
         .collect();
 
-    let vibe_count = state.vibe_sessions().len();
-    let title = format!(
-        " Zellij Sessions ({} total, {} vibe) ",
-        state.sessions.len(),
-        vibe_count
-    );
+    let needs_attention_count = state.sessions.iter().filter(|s| s.needs_attention).count();
+    let title = if needs_attention_count > 0 {
+        format!(
+            " Zellij Sessions ({}) - {} need attention ",
+            state.sessions.len(),
+            needs_attention_count
+        )
+    } else {
+        format!(" Zellij Sessions ({}) ", state.sessions.len())
+    };
 
     let list = List::new(items).block(
         Block::default()
