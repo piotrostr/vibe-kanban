@@ -34,7 +34,7 @@ fn project_list_bindings(key: KeyEvent) -> Option<Action> {
     match key.code {
         KeyCode::Char('j') | KeyCode::Down => Some(Action::Down),
         KeyCode::Char('k') | KeyCode::Up => Some(Action::Up),
-        KeyCode::Enter => Some(Action::Select),
+        KeyCode::Enter | KeyCode::Char(' ') => Some(Action::Select),
         KeyCode::Char('r') => Some(Action::Refresh),
         _ => None,
     }
@@ -49,7 +49,7 @@ fn kanban_bindings(key: KeyEvent) -> Option<Action> {
         KeyCode::Char('l') | KeyCode::Right => Some(Action::Right),
 
         // Selection
-        KeyCode::Enter => Some(Action::Select),
+        KeyCode::Enter | KeyCode::Char(' ') => Some(Action::Select),
 
         // Task operations
         KeyCode::Char('c') => Some(Action::CreateTask),
