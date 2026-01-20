@@ -156,8 +156,8 @@ tasks:
 
   desktop:install:
     desc: Build and install desktop app (macOS)
+    deps: [install]
     cmds:
-      - cd frontend && pnpm run build
       - cargo tauri build
       - echo "Build complete. Installing..."
       - cp -r target/release/bundle/macos/Vibe.app /Applications/
