@@ -8,6 +8,22 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // Import modal type definitions
 import "./types/modals";
 
+// Dev helper for testing Tauri notifications
+if ("__TAURI_INTERNALS__" in window || "__TAURI__" in window) {
+	import("@tauri-apps/plugin-notification").then(
+		({ sendNotification, isPermissionGranted, requestPermission }) => {
+			(window as unknown as Record<string, unknown>).testNotification =
+				async () => {
+					let granted = await isPermissionGranted();
+					if (!granted) granted = (await requestPermission()) === "granted";
+					if (granted)
+						sendNotification({ title: "Test", body: "Notification working!" });
+				};
+			console.log("Tauri detected - run testNotification() to test");
+		},
+	);
+}
+
 const queryClient = new QueryClient({
 	defaultOptions: {
 		queries: {

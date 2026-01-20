@@ -9,33 +9,49 @@ pub async fn spawn_server(app: AppHandle) {
     init_tracing();
 
     let state = app.state::<AppState>();
+    let is_dev_mode = std::env::var("TAURI_DEV").is_ok();
 
-    tokio::spawn(async move {
-        let config = ServerConfig {
-            skip_browser_open: true,
-        };
+    // In dev mode, skip spawning embedded server - use external backend with hot reload
+    if !is_dev_mode {
+        tokio::spawn(async move {
+            let config = ServerConfig {
+                skip_browser_open: true,
+            };
 
-        match run(config).await {
-            Ok(port) => {
-                tracing::info!("Server exited normally, was on port {}", port);
+            match run(config).await {
+                Ok(port) => {
+                    tracing::info!("Server exited normally, was on port {}", port);
+                }
+                Err(e) => {
+                    tracing::error!("Server failed: {}", e);
+                }
             }
-            Err(e) => {
-                tracing::error!("Server failed: {}", e);
-            }
-        }
-    });
+        });
+    } else {
+        tracing::info!("TAURI_DEV mode: skipping embedded server, expecting external backend");
+    }
 
     match wait_for_server_ready().await {
         Ok(port) => {
             *state.server_port.write().await = Some(port);
             tracing::info!("Server ready on port {}", port);
 
-            if let Some(window) = app.get_webview_window("main") {
-                let url = format!("http://127.0.0.1:{}", port);
-                if let Ok(parsed) = url.parse::<Url>() {
-                    if let Err(e) = window.navigate(parsed) {
-                        tracing::error!("Failed to navigate window: {}", e);
+            // In dev mode, don't navigate - use devUrl from tauri.conf.json
+            if !is_dev_mode {
+                if let Some(window) = app.get_webview_window("main") {
+                    let url = format!("http://127.0.0.1:{}", port);
+                    if let Ok(parsed) = url.parse::<Url>() {
+                        if let Err(e) = window.navigate(parsed) {
+                            tracing::error!("Failed to navigate window: {}", e);
+                        }
+                        if let Err(e) = window.show() {
+                            tracing::error!("Failed to show window: {}", e);
+                        }
                     }
+                }
+            } else {
+                // In dev mode, just show the window - it's already loading devUrl
+                if let Some(window) = app.get_webview_window("main") {
                     if let Err(e) = window.show() {
                         tracing::error!("Failed to show window: {}", e);
                     }
