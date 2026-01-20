@@ -9,20 +9,18 @@ use ratatui::{
 use crate::state::{TaskStatus, TasksState};
 
 pub fn render_kanban_board(frame: &mut Frame, area: Rect, state: &TasksState) {
-    // Split into 6 columns
+    // Split into 4 columns (Backlog, In Progress, In Review, Done)
     let columns = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Ratio(1, 6),
-            Constraint::Ratio(1, 6),
-            Constraint::Ratio(1, 6),
-            Constraint::Ratio(1, 6),
-            Constraint::Ratio(1, 6),
-            Constraint::Ratio(1, 6),
+            Constraint::Ratio(1, 4),
+            Constraint::Ratio(1, 4),
+            Constraint::Ratio(1, 4),
+            Constraint::Ratio(1, 4),
         ])
         .split(area);
 
-    for (i, status) in TaskStatus::ALL.iter().enumerate() {
+    for (i, status) in TaskStatus::VISIBLE.iter().enumerate() {
         let is_selected = state.selected_column == i;
         render_column(frame, columns[i], state, *status, is_selected);
     }

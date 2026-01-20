@@ -12,6 +12,7 @@ pub enum TaskStatus {
 }
 
 impl TaskStatus {
+    // All statuses for serialization/backend
     pub const ALL: [TaskStatus; 6] = [
         TaskStatus::Backlog,
         TaskStatus::Todo,
@@ -19,6 +20,14 @@ impl TaskStatus {
         TaskStatus::Inreview,
         TaskStatus::Done,
         TaskStatus::Cancelled,
+    ];
+
+    // Visible columns in the TUI (skip Todo and Cancelled to save space)
+    pub const VISIBLE: [TaskStatus; 4] = [
+        TaskStatus::Backlog,
+        TaskStatus::Inprogress,
+        TaskStatus::Inreview,
+        TaskStatus::Done,
     ];
 
     pub fn label(&self) -> &'static str {
@@ -32,25 +41,24 @@ impl TaskStatus {
         }
     }
 
+    // Column index for visible columns only
     pub fn column_index(&self) -> usize {
         match self {
             TaskStatus::Backlog => 0,
-            TaskStatus::Todo => 1,
-            TaskStatus::Inprogress => 2,
-            TaskStatus::Inreview => 3,
-            TaskStatus::Done => 4,
-            TaskStatus::Cancelled => 5,
+            TaskStatus::Todo => 0, // Map to Backlog column
+            TaskStatus::Inprogress => 1,
+            TaskStatus::Inreview => 2,
+            TaskStatus::Done => 3,
+            TaskStatus::Cancelled => 3, // Map to Done column
         }
     }
 
     pub fn from_column_index(index: usize) -> Option<Self> {
         match index {
             0 => Some(TaskStatus::Backlog),
-            1 => Some(TaskStatus::Todo),
-            2 => Some(TaskStatus::Inprogress),
-            3 => Some(TaskStatus::Inreview),
-            4 => Some(TaskStatus::Done),
-            5 => Some(TaskStatus::Cancelled),
+            1 => Some(TaskStatus::Inprogress),
+            2 => Some(TaskStatus::Inreview),
+            3 => Some(TaskStatus::Done),
             _ => None,
         }
     }
@@ -86,10 +94,12 @@ pub struct Task {
     pub pr_has_conflicts: Option<bool>,
 }
 
+const NUM_VISIBLE_COLUMNS: usize = 4;
+
 pub struct TasksState {
     pub tasks: Vec<Task>,
     pub selected_column: usize,
-    pub selected_card_per_column: [usize; 6],
+    pub selected_card_per_column: [usize; NUM_VISIBLE_COLUMNS],
     pub loading: bool,
 }
 
@@ -97,8 +107,8 @@ impl TasksState {
     pub fn new() -> Self {
         Self {
             tasks: Vec::new(),
-            selected_column: 1, // Start on "todo"
-            selected_card_per_column: [0; 6],
+            selected_column: 0, // Start on Backlog
+            selected_card_per_column: [0; NUM_VISIBLE_COLUMNS],
             loading: false,
         }
     }
@@ -106,7 +116,7 @@ impl TasksState {
     pub fn set_tasks(&mut self, tasks: Vec<Task>) {
         self.tasks = tasks;
         // Reset card selections
-        self.selected_card_per_column = [0; 6];
+        self.selected_card_per_column = [0; NUM_VISIBLE_COLUMNS];
     }
 
     pub fn tasks_in_column(&self, status: TaskStatus) -> Vec<&Task> {
@@ -148,12 +158,12 @@ impl TasksState {
     }
 
     pub fn select_next_column(&mut self) {
-        self.selected_column = (self.selected_column + 1) % 6;
+        self.selected_column = (self.selected_column + 1) % NUM_VISIBLE_COLUMNS;
     }
 
     pub fn select_prev_column(&mut self) {
         self.selected_column = if self.selected_column == 0 {
-            5
+            NUM_VISIBLE_COLUMNS - 1
         } else {
             self.selected_column - 1
         };
