@@ -564,6 +564,11 @@ impl App {
     }
 
     fn handle_launch_session(&mut self) -> Result<()> {
+        // Ensure worktrees are loaded
+        if self.state.worktrees.worktrees.is_empty() {
+            self.load_worktrees();
+        }
+
         // Get the worktree to launch in
         let worktree = match self.state.view {
             View::Worktrees => self.state.worktrees.selected(),
