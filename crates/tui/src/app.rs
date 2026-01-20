@@ -8,8 +8,8 @@ use crate::api::{
     UpdateTask,
 };
 use crate::external::{
-    edit_markdown, list_sessions, list_worktrees, open_ghostty_attach_zellij,
-    open_ghostty_with_zellij_claude, session_name_for_branch,
+    attach_zellij_foreground, edit_markdown, launch_zellij_claude_foreground, list_sessions,
+    list_worktrees, session_name_for_branch,
 };
 use crate::input::{extract_key_event, key_to_action, Action, EventStream};
 use crate::state::{AppState, Modal, View};
@@ -176,7 +176,7 @@ impl App {
                 self.handle_right();
             }
             Action::Select => {
-                self.handle_select().await?;
+                self.handle_select(terminal).await?;
             }
             Action::Refresh => {
                 self.refresh().await?;
@@ -203,10 +203,10 @@ impl App {
                 self.handle_show_sessions().await?;
             }
             Action::LaunchSession => {
-                self.handle_launch_session()?;
+                self.handle_launch_session(terminal)?;
             }
             Action::AttachSession => {
-                self.handle_attach_session()?;
+                self.handle_attach_session(terminal)?;
             }
             Action::KillSession => {
                 self.handle_kill_session()?;
@@ -276,7 +276,7 @@ impl App {
         }
     }
 
-    async fn handle_select(&mut self) -> Result<()> {
+    async fn handle_select(&mut self, terminal: &mut Terminal) -> Result<()> {
         match self.state.view {
             View::Projects => {
                 if let Some(project) = self.state.projects.selected() {
@@ -302,15 +302,15 @@ impl App {
             }
             View::TaskDetail => {
                 // Launch session for task
-                self.handle_launch_session()?;
+                self.handle_launch_session(terminal)?;
             }
             View::Worktrees => {
                 // Launch session in selected worktree
-                self.handle_launch_session()?;
+                self.handle_launch_session(terminal)?;
             }
             View::Sessions => {
                 // Attach to selected session
-                self.handle_attach_session()?;
+                self.handle_attach_session(terminal)?;
             }
         }
 
@@ -563,7 +563,7 @@ impl App {
         }
     }
 
-    fn handle_launch_session(&mut self) -> Result<()> {
+    fn handle_launch_session(&mut self, terminal: &mut Terminal) -> Result<()> {
         // Ensure worktrees are loaded
         if self.state.worktrees.worktrees.is_empty() {
             self.load_worktrees();
@@ -587,26 +587,41 @@ impl App {
         let session_name = session_name_for_branch(&worktree.branch);
         let worktree_path = std::path::Path::new(&worktree.path);
 
-        // Open Ghostty with zellij + claude
-        if let Err(e) = open_ghostty_with_zellij_claude(&session_name, worktree_path) {
+        // Suspend TUI, run zellij in foreground, then resume TUI
+        terminal.suspend()?;
+
+        let result = launch_zellij_claude_foreground(&session_name, worktree_path);
+
+        terminal.resume()?;
+
+        if let Err(e) = result {
             tracing::error!("Failed to launch session: {}", e);
         } else {
-            tracing::info!("Launched session {} in {}", session_name, worktree.path);
+            tracing::info!("Returned from session {}", session_name);
         }
 
         Ok(())
     }
 
-    fn handle_attach_session(&mut self) -> Result<()> {
+    fn handle_attach_session(&mut self, terminal: &mut Terminal) -> Result<()> {
         let Some(session) = self.state.sessions.selected() else {
             tracing::warn!("No session selected");
             return Ok(());
         };
 
-        if let Err(e) = open_ghostty_attach_zellij(&session.name) {
+        let session_name = session.name.clone();
+
+        // Suspend TUI, attach to zellij, then resume TUI
+        terminal.suspend()?;
+
+        let result = attach_zellij_foreground(&session_name);
+
+        terminal.resume()?;
+
+        if let Err(e) = result {
             tracing::error!("Failed to attach session: {}", e);
         } else {
-            tracing::info!("Attached to session {}", session.name);
+            tracing::info!("Returned from session {}", session_name);
         }
 
         Ok(())

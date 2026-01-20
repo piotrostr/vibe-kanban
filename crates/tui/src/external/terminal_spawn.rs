@@ -2,28 +2,69 @@ use anyhow::Result;
 use std::path::Path;
 use std::process::Command;
 
-/// Open a new Ghostty terminal window running zellij with claude
-pub fn open_ghostty_with_zellij_claude(session_name: &str, cwd: &Path) -> Result<()> {
+/// Open a new tmux pane running zellij with claude
+/// This creates a vertical split in tmux and runs the zellij session there
+pub fn open_tmux_pane_with_zellij_claude(session_name: &str, cwd: &Path) -> Result<()> {
     // Build the zellij command that will run claude
-    // Format: zellij -s <session> --cwd <path> -- claude --dangerously-skip-permissions
     let zellij_cmd = format!(
-        "zellij -s {} --cwd {} -- claude --dangerously-skip-permissions",
-        shell_escape(session_name),
-        shell_escape(&cwd.to_string_lossy())
+        "zellij attach {} 2>/dev/null || zellij -s {} -- claude --dangerously-skip-permissions",
+        session_name,
+        session_name,
     );
 
-    // Wrap in /bin/zsh -c "..." as a single string for Ghostty's -e flag
-    // This is needed because Ghostty's -e passes through /usr/bin/login
-    // which doesn't handle complex arguments correctly
-    let full_cmd = format!("/bin/zsh -c \"{}\"", zellij_cmd);
-
-    Command::new("open")
-        .arg("-na")
-        .arg("Ghostty")
-        .arg("--args")
-        .arg("-e")
-        .arg(&full_cmd)
+    // Create a new tmux pane (vertical split) and run zellij in it
+    // -h = horizontal split (creates pane on right)
+    // -c = start directory
+    Command::new("tmux")
+        .arg("split-window")
+        .arg("-h")
+        .arg("-c")
+        .arg(cwd)
+        .arg(&zellij_cmd)
         .spawn()?;
+
+    Ok(())
+}
+
+/// Attach to existing zellij session in a new tmux pane
+pub fn open_tmux_pane_attach_zellij(session_name: &str) -> Result<()> {
+    let zellij_cmd = format!("zellij attach {}", session_name);
+
+    Command::new("tmux")
+        .arg("split-window")
+        .arg("-h")
+        .arg(&zellij_cmd)
+        .spawn()?;
+
+    Ok(())
+}
+
+// Keep the old functions for reference but rename them
+/// Open a new Ghostty terminal window running zellij with claude (legacy)
+#[allow(dead_code)]
+pub fn open_ghostty_with_zellij_claude(session_name: &str, cwd: &Path) -> Result<()> {
+    let zellij_cmd = format!(
+        "zellij -s {} --cwd {} -- claude --dangerously-skip-permissions",
+        session_name,
+        cwd.to_string_lossy()
+    );
+
+    let script = format!(
+        r#"tell application "Ghostty"
+            activate
+            tell application "System Events"
+                keystroke "n" using command down
+            end tell
+            delay 0.3
+            tell application "System Events"
+                keystroke "{}"
+                keystroke return
+            end tell
+        end tell"#,
+        zellij_cmd.replace('"', "\\\"")
+    );
+
+    Command::new("osascript").arg("-e").arg(&script).spawn()?;
 
     Ok(())
 }
