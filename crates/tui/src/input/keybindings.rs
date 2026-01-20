@@ -3,7 +3,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use super::Action;
 use crate::state::View;
 
-pub fn key_to_action(key: KeyEvent, view: View, in_modal: bool) -> Option<Action> {
+pub fn key_to_action(key: KeyEvent, view: View, in_modal: bool, chat_input_active: bool) -> Option<Action> {
     // Modal-specific bindings
     if in_modal {
         return match key.code {
@@ -11,6 +11,11 @@ pub fn key_to_action(key: KeyEvent, view: View, in_modal: bool) -> Option<Action
             KeyCode::Enter => Some(Action::Select),
             _ => None,
         };
+    }
+
+    // Chat input mode - capture all keys for typing
+    if chat_input_active {
+        return chat_input_bindings(key);
     }
 
     // Global bindings
@@ -27,6 +32,7 @@ pub fn key_to_action(key: KeyEvent, view: View, in_modal: bool) -> Option<Action
         View::Projects => project_list_bindings(key),
         View::Kanban => kanban_bindings(key),
         View::TaskDetail => task_detail_bindings(key),
+        View::AttemptChat => attempt_chat_bindings(key),
     }
 }
 
@@ -77,6 +83,28 @@ fn task_detail_bindings(key: KeyEvent) -> Option<Action> {
         KeyCode::Char('e') => Some(Action::EditTask),
         KeyCode::Char('s') => Some(Action::StartAttempt),
         KeyCode::Char('S') => Some(Action::StopAttempt),
+        KeyCode::Enter | KeyCode::Char(' ') => Some(Action::OpenAttemptChat),
+        _ => None,
+    }
+}
+
+fn attempt_chat_bindings(key: KeyEvent) -> Option<Action> {
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => Some(Action::Down),
+        KeyCode::Char('k') | KeyCode::Up => Some(Action::Up),
+        KeyCode::Tab | KeyCode::Char('i') => Some(Action::FocusInput),
+        KeyCode::Char('s') => Some(Action::StartAttempt),
+        KeyCode::Char('r') => Some(Action::Refresh),
+        _ => None,
+    }
+}
+
+fn chat_input_bindings(key: KeyEvent) -> Option<Action> {
+    match key.code {
+        KeyCode::Esc => Some(Action::Back),
+        KeyCode::Enter => Some(Action::SendMessage),
+        KeyCode::Backspace => Some(Action::Backspace),
+        KeyCode::Char(c) => Some(Action::TypeChar(c)),
         _ => None,
     }
 }

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::state::{Project, Task, TaskStatus};
+use crate::state::{ExecutionProcess, Project, Session, Task, TaskStatus, Workspace};
 
 #[derive(Debug, Deserialize)]
 pub struct ApiResponse<T> {
@@ -119,6 +119,91 @@ impl ApiClient {
             )
         }
     }
+
+    // Attempt/Workspace methods
+    pub async fn get_task_attempts(&self, task_id: &str) -> Result<Vec<Workspace>> {
+        self.get(&format!("/api/task-attempts?task_id={}", task_id))
+            .await
+    }
+
+    pub async fn create_task_attempt(&self, create: CreateTaskAttempt) -> Result<Workspace> {
+        let url = format!("{}/api/task-attempts", self.base_url);
+        let response: ApiResponse<Workspace> = self
+            .client
+            .post(&url)
+            .json(&create)
+            .send()
+            .await?
+            .json()
+            .await?;
+
+        if response.success {
+            response
+                .data
+                .ok_or_else(|| anyhow::anyhow!("No data in response"))
+        } else {
+            anyhow::bail!(
+                "API error: {}",
+                response.message.unwrap_or_else(|| "Unknown error".to_string())
+            )
+        }
+    }
+
+    // Session methods
+    pub async fn get_sessions(&self, workspace_id: &str) -> Result<Vec<Session>> {
+        self.get(&format!("/api/sessions?workspace_id={}", workspace_id))
+            .await
+    }
+
+    pub async fn create_session(&self, create: CreateSession) -> Result<Session> {
+        let url = format!("{}/api/sessions", self.base_url);
+        let response: ApiResponse<Session> = self
+            .client
+            .post(&url)
+            .json(&create)
+            .send()
+            .await?
+            .json()
+            .await?;
+
+        if response.success {
+            response
+                .data
+                .ok_or_else(|| anyhow::anyhow!("No data in response"))
+        } else {
+            anyhow::bail!(
+                "API error: {}",
+                response.message.unwrap_or_else(|| "Unknown error".to_string())
+            )
+        }
+    }
+
+    pub async fn send_follow_up(
+        &self,
+        session_id: &str,
+        follow_up: FollowUpRequest,
+    ) -> Result<ExecutionProcess> {
+        let url = format!("{}/api/sessions/{}/follow-up", self.base_url, session_id);
+        let response: ApiResponse<ExecutionProcess> = self
+            .client
+            .post(&url)
+            .json(&follow_up)
+            .send()
+            .await?
+            .json()
+            .await?;
+
+        if response.success {
+            response
+                .data
+                .ok_or_else(|| anyhow::anyhow!("No data in response"))
+        } else {
+            anyhow::bail!(
+                "API error: {}",
+                response.message.unwrap_or_else(|| "Unknown error".to_string())
+            )
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -141,4 +226,38 @@ pub struct CreateTask {
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<TaskStatus>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WorkspaceRepoInput {
+    pub repo_id: String,
+    pub target_branch: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CreateTaskAttempt {
+    pub task_id: String,
+    pub executor_profile_id: ExecutorProfileId,
+    pub repos: Vec<WorkspaceRepoInput>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ExecutorProfileId {
+    pub executor: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variant: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CreateSession {
+    pub workspace_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub executor: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FollowUpRequest {
+    pub prompt: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variant: Option<String>,
 }

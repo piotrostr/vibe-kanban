@@ -19,6 +19,13 @@ pub enum Action {
     // Attempt operations
     StartAttempt,
     StopAttempt,
+    OpenAttemptChat,
+
+    // Chat input
+    FocusInput,
+    SendMessage,
+    TypeChar(char),
+    Backspace,
 
     // Search
     FocusSearch,

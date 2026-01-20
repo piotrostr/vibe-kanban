@@ -1,10 +1,11 @@
-use super::{ProjectsState, TasksState};
+use super::{AttemptsState, ProjectsState, TasksState};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum View {
     Projects,
     Kanban,
     TaskDetail,
+    AttemptChat,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -31,6 +32,7 @@ pub struct AppState {
 
     pub projects: ProjectsState,
     pub tasks: TasksState,
+    pub attempts: AttemptsState,
 
     pub selected_project_id: Option<String>,
     pub selected_task_id: Option<String>,
@@ -51,6 +53,7 @@ impl AppState {
 
             projects: ProjectsState::new(),
             tasks: TasksState::new(),
+            attempts: AttemptsState::new(),
 
             selected_project_id: None,
             selected_task_id: None,
@@ -83,6 +86,12 @@ impl AppState {
                 self.selected_task_id = None;
                 self.view = View::Kanban;
                 self.focus = Focus::KanbanColumn(1);
+            }
+            View::AttemptChat => {
+                // Go back to task detail, keep task selected
+                self.attempts.chat_input_active = false;
+                self.attempts.chat_input.clear();
+                self.view = View::TaskDetail;
             }
         }
     }
