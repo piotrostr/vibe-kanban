@@ -38,6 +38,10 @@ pub struct AppState {
     pub selected_project_id: Option<String>,
     pub selected_task_id: Option<String>,
 
+    // Search state
+    pub search_active: bool,
+    pub search_query: String,
+
     pub backend_connected: bool,
     pub should_quit: bool,
 }
@@ -56,6 +60,9 @@ impl AppState {
 
             selected_project_id: None,
             selected_task_id: None,
+
+            search_active: false,
+            search_query: String::new(),
 
             backend_connected: false,
             should_quit: false,

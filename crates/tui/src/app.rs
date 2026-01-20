@@ -140,7 +140,8 @@ impl App {
         };
 
         let in_modal = self.state.modal.is_some();
-        let Some(action) = key_to_action(key, self.state.view, in_modal, false) else {
+        let Some(action) = key_to_action(key, self.state.view, in_modal, self.state.search_active)
+        else {
             return Ok(());
         };
 
@@ -210,6 +211,31 @@ impl App {
             }
             Action::KillSession => {
                 self.handle_kill_session()?;
+            }
+
+            // Search actions
+            Action::StartSearch => {
+                self.state.search_active = true;
+            }
+            Action::SearchType(c) => {
+                self.state.search_query.push(c);
+            }
+            Action::SearchBackspace => {
+                self.state.search_query.pop();
+            }
+            Action::SearchConfirm => {
+                self.state.search_active = false;
+                // Apply filter to tasks
+                self.state.tasks.search_filter = self.state.search_query.clone();
+            }
+            Action::SearchCancel => {
+                self.state.search_active = false;
+                self.state.search_query.clear();
+                self.state.tasks.search_filter.clear();
+            }
+            Action::ClearSearch => {
+                self.state.search_query.clear();
+                self.state.tasks.search_filter.clear();
             }
         }
 

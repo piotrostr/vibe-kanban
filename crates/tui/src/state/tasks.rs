@@ -101,6 +101,7 @@ pub struct TasksState {
     pub selected_column: usize,
     pub selected_card_per_column: [usize; NUM_VISIBLE_COLUMNS],
     pub loading: bool,
+    pub search_filter: String,
 }
 
 impl TasksState {
@@ -110,6 +111,7 @@ impl TasksState {
             selected_column: 0, // Start on Backlog
             selected_card_per_column: [0; NUM_VISIBLE_COLUMNS],
             loading: false,
+            search_filter: String::new(),
         }
     }
 
@@ -123,6 +125,16 @@ impl TasksState {
         self.tasks
             .iter()
             .filter(|t| t.status == status)
+            .filter(|t| {
+                if self.search_filter.is_empty() {
+                    return true;
+                }
+                let query = self.search_filter.to_lowercase();
+                t.title.to_lowercase().contains(&query)
+                    || t.description
+                        .as_ref()
+                        .is_some_and(|d| d.to_lowercase().contains(&query))
+            })
             .collect()
     }
 

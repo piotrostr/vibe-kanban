@@ -40,19 +40,59 @@ pub fn render_header(frame: &mut Frame, area: Rect, state: &AppState) {
 }
 
 pub fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
+    // Show search bar when active
+    if state.search_active {
+        let search_line = Line::from(vec![
+            Span::styled("/", Style::default().fg(Color::Yellow)),
+            Span::raw(&state.search_query),
+            Span::styled("_", Style::default().fg(Color::Yellow)), // cursor
+        ]);
+
+        let footer = Paragraph::new(search_line)
+            .style(Style::default())
+            .block(Block::default().borders(Borders::TOP));
+
+        frame.render_widget(footer, area);
+        return;
+    }
+
+    // Show active search filter if present
+    let search_indicator = if !state.search_query.is_empty() {
+        format!(" [/{}] |", state.search_query)
+    } else {
+        String::new()
+    };
+
     let hints = match state.view {
-        crate::state::View::Projects => "j/k: navigate | Enter: select | q: quit | ?: help",
+        crate::state::View::Projects => {
+            format!(
+                "{}j/k: navigate | Enter: select | /: search | q: quit | ?: help",
+                search_indicator
+            )
+        }
         crate::state::View::Kanban => {
-            "h/j/k/l: navigate | Enter: details | c: create | d: delete | s: session | w: worktrees | S: sessions | Esc: back"
+            format!(
+                "{}h/j/k/l: nav | Enter: details | /: search | s: session | Esc: back",
+                search_indicator
+            )
         }
         crate::state::View::TaskDetail => {
-            "j/k: scroll | e: edit | s/Enter: launch session | w: worktrees | S: sessions | Esc: back"
+            format!(
+                "{}e: edit | s/Enter: session | /: search | Esc: back",
+                search_indicator
+            )
         }
         crate::state::View::Worktrees => {
-            "j/k: navigate | Enter: switch | s: launch session | W: create | S: sessions | Esc: back"
+            format!(
+                "{}j/k: nav | Enter: switch | s: session | /: search | Esc: back",
+                search_indicator
+            )
         }
         crate::state::View::Sessions => {
-            "j/k: navigate | Enter/a: attach | K: kill | w: worktrees | Esc: back"
+            format!(
+                "{}j/k: nav | Enter/a: attach | K: kill | /: search | Esc: back",
+                search_indicator
+            )
         }
     };
 

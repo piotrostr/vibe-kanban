@@ -27,6 +27,14 @@ pub enum Action {
     AttachSession,
     KillSession,
 
+    // Search (vim-style /)
+    StartSearch,
+    SearchType(char),
+    SearchBackspace,
+    SearchConfirm,
+    SearchCancel,
+    ClearSearch,
+
     // Help
     ShowHelp,
 
