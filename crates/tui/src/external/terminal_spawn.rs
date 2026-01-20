@@ -118,11 +118,13 @@ fn shell_escape(s: &str) -> String {
 
 /// Launch claude directly in the worktree directory (blocks)
 /// This suspends the TUI and gives control to claude
+/// Uses --continue to resume the most recent session in that directory
 pub fn launch_zellij_claude_foreground(_session_name: &str, cwd: &Path) -> Result<()> {
-    // Simply run claude in the worktree directory
-    // No zellij needed - claude code has its own session management
+    // Run claude with --continue to resume the most recent session in this directory
+    // Claude Code manages sessions per-directory via ~/.claude/projects/
     let status = Command::new("claude")
         .current_dir(cwd)
+        .arg("--continue")
         .arg("--dangerously-skip-permissions")
         .status()?;
 
