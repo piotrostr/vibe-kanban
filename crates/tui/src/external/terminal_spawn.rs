@@ -12,17 +12,17 @@ pub fn open_ghostty_with_zellij_claude(session_name: &str, cwd: &Path) -> Result
         shell_escape(&cwd.to_string_lossy())
     );
 
-    // Open Ghostty with the command wrapped in /bin/zsh -c
-    // This is needed because Ghostty's -e flag passes through /usr/bin/login
-    // which doesn't handle complex arguments with -- separators correctly
+    // Wrap in /bin/zsh -c "..." as a single string for Ghostty's -e flag
+    // This is needed because Ghostty's -e passes through /usr/bin/login
+    // which doesn't handle complex arguments correctly
+    let full_cmd = format!("/bin/zsh -c \"{}\"", zellij_cmd);
+
     Command::new("open")
         .arg("-na")
         .arg("Ghostty")
         .arg("--args")
         .arg("-e")
-        .arg("/bin/zsh")
-        .arg("-c")
-        .arg(&zellij_cmd)
+        .arg(&full_cmd)
         .spawn()?;
 
     Ok(())
@@ -32,15 +32,15 @@ pub fn open_ghostty_with_zellij_claude(session_name: &str, cwd: &Path) -> Result
 pub fn open_ghostty_attach_zellij(session_name: &str) -> Result<()> {
     let zellij_cmd = format!("zellij attach {}", shell_escape(session_name));
 
-    // Wrap in /bin/zsh -c for consistent behavior with Ghostty
+    // Wrap in /bin/zsh -c "..." as a single string for Ghostty's -e flag
+    let full_cmd = format!("/bin/zsh -c \"{}\"", zellij_cmd);
+
     Command::new("open")
         .arg("-na")
         .arg("Ghostty")
         .arg("--args")
         .arg("-e")
-        .arg("/bin/zsh")
-        .arg("-c")
-        .arg(&zellij_cmd)
+        .arg(&full_cmd)
         .spawn()?;
 
     Ok(())
