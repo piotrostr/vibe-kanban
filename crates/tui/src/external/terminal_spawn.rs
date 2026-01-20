@@ -119,11 +119,12 @@ fn shell_escape(s: &str) -> String {
 /// Launch zellij session with claude in current terminal (blocks)
 /// This suspends the TUI and gives control to zellij
 pub fn launch_zellij_claude_foreground(session_name: &str, cwd: &Path) -> Result<()> {
+    // cd to the worktree directory, then run zellij with claude
+    // zellij -s <session> -- claude --dangerously-skip-permissions
     let status = Command::new("zellij")
+        .current_dir(cwd)
         .arg("-s")
         .arg(session_name)
-        .arg("--cwd")
-        .arg(cwd)
         .arg("--")
         .arg("claude")
         .arg("--dangerously-skip-permissions")
