@@ -116,22 +116,18 @@ fn shell_escape(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
-/// Launch zellij session with claude in current terminal (blocks)
-/// This suspends the TUI and gives control to zellij
-pub fn launch_zellij_claude_foreground(session_name: &str, cwd: &Path) -> Result<()> {
-    // cd to the worktree directory, then run zellij with claude
-    // zellij -s <session> -- claude --dangerously-skip-permissions
-    let status = Command::new("zellij")
+/// Launch claude directly in the worktree directory (blocks)
+/// This suspends the TUI and gives control to claude
+pub fn launch_zellij_claude_foreground(_session_name: &str, cwd: &Path) -> Result<()> {
+    // Simply run claude in the worktree directory
+    // No zellij needed - claude code has its own session management
+    let status = Command::new("claude")
         .current_dir(cwd)
-        .arg("-s")
-        .arg(session_name)
-        .arg("--")
-        .arg("claude")
         .arg("--dangerously-skip-permissions")
         .status()?;
 
     if !status.success() {
-        anyhow::bail!("zellij session exited with error");
+        anyhow::bail!("claude exited with error");
     }
     Ok(())
 }
