@@ -9,28 +9,30 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "./types/modals";
 import { openExternal } from "./lib/openExternal";
 
-const isTauri = "__TAURI_INTERNALS__" in window || "__TAURI__" in window;
-
-// Intercept external link clicks in Tauri to open in system browser
-if (isTauri) {
-	document.addEventListener("click", (e) => {
-		const target = e.target as HTMLElement;
-		const anchor = target.closest("a");
-		if (!anchor) return;
-
-		const href = anchor.getAttribute("href");
-		if (!href) return;
-
-		// Only intercept external URLs (http/https)
-		if (href.startsWith("http://") || href.startsWith("https://")) {
-			e.preventDefault();
-			void openExternal(href);
-		}
-	});
+function isTauri(): boolean {
+	return "__TAURI_INTERNALS__" in window || "__TAURI__" in window;
 }
 
+// Intercept external link clicks in Tauri to open in system browser
+document.addEventListener("click", (e) => {
+	if (!isTauri()) return;
+
+	const target = e.target as HTMLElement;
+	const anchor = target.closest("a");
+	if (!anchor) return;
+
+	const href = anchor.getAttribute("href");
+	if (!href) return;
+
+	// Only intercept external URLs (http/https)
+	if (href.startsWith("http://") || href.startsWith("https://")) {
+		e.preventDefault();
+		void openExternal(href);
+	}
+});
+
 // Dev helper for testing Tauri notifications
-if (isTauri) {
+if (isTauri()) {
 	import("@tauri-apps/plugin-notification").then(
 		({ sendNotification, isPermissionGranted, requestPermission }) => {
 			(window as unknown as Record<string, unknown>).testNotification =
