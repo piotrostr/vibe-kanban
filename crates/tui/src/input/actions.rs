@@ -16,7 +16,7 @@ pub enum Action {
     EditTask,
     DeleteTask,
 
-    // Attempt operations
+    // Attempt operations (legacy - simplified)
     StartAttempt,
     StopAttempt,
     OpenAttemptChat,
@@ -26,6 +26,17 @@ pub enum Action {
     SendMessage,
     TypeChar(char),
     Backspace,
+
+    // Worktree operations
+    ShowWorktrees,
+    CreateWorktree,
+    SwitchWorktree,
+
+    // Session operations
+    ShowSessions,
+    LaunchSession,
+    AttachSession,
+    KillSession,
 
     // Search
     FocusSearch,

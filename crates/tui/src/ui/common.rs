@@ -43,7 +43,7 @@ pub fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
     let hints = match state.view {
         crate::state::View::Projects => "j/k: navigate | Enter: select | q: quit | ?: help",
         crate::state::View::Kanban => {
-            "h/j/k/l: navigate | Enter: details | c: create | d: delete | s: start | Esc: back"
+            "h/j/k/l: navigate | Enter: details | c: create | d: delete | s: session | w: worktrees | S: sessions | Esc: back"
         }
         crate::state::View::TaskDetail => "j/k: scroll | e: edit | s: start | Enter: attempts | Esc: back",
         crate::state::View::AttemptChat => {
@@ -52,6 +52,12 @@ pub fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
             } else {
                 "j/k: select attempt | i/Tab: type message | s: new attempt | Esc: back"
             }
+        }
+        crate::state::View::Worktrees => {
+            "j/k: navigate | Enter: switch | s: launch session | W: create | S: sessions | Esc: back"
+        }
+        crate::state::View::Sessions => {
+            "j/k: navigate | Enter/a: attach | K: kill | w: worktrees | Esc: back"
         }
     };
 
@@ -86,10 +92,18 @@ pub fn render_help_modal(frame: &mut Frame, area: Rect) {
         Line::from("  d                  Delete task"),
         Line::from(""),
         Line::from(vec![
-            Span::styled("Attempts", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled("Worktrees", Style::default().add_modifier(Modifier::BOLD)),
         ]),
-        Line::from("  s                  Start attempt"),
-        Line::from("  S                  Stop attempt"),
+        Line::from("  w                  Show worktrees"),
+        Line::from("  W                  Create worktree"),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Sessions", Style::default().add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from("  s                  Launch Claude session"),
+        Line::from("  S                  Show sessions"),
+        Line::from("  a / Enter          Attach to session"),
+        Line::from("  K                  Kill session"),
         Line::from(""),
         Line::from(vec![
             Span::styled("Other", Style::default().add_modifier(Modifier::BOLD)),

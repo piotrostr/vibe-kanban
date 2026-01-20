@@ -8,13 +8,16 @@ use crate::api::{
     ExecutorProfileId, FollowUpRequest, TaskStreamConnection, TaskUpdateReceiver, UpdateTask,
     WorkspaceRepoInput,
 };
-use crate::external::edit_markdown;
+use crate::external::{
+    edit_markdown, list_sessions, list_worktrees, open_ghostty_attach_zellij,
+    open_ghostty_with_zellij_claude, session_name_for_branch,
+};
 use crate::input::{extract_key_event, key_to_action, Action, EventStream};
 use crate::state::{AppState, Modal, View};
 use crate::terminal::Terminal;
 use crate::ui::{
     render_attempt_chat, render_footer, render_header, render_help_modal, render_kanban_board,
-    render_project_list, render_task_detail_with_actions,
+    render_project_list, render_sessions, render_task_detail_with_actions, render_worktrees,
 };
 
 pub struct App {
@@ -121,6 +124,12 @@ impl App {
                         }
                     }
                 }
+                View::Worktrees => {
+                    render_worktrees(frame, chunks[1], &self.state.worktrees);
+                }
+                View::Sessions => {
+                    render_sessions(frame, chunks[1], &self.state.sessions);
+                }
             }
 
             render_footer(frame, chunks[2], &self.state);
@@ -226,6 +235,27 @@ impl App {
                     self.state.attempts.chat_input.pop();
                 }
             }
+            Action::ShowWorktrees => {
+                self.handle_show_worktrees().await?;
+            }
+            Action::CreateWorktree => {
+                // TODO: Implement worktree creation modal
+            }
+            Action::SwitchWorktree => {
+                // TODO: Implement worktree switching
+            }
+            Action::ShowSessions => {
+                self.handle_show_sessions().await?;
+            }
+            Action::LaunchSession => {
+                self.handle_launch_session()?;
+            }
+            Action::AttachSession => {
+                self.handle_attach_session()?;
+            }
+            Action::KillSession => {
+                self.handle_kill_session()?;
+            }
             _ => {}
         }
 
@@ -254,6 +284,12 @@ impl App {
             View::AttemptChat => {
                 self.state.attempts.select_prev();
             }
+            View::Worktrees => {
+                self.state.worktrees.select_prev();
+            }
+            View::Sessions => {
+                self.state.sessions.select_prev();
+            }
         }
     }
 
@@ -270,6 +306,12 @@ impl App {
             }
             View::AttemptChat => {
                 self.state.attempts.select_next();
+            }
+            View::Worktrees => {
+                self.state.worktrees.select_next();
+            }
+            View::Sessions => {
+                self.state.sessions.select_next();
             }
         }
     }
@@ -317,6 +359,14 @@ impl App {
             View::AttemptChat => {
                 // Focus input when selecting in attempt chat
                 self.state.attempts.chat_input_active = true;
+            }
+            View::Worktrees => {
+                // Launch session in selected worktree
+                self.handle_launch_session()?;
+            }
+            View::Sessions => {
+                // Attach to selected session
+                self.handle_attach_session()?;
             }
         }
 
@@ -380,6 +430,12 @@ impl App {
             View::AttemptChat => {
                 // Refresh attempts
                 self.load_attempts().await?;
+            }
+            View::Worktrees => {
+                self.load_worktrees();
+            }
+            View::Sessions => {
+                self.load_sessions();
             }
         }
 
@@ -633,6 +689,113 @@ impl App {
         // Clear input
         self.state.attempts.chat_input.clear();
         self.state.attempts.chat_input_active = false;
+
+        Ok(())
+    }
+
+    // Worktree and session handlers
+
+    async fn handle_show_worktrees(&mut self) -> Result<()> {
+        self.load_worktrees();
+        self.state.view = View::Worktrees;
+        Ok(())
+    }
+
+    fn load_worktrees(&mut self) {
+        self.state.worktrees.loading = true;
+        self.state.worktrees.error = None;
+
+        match list_worktrees() {
+            Ok(worktrees) => {
+                self.state.worktrees.set_worktrees(worktrees);
+                self.state.worktrees.loading = false;
+            }
+            Err(e) => {
+                self.state.worktrees.error = Some(e.to_string());
+                self.state.worktrees.loading = false;
+            }
+        }
+    }
+
+    async fn handle_show_sessions(&mut self) -> Result<()> {
+        self.load_sessions();
+        self.state.view = View::Sessions;
+        Ok(())
+    }
+
+    fn load_sessions(&mut self) {
+        self.state.sessions.loading = true;
+        self.state.sessions.error = None;
+
+        match list_sessions() {
+            Ok(sessions) => {
+                self.state.sessions.set_sessions(sessions);
+                self.state.sessions.loading = false;
+            }
+            Err(e) => {
+                self.state.sessions.error = Some(e.to_string());
+                self.state.sessions.loading = false;
+            }
+        }
+    }
+
+    fn handle_launch_session(&mut self) -> Result<()> {
+        // Get the worktree to launch in
+        let worktree = match self.state.view {
+            View::Worktrees => self.state.worktrees.selected(),
+            View::Kanban | View::TaskDetail => {
+                // Use current worktree if available
+                self.state.worktrees.worktrees.iter().find(|w| w.is_current)
+            }
+            _ => None,
+        };
+
+        let Some(worktree) = worktree else {
+            tracing::warn!("No worktree selected for session launch");
+            return Ok(());
+        };
+
+        let session_name = session_name_for_branch(&worktree.branch);
+        let worktree_path = std::path::Path::new(&worktree.path);
+
+        // Open Ghostty with zellij + claude
+        if let Err(e) = open_ghostty_with_zellij_claude(&session_name, worktree_path) {
+            tracing::error!("Failed to launch session: {}", e);
+        } else {
+            tracing::info!("Launched session {} in {}", session_name, worktree.path);
+        }
+
+        Ok(())
+    }
+
+    fn handle_attach_session(&mut self) -> Result<()> {
+        let Some(session) = self.state.sessions.selected() else {
+            tracing::warn!("No session selected");
+            return Ok(());
+        };
+
+        if let Err(e) = open_ghostty_attach_zellij(&session.name) {
+            tracing::error!("Failed to attach session: {}", e);
+        } else {
+            tracing::info!("Attached to session {}", session.name);
+        }
+
+        Ok(())
+    }
+
+    fn handle_kill_session(&mut self) -> Result<()> {
+        let Some(session) = self.state.sessions.selected() else {
+            tracing::warn!("No session selected");
+            return Ok(());
+        };
+
+        if let Err(e) = crate::external::kill_session(&session.name) {
+            tracing::error!("Failed to kill session: {}", e);
+        } else {
+            tracing::info!("Killed session {}", session.name);
+            // Refresh the sessions list
+            self.load_sessions();
+        }
 
         Ok(())
     }

@@ -1,4 +1,4 @@
-use super::{AttemptsState, ProjectsState, TasksState};
+use super::{AttemptsState, ProjectsState, SessionsState, TasksState, WorktreesState};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum View {
@@ -6,6 +6,8 @@ pub enum View {
     Kanban,
     TaskDetail,
     AttemptChat,
+    Worktrees,
+    Sessions,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,6 +35,8 @@ pub struct AppState {
     pub projects: ProjectsState,
     pub tasks: TasksState,
     pub attempts: AttemptsState,
+    pub worktrees: WorktreesState,
+    pub sessions: SessionsState,
 
     pub selected_project_id: Option<String>,
     pub selected_task_id: Option<String>,
@@ -54,6 +58,8 @@ impl AppState {
             projects: ProjectsState::new(),
             tasks: TasksState::new(),
             attempts: AttemptsState::new(),
+            worktrees: WorktreesState::new(),
+            sessions: SessionsState::new(),
 
             selected_project_id: None,
             selected_task_id: None,
@@ -92,6 +98,16 @@ impl AppState {
                 self.attempts.chat_input_active = false;
                 self.attempts.chat_input.clear();
                 self.view = View::TaskDetail;
+            }
+            View::Worktrees => {
+                // Go back to kanban
+                self.view = View::Kanban;
+                self.focus = Focus::KanbanColumn(1);
+            }
+            View::Sessions => {
+                // Go back to kanban
+                self.view = View::Kanban;
+                self.focus = Focus::KanbanColumn(1);
             }
         }
     }

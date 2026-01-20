@@ -33,6 +33,8 @@ pub fn key_to_action(key: KeyEvent, view: View, in_modal: bool, chat_input_activ
         View::Kanban => kanban_bindings(key),
         View::TaskDetail => task_detail_bindings(key),
         View::AttemptChat => attempt_chat_bindings(key),
+        View::Worktrees => worktrees_bindings(key),
+        View::Sessions => sessions_bindings(key),
     }
 }
 
@@ -62,9 +64,13 @@ fn kanban_bindings(key: KeyEvent) -> Option<Action> {
         KeyCode::Char('e') => Some(Action::EditTask),
         KeyCode::Char('d') => Some(Action::DeleteTask),
 
-        // Attempt operations
-        KeyCode::Char('s') => Some(Action::StartAttempt),
-        KeyCode::Char('S') => Some(Action::StopAttempt),
+        // Launch Claude Code session
+        KeyCode::Char('s') => Some(Action::LaunchSession),
+
+        // Worktrees and sessions views
+        KeyCode::Char('w') => Some(Action::ShowWorktrees),
+        KeyCode::Char('W') => Some(Action::CreateWorktree),
+        KeyCode::Char('S') => Some(Action::ShowSessions),
 
         // Search
         KeyCode::Char('/') => Some(Action::FocusSearch),
@@ -105,6 +111,31 @@ fn chat_input_bindings(key: KeyEvent) -> Option<Action> {
         KeyCode::Enter => Some(Action::SendMessage),
         KeyCode::Backspace => Some(Action::Backspace),
         KeyCode::Char(c) => Some(Action::TypeChar(c)),
+        _ => None,
+    }
+}
+
+fn worktrees_bindings(key: KeyEvent) -> Option<Action> {
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => Some(Action::Down),
+        KeyCode::Char('k') | KeyCode::Up => Some(Action::Up),
+        KeyCode::Enter | KeyCode::Char(' ') => Some(Action::SwitchWorktree),
+        KeyCode::Char('s') => Some(Action::LaunchSession),
+        KeyCode::Char('W') => Some(Action::CreateWorktree),
+        KeyCode::Char('S') => Some(Action::ShowSessions),
+        KeyCode::Char('r') => Some(Action::Refresh),
+        _ => None,
+    }
+}
+
+fn sessions_bindings(key: KeyEvent) -> Option<Action> {
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => Some(Action::Down),
+        KeyCode::Char('k') | KeyCode::Up => Some(Action::Up),
+        KeyCode::Enter | KeyCode::Char('a') => Some(Action::AttachSession),
+        KeyCode::Char('K') => Some(Action::KillSession),
+        KeyCode::Char('w') => Some(Action::ShowWorktrees),
+        KeyCode::Char('r') => Some(Action::Refresh),
         _ => None,
     }
 }
