@@ -121,6 +121,7 @@ fn shell_escape(s: &str) -> String {
 /// User can detach with Ctrl+q to return to TUI while claude keeps running
 pub fn launch_zellij_claude_foreground(session_name: &str, cwd: &Path) -> Result<()> {
     use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
 
     // Check if session already exists
     let existing = Command::new("zellij")
@@ -140,25 +141,29 @@ pub fn launch_zellij_claude_foreground(session_name: &str, cwd: &Path) -> Result
             anyhow::bail!("zellij attach exited with error");
         }
     } else {
-        // Create temp layout file that runs claude
-        let layout = format!(
-            r#"layout {{
-    cwd "{}"
-    pane command="claude" {{
-        args "--continue" "--dangerously-skip-permissions"
-    }}
-}}
-"#,
-            cwd.to_string_lossy().replace('\\', "\\\\").replace('"', "\\\"")
+        // Create a wrapper script that runs claude
+        let script_dir = dirs::cache_dir()
+            .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
+            .join("vibe-scripts");
+        std::fs::create_dir_all(&script_dir)?;
+
+        let script_path = script_dir.join(format!("{}.sh", session_name));
+        let script_content = format!(
+            "#!/bin/bash\ncd {}\nexec claude --continue --dangerously-skip-permissions\n",
+            shell_escape(&cwd.to_string_lossy())
         );
 
-        let mut temp_file = tempfile::NamedTempFile::with_suffix(".kdl")?;
-        temp_file.write_all(layout.as_bytes())?;
-        let layout_path = temp_file.path().to_string_lossy().to_string();
+        let mut file = std::fs::File::create(&script_path)?;
+        file.write_all(script_content.as_bytes())?;
+        drop(file);
 
-        // Create new session with layout
+        // Make script executable
+        std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755))?;
+
+        // Create session with custom shell that runs our script
         let status = Command::new("zellij")
-            .args(["-s", session_name, "-l", &layout_path])
+            .args(["-s", session_name])
+            .env("SHELL", &script_path)
             .status()?;
 
         if !status.success() {
