@@ -3,7 +3,12 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use super::Action;
 use crate::state::View;
 
-pub fn key_to_action(key: KeyEvent, view: View, in_modal: bool, chat_input_active: bool) -> Option<Action> {
+pub fn key_to_action(
+    key: KeyEvent,
+    view: View,
+    in_modal: bool,
+    _chat_input_active: bool,
+) -> Option<Action> {
     // Modal-specific bindings
     if in_modal {
         return match key.code {
@@ -11,11 +16,6 @@ pub fn key_to_action(key: KeyEvent, view: View, in_modal: bool, chat_input_activ
             KeyCode::Enter => Some(Action::Select),
             _ => None,
         };
-    }
-
-    // Chat input mode - capture all keys for typing
-    if chat_input_active {
-        return chat_input_bindings(key);
     }
 
     // Global bindings
@@ -32,7 +32,6 @@ pub fn key_to_action(key: KeyEvent, view: View, in_modal: bool, chat_input_activ
         View::Projects => project_list_bindings(key),
         View::Kanban => kanban_bindings(key),
         View::TaskDetail => task_detail_bindings(key),
-        View::AttemptChat => attempt_chat_bindings(key),
         View::Worktrees => worktrees_bindings(key),
         View::Sessions => sessions_bindings(key),
     }
@@ -72,9 +71,6 @@ fn kanban_bindings(key: KeyEvent) -> Option<Action> {
         KeyCode::Char('W') => Some(Action::CreateWorktree),
         KeyCode::Char('S') => Some(Action::ShowSessions),
 
-        // Search
-        KeyCode::Char('/') => Some(Action::FocusSearch),
-
         // Refresh
         KeyCode::Char('r') => Some(Action::Refresh),
 
@@ -87,30 +83,10 @@ fn task_detail_bindings(key: KeyEvent) -> Option<Action> {
         KeyCode::Char('j') | KeyCode::Down => Some(Action::Down),
         KeyCode::Char('k') | KeyCode::Up => Some(Action::Up),
         KeyCode::Char('e') => Some(Action::EditTask),
-        KeyCode::Char('s') => Some(Action::StartAttempt),
-        KeyCode::Char('S') => Some(Action::StopAttempt),
-        KeyCode::Enter | KeyCode::Char(' ') => Some(Action::OpenAttemptChat),
-        _ => None,
-    }
-}
-
-fn attempt_chat_bindings(key: KeyEvent) -> Option<Action> {
-    match key.code {
-        KeyCode::Char('j') | KeyCode::Down => Some(Action::Down),
-        KeyCode::Char('k') | KeyCode::Up => Some(Action::Up),
-        KeyCode::Tab | KeyCode::Char('i') => Some(Action::FocusInput),
-        KeyCode::Char('s') => Some(Action::StartAttempt),
-        KeyCode::Char('r') => Some(Action::Refresh),
-        _ => None,
-    }
-}
-
-fn chat_input_bindings(key: KeyEvent) -> Option<Action> {
-    match key.code {
-        KeyCode::Esc => Some(Action::Back),
-        KeyCode::Enter => Some(Action::SendMessage),
-        KeyCode::Backspace => Some(Action::Backspace),
-        KeyCode::Char(c) => Some(Action::TypeChar(c)),
+        KeyCode::Char('s') => Some(Action::LaunchSession),
+        KeyCode::Enter | KeyCode::Char(' ') => Some(Action::LaunchSession),
+        KeyCode::Char('w') => Some(Action::ShowWorktrees),
+        KeyCode::Char('S') => Some(Action::ShowSessions),
         _ => None,
     }
 }

@@ -4,9 +4,8 @@ use ratatui::layout::{Constraint, Direction, Layout};
 use tokio::task::JoinHandle;
 
 use crate::api::{
-    create_task_channel, ApiClient, CreateSession, CreateTask, CreateTaskAttempt,
-    ExecutorProfileId, FollowUpRequest, TaskStreamConnection, TaskUpdateReceiver, UpdateTask,
-    WorkspaceRepoInput,
+    create_task_channel, ApiClient, CreateTask, TaskStreamConnection, TaskUpdateReceiver,
+    UpdateTask,
 };
 use crate::external::{
     edit_markdown, list_sessions, list_worktrees, open_ghostty_attach_zellij,
@@ -16,8 +15,8 @@ use crate::input::{extract_key_event, key_to_action, Action, EventStream};
 use crate::state::{AppState, Modal, View};
 use crate::terminal::Terminal;
 use crate::ui::{
-    render_attempt_chat, render_footer, render_header, render_help_modal, render_kanban_board,
-    render_project_list, render_sessions, render_task_detail_with_actions, render_worktrees,
+    render_footer, render_header, render_help_modal, render_kanban_board, render_project_list,
+    render_sessions, render_task_detail_with_actions, render_worktrees,
 };
 
 pub struct App {
@@ -116,14 +115,6 @@ impl App {
                         }
                     }
                 }
-                View::AttemptChat => {
-                    if let Some(task_id) = &self.state.selected_task_id {
-                        if let Some(task) = self.state.tasks.tasks.iter().find(|t| &t.id == task_id)
-                        {
-                            render_attempt_chat(frame, chunks[1], task, &self.state.attempts);
-                        }
-                    }
-                }
                 View::Worktrees => {
                     render_worktrees(frame, chunks[1], &self.state.worktrees);
                 }
@@ -149,18 +140,14 @@ impl App {
         };
 
         let in_modal = self.state.modal.is_some();
-        let chat_input_active = self.state.attempts.chat_input_active;
-        let Some(action) = key_to_action(key, self.state.view, in_modal, chat_input_active) else {
+        let Some(action) = key_to_action(key, self.state.view, in_modal, false) else {
             return Ok(());
         };
 
         // Handle modal-specific actions
         if in_modal {
-            match action {
-                Action::Back => {
-                    self.state.modal = None;
-                }
-                _ => {}
+            if let Action::Back = action {
+                self.state.modal = None;
             }
             return Ok(());
         }
@@ -171,12 +158,7 @@ impl App {
                 self.state.should_quit = true;
             }
             Action::Back => {
-                // If chat input is active, just deactivate it
-                if self.state.attempts.chat_input_active {
-                    self.state.attempts.chat_input_active = false;
-                } else {
-                    self.handle_back();
-                }
+                self.handle_back();
             }
             Action::ShowHelp => {
                 self.state.modal = Some(Modal::Help);
@@ -208,33 +190,6 @@ impl App {
             Action::DeleteTask => {
                 self.handle_delete_task().await?;
             }
-            Action::StartAttempt => {
-                self.handle_start_attempt().await?;
-            }
-            Action::StopAttempt => {
-                // TODO: Implement stop attempt
-            }
-            Action::OpenAttemptChat => {
-                self.handle_open_attempt_chat().await?;
-            }
-            Action::FocusInput => {
-                if self.state.view == View::AttemptChat {
-                    self.state.attempts.chat_input_active = true;
-                }
-            }
-            Action::SendMessage => {
-                self.handle_send_message().await?;
-            }
-            Action::TypeChar(c) => {
-                if self.state.attempts.chat_input_active {
-                    self.state.attempts.chat_input.push(c);
-                }
-            }
-            Action::Backspace => {
-                if self.state.attempts.chat_input_active {
-                    self.state.attempts.chat_input.pop();
-                }
-            }
             Action::ShowWorktrees => {
                 self.handle_show_worktrees().await?;
             }
@@ -256,7 +211,6 @@ impl App {
             Action::KillSession => {
                 self.handle_kill_session()?;
             }
-            _ => {}
         }
 
         Ok(())
@@ -281,9 +235,6 @@ impl App {
             View::TaskDetail => {
                 // TODO: Scroll
             }
-            View::AttemptChat => {
-                self.state.attempts.select_prev();
-            }
             View::Worktrees => {
                 self.state.worktrees.select_prev();
             }
@@ -303,9 +254,6 @@ impl App {
             }
             View::TaskDetail => {
                 // TODO: Scroll
-            }
-            View::AttemptChat => {
-                self.state.attempts.select_next();
             }
             View::Worktrees => {
                 self.state.worktrees.select_next();
@@ -353,12 +301,8 @@ impl App {
                 }
             }
             View::TaskDetail => {
-                // Open attempt chat view
-                self.handle_open_attempt_chat().await?;
-            }
-            View::AttemptChat => {
-                // Focus input when selecting in attempt chat
-                self.state.attempts.chat_input_active = true;
+                // Launch session for task
+                self.handle_launch_session()?;
             }
             View::Worktrees => {
                 // Launch session in selected worktree
@@ -414,22 +358,11 @@ impl App {
                 let projects = self.api.get_projects().await?;
                 self.state.projects.set_projects(projects);
             }
-            View::Kanban => {
+            View::Kanban | View::TaskDetail => {
                 if let Some(project_id) = &self.state.selected_project_id {
                     let tasks = self.api.get_tasks(project_id).await?;
                     self.state.tasks.set_tasks(tasks);
                 }
-            }
-            View::TaskDetail => {
-                // Refresh by reloading tasks
-                if let Some(project_id) = &self.state.selected_project_id {
-                    let tasks = self.api.get_tasks(project_id).await?;
-                    self.state.tasks.set_tasks(tasks);
-                }
-            }
-            View::AttemptChat => {
-                // Refresh attempts
-                self.load_attempts().await?;
             }
             View::Worktrees => {
                 self.load_worktrees();
@@ -580,115 +513,6 @@ impl App {
 
         // Refresh to get updated data
         self.refresh().await?;
-
-        Ok(())
-    }
-
-    async fn handle_start_attempt(&mut self) -> Result<()> {
-        let Some(task_id) = self.state.selected_task_id.clone() else {
-            return Ok(());
-        };
-
-        // For now, we need project repos to create an attempt
-        // This is a simplified version - in reality we'd need to fetch repos
-        // and let the user select which ones to include
-        let create = CreateTaskAttempt {
-            task_id,
-            executor_profile_id: ExecutorProfileId {
-                executor: "CLAUDE_CODE".to_string(),
-                variant: None,
-            },
-            repos: vec![], // Empty for now - the backend should handle this
-        };
-
-        match self.api.create_task_attempt(create).await {
-            Ok(workspace) => {
-                tracing::info!("Created attempt: {}", workspace.id);
-                // Refresh attempts list
-                self.load_attempts().await?;
-                // Switch to attempt chat view
-                self.state.view = View::AttemptChat;
-            }
-            Err(e) => {
-                tracing::error!("Failed to create attempt: {}", e);
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn handle_open_attempt_chat(&mut self) -> Result<()> {
-        // Load attempts for the current task
-        self.load_attempts().await?;
-        self.state.view = View::AttemptChat;
-        Ok(())
-    }
-
-    async fn load_attempts(&mut self) -> Result<()> {
-        let Some(task_id) = self.state.selected_task_id.clone() else {
-            return Ok(());
-        };
-
-        let workspaces = self.api.get_task_attempts(&task_id).await?;
-        self.state.attempts.set_workspaces(workspaces);
-
-        // Load session for selected workspace
-        if let Some(workspace) = self.state.attempts.selected_workspace() {
-            let sessions = self.api.get_sessions(&workspace.id).await?;
-            self.state.attempts.current_session = sessions.into_iter().next();
-        }
-
-        Ok(())
-    }
-
-    async fn handle_send_message(&mut self) -> Result<()> {
-        let message = self.state.attempts.chat_input.trim().to_string();
-        if message.is_empty() {
-            return Ok(());
-        }
-
-        // Get or create session
-        let session_id = if let Some(session) = &self.state.attempts.current_session {
-            session.id.clone()
-        } else {
-            // Need a workspace first
-            let Some(workspace) = self.state.attempts.selected_workspace() else {
-                tracing::warn!("No workspace selected");
-                return Ok(());
-            };
-
-            // Create a new session
-            let session = self
-                .api
-                .create_session(CreateSession {
-                    workspace_id: workspace.id.clone(),
-                    executor: Some("CLAUDE_CODE".to_string()),
-                })
-                .await?;
-
-            self.state.attempts.current_session = Some(session.clone());
-            session.id
-        };
-
-        // Send the follow-up
-        let follow_up = FollowUpRequest {
-            prompt: message,
-            variant: None,
-        };
-
-        match self.api.send_follow_up(&session_id, follow_up).await {
-            Ok(process) => {
-                tracing::info!("Started execution process: {}", process.id);
-                self.state.attempts.processes.push(process);
-            }
-            Err(e) => {
-                tracing::error!("Failed to send message: {}", e);
-            }
-        }
-
-        // Clear input
-        self.state.attempts.chat_input.clear();
-        self.state.attempts.chat_input_active = false;
 
         Ok(())
     }

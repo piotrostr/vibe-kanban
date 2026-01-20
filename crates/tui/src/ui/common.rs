@@ -45,13 +45,8 @@ pub fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
         crate::state::View::Kanban => {
             "h/j/k/l: navigate | Enter: details | c: create | d: delete | s: session | w: worktrees | S: sessions | Esc: back"
         }
-        crate::state::View::TaskDetail => "j/k: scroll | e: edit | s: start | Enter: attempts | Esc: back",
-        crate::state::View::AttemptChat => {
-            if state.attempts.chat_input_active {
-                "Enter: send | Esc: cancel"
-            } else {
-                "j/k: select attempt | i/Tab: type message | s: new attempt | Esc: back"
-            }
+        crate::state::View::TaskDetail => {
+            "j/k: scroll | e: edit | s/Enter: launch session | w: worktrees | S: sessions | Esc: back"
         }
         crate::state::View::Worktrees => {
             "j/k: navigate | Enter: switch | s: launch session | W: create | S: sessions | Esc: back"

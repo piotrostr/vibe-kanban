@@ -1,11 +1,10 @@
-use super::{AttemptsState, ProjectsState, SessionsState, TasksState, WorktreesState};
+use super::{ProjectsState, SessionsState, TasksState, WorktreesState};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum View {
     Projects,
     Kanban,
     TaskDetail,
-    AttemptChat,
     Worktrees,
     Sessions,
 }
@@ -24,7 +23,6 @@ pub enum Modal {
     Help,
     CreateTask,
     DeleteConfirm(String), // task_id
-    CreateAttempt(String), // task_id
 }
 
 pub struct AppState {
@@ -34,15 +32,11 @@ pub struct AppState {
 
     pub projects: ProjectsState,
     pub tasks: TasksState,
-    pub attempts: AttemptsState,
     pub worktrees: WorktreesState,
     pub sessions: SessionsState,
 
     pub selected_project_id: Option<String>,
     pub selected_task_id: Option<String>,
-
-    pub search_query: String,
-    pub search_active: bool,
 
     pub backend_connected: bool,
     pub should_quit: bool,
@@ -57,15 +51,11 @@ impl AppState {
 
             projects: ProjectsState::new(),
             tasks: TasksState::new(),
-            attempts: AttemptsState::new(),
             worktrees: WorktreesState::new(),
             sessions: SessionsState::new(),
 
             selected_project_id: None,
             selected_task_id: None,
-
-            search_query: String::new(),
-            search_active: false,
 
             backend_connected: false,
             should_quit: false,
@@ -93,19 +83,11 @@ impl AppState {
                 self.view = View::Kanban;
                 self.focus = Focus::KanbanColumn(1);
             }
-            View::AttemptChat => {
-                // Go back to task detail, keep task selected
-                self.attempts.chat_input_active = false;
-                self.attempts.chat_input.clear();
-                self.view = View::TaskDetail;
-            }
             View::Worktrees => {
-                // Go back to kanban
                 self.view = View::Kanban;
                 self.focus = Focus::KanbanColumn(1);
             }
             View::Sessions => {
-                // Go back to kanban
                 self.view = View::Kanban;
                 self.focus = Focus::KanbanColumn(1);
             }
