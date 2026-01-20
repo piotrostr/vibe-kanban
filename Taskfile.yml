@@ -138,7 +138,23 @@ tasks:
       - echo "Starting server on http://localhost:4067"
       - ./target/debug/server
 
-  desktop-install:
+  desktop:dev:
+    desc: Start Tauri desktop app in dev mode with hot reload
+    deps: [install]
+    env:
+      FRONTEND_PORT: '6769'
+      BACKEND_PORT: '6770'
+      TAURI_DEV: '1'
+      DISABLE_WORKTREE_ORPHAN_CLEANUP: '1'
+      RUST_LOG: debug
+    cmds:
+      - |
+        echo "Starting Tauri dev mode..."
+        echo "Frontend: http://localhost:6769"
+        echo "Backend: http://localhost:6770"
+      - bunx concurrently --kill-others "task backend:watch" "task frontend:dev" "cargo tauri dev"
+
+  desktop:install:
     desc: Build and install desktop app (macOS)
     cmds:
       - cd frontend && pnpm run build

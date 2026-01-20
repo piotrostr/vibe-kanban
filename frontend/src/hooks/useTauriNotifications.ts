@@ -1,27 +1,28 @@
 import { useEffect, useRef, useCallback, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
 	isPermissionGranted,
 	requestPermission,
 	sendNotification,
-	onAction,
 } from "@tauri-apps/plugin-notification";
 import type { TaskWithAttemptStatus } from "shared/types";
 
-const isTauri = "__TAURI__" in window;
+// Tauri v2 uses __TAURI_INTERNALS__ regardless of withGlobalTauri setting
+const isTauri = "__TAURI_INTERNALS__" in window || "__TAURI__" in window;
 
 /**
  * Hook to show native Tauri notifications when tasks complete (status changes to 'inreview')
- * - Always shows notifications, even when app is focused
- * - Clicking focuses existing window and navigates to the task
+ *
+ * Note: On desktop (macOS/Windows/Linux), notification click handling is not supported
+ * by the Tauri notification plugin. Clicking a notification will bring the app to
+ * foreground but won't navigate to a specific task. This is a limitation of the
+ * underlying notify-rust library. The onAction API only works on mobile platforms.
  */
 export const useTauriNotifications = (
 	tasks: TaskWithAttemptStatus[],
-	projectId: string | undefined,
+	_projectId: string | undefined,
 ) => {
 	const prevTasksRef = useRef<Map<string, string>>(new Map());
 	const [permissionGranted, setPermissionGranted] = useState(false);
-	const navigate = useNavigate();
 
 	// Request permission on mount
 	useEffect(() => {
@@ -37,48 +38,17 @@ export const useTauriNotifications = (
 		})();
 	}, []);
 
-	// Listen for notification clicks
-	useEffect(() => {
-		if (!isTauri) return;
-
-		let cleanup: (() => void) | null = null;
-
-		onAction((notification) => {
-			const data = notification.extra;
-			if (
-				data &&
-				typeof data === "object" &&
-				"url" in data &&
-				typeof data.url === "string"
-			) {
-				navigate(data.url);
-			}
-		}).then((listener) => {
-			cleanup = () => listener.unregister();
-		});
-
-		return () => {
-			cleanup?.();
-		};
-	}, [navigate]);
-
 	const showNotification = useCallback(
-		async (title: string, body: string, taskId: string) => {
-			if (!isTauri || !permissionGranted || !projectId) return;
-
-			const targetUrl = `/projects/${projectId}/tasks/${taskId}/attempts/latest`;
+		async (title: string, body: string) => {
+			if (!isTauri || !permissionGranted) return;
 
 			try {
-				sendNotification({
-					title,
-					body,
-					extra: { url: targetUrl },
-				});
+				sendNotification({ title, body });
 			} catch (error) {
 				console.error("Failed to send notification:", error);
 			}
 		},
-		[projectId, permissionGranted],
+		[permissionGranted],
 	);
 
 	// Watch for task status changes to 'inreview'
@@ -98,7 +68,6 @@ export const useTauriNotifications = (
 				showNotification(
 					"Task Complete",
 					`"${task.title}" is ready for review`,
-					task.id,
 				);
 			}
 		}
