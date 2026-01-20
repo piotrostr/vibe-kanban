@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 use futures_util::{SinkExt, StreamExt};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
@@ -18,18 +20,19 @@ pub enum WsMessage {
     },
 }
 
+/// The server sends tasks as an object: { "tasks": { "task-id": {...}, ... } }
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct TasksState {
+    #[serde(default)]
+    tasks: HashMap<String, Task>,
+}
+
 pub type TaskUpdateSender = mpsc::Sender<Vec<Task>>;
 pub type TaskUpdateReceiver = mpsc::Receiver<Vec<Task>>;
 
-pub struct TaskStreamConnection {
-    sender: TaskUpdateSender,
-}
+pub struct TaskStreamConnection;
 
 impl TaskStreamConnection {
-    pub fn new(sender: TaskUpdateSender) -> Self {
-        Self { sender }
-    }
-
     pub async fn connect(
         base_url: &str,
         project_id: &str,
@@ -46,35 +49,40 @@ impl TaskStreamConnection {
         let (ws_stream, _) = connect_async(&ws_url).await?;
         let (mut write, mut read) = ws_stream.split();
 
-        // Initialize with empty tasks - the server will send the initial state via patches
-        let mut tasks: Vec<Task> = Vec::new();
+        // Initialize with empty state - server sends tasks as object keyed by ID
+        let mut state = TasksState::default();
+        let mut json_state = serde_json::to_value(&state)?;
 
         while let Some(msg) = read.next().await {
             match msg {
                 Ok(Message::Text(text)) => {
                     match serde_json::from_str::<WsMessage>(&text) {
                         Ok(WsMessage::JsonPatch { patches }) => {
-                            // Apply patches to the tasks array
-                            let mut json_value = serde_json::to_value(&tasks)?;
-
-                            for patch in patches {
-                                if let Err(e) = json_patch::patch(&mut json_value, &[patch]) {
-                                    tracing::warn!("Failed to apply patch: {}", e);
+                            // Apply patches to the state object
+                            for patch in &patches {
+                                if let Err(e) = json_patch::patch(&mut json_state, &[patch.clone()])
+                                {
+                                    tracing::warn!("Failed to apply patch: {} - {:?}", e, patch);
                                 }
                             }
 
-                            // Deserialize back to tasks
-                            match serde_json::from_value::<Vec<Task>>(json_value) {
-                                Ok(updated_tasks) => {
-                                    tasks = updated_tasks;
-                                    // Send update to the app
-                                    if sender.send(tasks.clone()).await.is_err() {
+                            // Deserialize back to state
+                            match serde_json::from_value::<TasksState>(json_state.clone()) {
+                                Ok(updated_state) => {
+                                    state = updated_state;
+                                    // Convert map to vec and send
+                                    let tasks: Vec<Task> = state.tasks.values().cloned().collect();
+                                    if sender.send(tasks).await.is_err() {
                                         tracing::info!("Receiver dropped, closing WebSocket");
                                         break;
                                     }
                                 }
                                 Err(e) => {
-                                    tracing::warn!("Failed to deserialize tasks: {}", e);
+                                    tracing::warn!(
+                                        "Failed to deserialize tasks state: {} - state: {}",
+                                        e,
+                                        json_state
+                                    );
                                 }
                             }
                         }
