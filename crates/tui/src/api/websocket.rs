@@ -36,7 +36,7 @@ impl TaskStreamConnection {
         sender: TaskUpdateSender,
     ) -> Result<()> {
         let ws_url = format!(
-            "{}/tasks/stream/ws?project_id={}",
+            "{}/api/tasks/stream/ws?project_id={}",
             base_url.replace("http://", "ws://"),
             project_id
         );
