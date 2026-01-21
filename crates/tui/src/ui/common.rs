@@ -26,13 +26,15 @@ pub fn render_header(frame: &mut Frame, area: Rect, state: &AppState) {
 fn render_header_with_logo(frame: &mut Frame, area: Rect, state: &AppState) {
     let (project_info, project_name) = match &state.selected_project_id {
         Some(id) => {
+            // Try to find the project name in the projects list, otherwise use the id directly
+            // (in standalone mode, the projects list is empty and id is the project name)
             let name = state
                 .projects
                 .projects
                 .iter()
                 .find(|p| &p.id == id)
                 .map(|p| p.name.as_str())
-                .unwrap_or("Unknown");
+                .unwrap_or(id.as_str());
             (format!("Project: {}", name), Some(name.to_string()))
         }
         None => (String::new(), None),
@@ -99,13 +101,15 @@ fn render_header_with_logo(frame: &mut Frame, area: Rect, state: &AppState) {
 fn render_header_compact(frame: &mut Frame, area: Rect, state: &AppState) {
     let title = match &state.selected_project_id {
         Some(id) => {
+            // Try to find the project name in the projects list, otherwise use the id directly
+            // (in standalone mode, the projects list is empty and id is the project name)
             let project_name = state
                 .projects
                 .projects
                 .iter()
                 .find(|p| &p.id == id)
                 .map(|p| p.name.as_str())
-                .unwrap_or("Unknown");
+                .unwrap_or(id.as_str());
             format!(" vibe - {} ", project_name)
         }
         None => " vibe ".to_string(),
