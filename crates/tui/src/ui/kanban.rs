@@ -14,6 +14,7 @@ pub fn render_kanban_board(
     tasks: &TasksState,
     worktrees: &WorktreesState,
     sessions: &SessionsState,
+    spinner_char: char,
 ) {
     // Split into 4 columns (Backlog, In Progress, In Review, Done)
     let columns = Layout::default()
@@ -28,7 +29,7 @@ pub fn render_kanban_board(
 
     for (i, status) in TaskStatus::VISIBLE.iter().enumerate() {
         let is_selected = tasks.selected_column == i;
-        render_column(frame, columns[i], tasks, worktrees, sessions, *status, is_selected);
+        render_column(frame, columns[i], tasks, worktrees, sessions, *status, is_selected, spinner_char);
     }
 }
 
@@ -40,6 +41,7 @@ fn render_column(
     sessions: &SessionsState,
     status: TaskStatus,
     is_selected: bool,
+    spinner_char: char,
 ) {
     let tasks = tasks_state.tasks_in_column(status);
     let count = tasks.len();
@@ -56,8 +58,21 @@ fn render_column(
     let items: Vec<ListItem> = tasks
         .iter()
         .map(|task| {
-            // Row 1: Worktree/session status
+            // Row 1: Worktree/session status + activity indicator
             let mut row1_spans: Vec<Span> = vec![];
+
+            // Activity indicator for in-progress tasks
+            if task.has_in_progress_attempt {
+                row1_spans.push(Span::styled(
+                    format!("[{}] ", spinner_char),
+                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                ));
+            } else if task.last_attempt_failed {
+                row1_spans.push(Span::styled(
+                    "[!] ",
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                ));
+            }
 
             // Try to find matching worktree by task title (simplified matching)
             let task_slug = task.title.to_lowercase().replace(' ', "-");
@@ -74,7 +89,7 @@ fn render_column(
                     wt.branch.clone()
                 };
                 row1_spans.push(Span::styled(
-                    format!(" {}", branch_display),
+                    branch_display,
                     Style::default().fg(Color::Cyan),
                 ));
 
@@ -86,8 +101,8 @@ fn render_column(
                         row1_spans.push(Span::styled(" ", Style::default().fg(Color::Green)));
                     }
                 }
-            } else {
-                row1_spans.push(Span::styled(" no worktree", Style::default().fg(Color::DarkGray)));
+            } else if !task.has_in_progress_attempt && !task.last_attempt_failed {
+                row1_spans.push(Span::styled("no worktree", Style::default().fg(Color::DarkGray)));
             }
 
             // Row 2: Title + status indicators

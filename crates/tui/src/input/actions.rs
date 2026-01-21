@@ -43,4 +43,7 @@ pub enum Action {
 
     // Refresh
     Refresh,
+
+    // Linear integration
+    SyncLinear,
 }

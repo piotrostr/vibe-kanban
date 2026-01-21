@@ -144,7 +144,7 @@ fn create_launcher_script(session_name: &str, claude_cmd: &str) -> Result<std::p
     // Launcher script that wt switch -x will execute
     let launcher_path = script_dir.join(format!("{}-launch.sh", session_name));
     let launcher_script = format!(
-        "#!/bin/zsh\nexport SHELL={}\nexec zellij -s {}\n",
+        "#!/bin/zsh\nSHELL={} zellij -s {}\n",
         shell_script_path.display(),
         session_name
     );

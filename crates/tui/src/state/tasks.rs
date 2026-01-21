@@ -94,6 +94,30 @@ pub struct Task {
     pub pr_has_conflicts: Option<bool>,
 }
 
+impl Task {
+    /// Compute the effective display status based on PR status.
+    /// - PR merged -> Done
+    /// - PR closed -> Cancelled (maps to Done column)
+    /// - PR open (not draft) -> InReview
+    /// - Otherwise, use the task's stored status
+    pub fn effective_status(&self) -> TaskStatus {
+        if let Some(ref pr_status) = self.pr_status {
+            match pr_status.as_str() {
+                "merged" => return TaskStatus::Done,
+                "closed" => return TaskStatus::Cancelled,
+                "open" => {
+                    // Draft PRs stay in their current status
+                    if self.pr_is_draft != Some(true) {
+                        return TaskStatus::Inreview;
+                    }
+                }
+                _ => {}
+            }
+        }
+        self.status
+    }
+}
+
 const NUM_VISIBLE_COLUMNS: usize = 4;
 
 pub struct TasksState {
@@ -125,7 +149,7 @@ impl TasksState {
         let column_index = status.column_index();
         self.tasks
             .iter()
-            .filter(|t| t.status.column_index() == column_index)
+            .filter(|t| t.effective_status().column_index() == column_index)
             .filter(|t| {
                 if self.search_filter.is_empty() {
                     return true;

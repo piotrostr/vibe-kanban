@@ -1,6 +1,7 @@
 use anyhow::Result;
 use crossterm::event::Event;
 use ratatui::layout::{Constraint, Direction, Layout};
+use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
 use crate::api::{
@@ -10,15 +11,18 @@ use crate::api::{
 use crate::external::{
     attach_zellij_foreground, edit_markdown, launch_zellij_claude_in_worktree,
     launch_zellij_claude_in_worktree_with_context, list_prs, list_sessions_with_status,
-    list_worktrees, select_pr_with_fzf,
+    list_worktrees, select_pr_with_fzf, WorktreeInfo, ZellijSession,
 };
 use crate::input::{extract_key_event, key_to_action, Action, EventStream};
-use crate::state::{AppState, Modal, View};
+use crate::state::{check_linear_api_key, AppState, Modal, View};
 use crate::terminal::Terminal;
 use crate::ui::{
     render_footer, render_header, render_help_modal, render_kanban_board, render_project_list,
     render_sessions, render_task_detail_with_actions, render_worktrees,
 };
+
+type WorktreeResult = Result<Vec<WorktreeInfo>, String>;
+type SessionResult = Result<Vec<ZellijSession>, String>;
 
 pub struct App {
     state: AppState,
@@ -28,6 +32,12 @@ pub struct App {
     ws_task: Option<JoinHandle<()>>,
     task_receiver: Option<TaskUpdateReceiver>,
     last_session_poll: std::time::Instant,
+    last_animation_tick: std::time::Instant,
+    // Background loading channels
+    worktree_receiver: mpsc::Receiver<WorktreeResult>,
+    worktree_sender: mpsc::Sender<WorktreeResult>,
+    session_receiver: mpsc::Receiver<SessionResult>,
+    session_sender: mpsc::Sender<SessionResult>,
 }
 
 impl App {
@@ -43,6 +53,28 @@ impl App {
         let projects = api.get_projects().await?;
         state.projects.set_projects(projects);
 
+        // Create background loading channels
+        let (worktree_sender, worktree_receiver) = mpsc::channel(4);
+        let (session_sender, session_receiver) = mpsc::channel(4);
+
+        // Mark as loading immediately so UI shows loading state
+        state.worktrees.loading = true;
+        state.sessions.loading = true;
+
+        // Spawn immediate background load for worktrees
+        let wt_sender = worktree_sender.clone();
+        tokio::task::spawn_blocking(move || {
+            let result = list_worktrees().map_err(|e| e.to_string());
+            let _ = wt_sender.blocking_send(result);
+        });
+
+        // Spawn immediate background load for sessions
+        let sess_sender = session_sender.clone();
+        tokio::task::spawn_blocking(move || {
+            let result = list_sessions_with_status().map_err(|e| e.to_string());
+            let _ = sess_sender.blocking_send(result);
+        });
+
         Ok(Self {
             state,
             api,
@@ -51,21 +83,37 @@ impl App {
             ws_task: None,
             task_receiver: None,
             last_session_poll: std::time::Instant::now(),
+            last_animation_tick: std::time::Instant::now(),
+            worktree_receiver,
+            worktree_sender,
+            session_receiver,
+            session_sender,
         })
     }
 
     pub async fn run(&mut self, terminal: &mut Terminal) -> Result<()> {
         // Poll session status every 5 seconds
         const SESSION_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
+        // Tick animation every 250ms for smooth spinner
+        const ANIMATION_TICK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
 
         loop {
             // Check for WebSocket updates
             self.check_ws_updates();
 
-            // Poll session status periodically (non-blocking)
+            // Check for background load results (worktrees, sessions)
+            self.check_background_loads();
+
+            // Poll session status periodically (non-blocking background refresh)
             if self.last_session_poll.elapsed() >= SESSION_POLL_INTERVAL {
-                self.poll_sessions();
+                self.poll_sessions_async();
                 self.last_session_poll = std::time::Instant::now();
+            }
+
+            // Tick animation for spinners
+            if self.last_animation_tick.elapsed() >= ANIMATION_TICK_INTERVAL {
+                self.state.tick_animation();
+                self.last_animation_tick = std::time::Instant::now();
             }
 
             // Render
@@ -98,6 +146,38 @@ impl App {
         }
     }
 
+    fn check_background_loads(&mut self) {
+        // Non-blocking check for worktree results
+        while let Ok(result) = self.worktree_receiver.try_recv() {
+            match result {
+                Ok(worktrees) => {
+                    self.state.worktrees.set_worktrees(worktrees);
+                    self.state.worktrees.loading = false;
+                    self.state.worktrees.error = None;
+                }
+                Err(e) => {
+                    self.state.worktrees.error = Some(e);
+                    self.state.worktrees.loading = false;
+                }
+            }
+        }
+
+        // Non-blocking check for session results
+        while let Ok(result) = self.session_receiver.try_recv() {
+            match result {
+                Ok(sessions) => {
+                    self.state.sessions.set_sessions(sessions);
+                    self.state.sessions.loading = false;
+                    self.state.sessions.error = None;
+                }
+                Err(e) => {
+                    self.state.sessions.error = Some(e);
+                    self.state.sessions.loading = false;
+                }
+            }
+        }
+    }
+
     fn render(&mut self, terminal: &mut Terminal) -> Result<()> {
         terminal.draw(|frame| {
             let chunks = Layout::default()
@@ -122,6 +202,7 @@ impl App {
                         &self.state.tasks,
                         &self.state.worktrees,
                         &self.state.sessions,
+                        self.state.spinner_char(),
                     );
                 }
                 View::TaskDetail => {
@@ -264,6 +345,10 @@ impl App {
                 self.state.search_query.clear();
                 self.state.tasks.search_filter.clear();
             }
+
+            Action::SyncLinear => {
+                self.handle_sync_linear().await?;
+            }
         }
 
         Ok(())
@@ -334,6 +419,10 @@ impl App {
             View::Projects => {
                 if let Some(project) = self.state.projects.selected() {
                     let project_id = project.id.clone();
+                    let project_name = project.name.clone();
+
+                    // Check if Linear API key env var is available
+                    self.state.linear_api_key_available = check_linear_api_key(&project_name);
 
                     // Load tasks for this project
                     self.state.tasks.loading = true;
@@ -579,19 +668,20 @@ impl App {
     }
 
     fn load_worktrees(&mut self) {
+        // Skip if already loading
+        if self.state.worktrees.loading {
+            return;
+        }
+
         self.state.worktrees.loading = true;
         self.state.worktrees.error = None;
 
-        match list_worktrees() {
-            Ok(worktrees) => {
-                self.state.worktrees.set_worktrees(worktrees);
-                self.state.worktrees.loading = false;
-            }
-            Err(e) => {
-                self.state.worktrees.error = Some(e.to_string());
-                self.state.worktrees.loading = false;
-            }
-        }
+        // Spawn background task
+        let sender = self.worktree_sender.clone();
+        tokio::task::spawn_blocking(move || {
+            let result = list_worktrees().map_err(|e| e.to_string());
+            let _ = sender.blocking_send(result);
+        });
     }
 
     async fn handle_show_sessions(&mut self) -> Result<()> {
@@ -601,31 +691,31 @@ impl App {
     }
 
     fn load_sessions(&mut self) {
+        // Skip if already loading
+        if self.state.sessions.loading {
+            return;
+        }
+
         self.state.sessions.loading = true;
         self.state.sessions.error = None;
 
-        match list_sessions_with_status() {
-            Ok(sessions) => {
-                self.state.sessions.set_sessions(sessions);
-                self.state.sessions.loading = false;
-            }
-            Err(e) => {
-                self.state.sessions.error = Some(e.to_string());
-                self.state.sessions.loading = false;
-            }
-        }
+        // Spawn background task
+        let sender = self.session_sender.clone();
+        tokio::task::spawn_blocking(move || {
+            let result = list_sessions_with_status().map_err(|e| e.to_string());
+            let _ = sender.blocking_send(result);
+        });
     }
 
-    fn poll_sessions(&mut self) {
-        // Only poll if sessions have been loaded at least once
-        if self.state.sessions.sessions.is_empty() && self.state.worktrees.worktrees.is_empty() {
-            // Initial load of worktrees and sessions
-            self.load_worktrees();
-        }
-
-        // Update session status (checks for attention needed)
-        if let Ok(sessions) = list_sessions_with_status() {
-            self.state.sessions.set_sessions(sessions);
+    fn poll_sessions_async(&mut self) {
+        // Spawn background task to refresh session status
+        // Only if not already loading (avoid stacking requests)
+        if !self.state.sessions.loading {
+            let sender = self.session_sender.clone();
+            tokio::task::spawn_blocking(move || {
+                let result = list_sessions_with_status().map_err(|e| e.to_string());
+                let _ = sender.blocking_send(result);
+            });
         }
     }
 
@@ -836,6 +926,38 @@ impl App {
             tracing::info!("Killed session {}", session.name);
             // Refresh the sessions list
             self.load_sessions();
+        }
+
+        Ok(())
+    }
+
+    async fn handle_sync_linear(&mut self) -> Result<()> {
+        if !self.state.linear_api_key_available {
+            tracing::warn!("Linear API key not available");
+            return Ok(());
+        }
+
+        let Some(project_id) = self.state.selected_project_id.clone() else {
+            tracing::warn!("No project selected for Linear sync");
+            return Ok(());
+        };
+
+        tracing::info!("Syncing Linear backlog for project {}", project_id);
+
+        match self.api.sync_linear_backlog(&project_id).await {
+            Ok(response) => {
+                tracing::info!(
+                    "Linear sync complete: {} synced, {} created, {} updated",
+                    response.synced_count,
+                    response.created_count,
+                    response.updated_count
+                );
+                // Refresh tasks to show newly synced items
+                self.refresh().await?;
+            }
+            Err(e) => {
+                tracing::error!("Failed to sync Linear backlog: {}", e);
+            }
         }
 
         Ok(())

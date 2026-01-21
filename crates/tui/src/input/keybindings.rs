@@ -90,6 +90,9 @@ fn kanban_bindings(key: KeyEvent) -> Option<Action> {
         KeyCode::Char('W') => Some(Action::CreateWorktree),
         KeyCode::Char('S') => Some(Action::ShowSessions),
 
+        // Linear sync
+        KeyCode::Char('L') => Some(Action::SyncLinear),
+
         // Refresh
         KeyCode::Char('r') => Some(Action::Refresh),
 
