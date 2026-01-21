@@ -771,13 +771,31 @@ pub async fn pull_from_linear(
     let linear_issue_id = existing_task
         .linear_issue_id
         .as_ref()
-        .ok_or_else(|| ApiError::BadRequest("Task is not linked to a Linear issue".to_string()))?;
+        .ok_or_else(|| {
+            tracing::error!(
+                "Linear pull failed for task {}: task is not linked to a Linear issue",
+                existing_task.id
+            );
+            ApiError::BadRequest("Task is not linked to a Linear issue".to_string())
+        })?;
 
     let project = Project::find_by_id(&deployment.db().pool, existing_task.project_id)
         .await?
-        .ok_or(ProjectError::ProjectNotFound)?;
+        .ok_or_else(|| {
+            tracing::error!(
+                "Linear pull failed for task {}: project {} not found",
+                existing_task.id,
+                existing_task.project_id
+            );
+            ProjectError::ProjectNotFound
+        })?;
 
     let api_key = project.linear_api_key.ok_or_else(|| {
+        tracing::error!(
+            "Linear pull failed for task {}: project {} does not have a Linear API key configured",
+            existing_task.id,
+            project.id
+        );
         ApiError::BadRequest("Project does not have a Linear API key configured".to_string())
     })?;
 
@@ -785,8 +803,23 @@ pub async fn pull_from_linear(
     let issue = client
         .fetch_issue(linear_issue_id)
         .await
-        .map_err(|e| ApiError::BadRequest(format!("Failed to fetch Linear issue: {}", e)))?
-        .ok_or_else(|| ApiError::BadRequest("Linear issue not found".to_string()))?;
+        .map_err(|e| {
+            tracing::error!(
+                "Linear pull failed for task {}: failed to fetch Linear issue {}: {}",
+                existing_task.id,
+                linear_issue_id,
+                e
+            );
+            ApiError::BadRequest(format!("Failed to fetch Linear issue: {}", e))
+        })?
+        .ok_or_else(|| {
+            tracing::error!(
+                "Linear pull failed for task {}: Linear issue {} not found",
+                existing_task.id,
+                linear_issue_id
+            );
+            ApiError::BadRequest("Linear issue not found".to_string())
+        })?;
 
     let new_status = linear_state_type_to_task_status(&issue.state.state_type);
 

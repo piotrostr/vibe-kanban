@@ -8,12 +8,25 @@ pub fn key_to_action(
     view: View,
     in_modal: bool,
     search_active: bool,
+    logs_overlay_visible: bool,
 ) -> Option<Action> {
     // Modal-specific bindings
     if in_modal {
         return match key.code {
             KeyCode::Esc => Some(Action::Back),
             KeyCode::Enter => Some(Action::Select),
+            _ => None,
+        };
+    }
+
+    // Logs overlay bindings - Shift+I toggles, j/k scroll, Esc closes
+    if logs_overlay_visible {
+        return match (key.code, key.modifiers) {
+            (KeyCode::Char('I'), KeyModifiers::SHIFT) => Some(Action::ShowLogs),
+            (KeyCode::Char('j') | KeyCode::Down, _) => Some(Action::Down),
+            (KeyCode::Char('k') | KeyCode::Up, _) => Some(Action::Up),
+            (KeyCode::Char('r'), KeyModifiers::NONE) => Some(Action::Refresh),
+            (KeyCode::Esc, _) => Some(Action::ShowLogs), // Close overlay
             _ => None,
         };
     }

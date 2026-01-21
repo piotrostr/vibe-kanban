@@ -69,6 +69,8 @@ impl AppState {
             animation_frame: 0,
 
             linear_api_key_available: false,
+
+            logs_overlay_visible: false,
         }
     }
 

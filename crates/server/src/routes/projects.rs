@@ -563,6 +563,10 @@ pub async fn validate_linear_assignee(
         .clone()
         .or_else(|| get_linear_api_key_from_env(&project.name))
         .ok_or_else(|| {
+            tracing::error!(
+                "Linear assignee validation failed for project {}: API key not configured",
+                project.id
+            );
             ApiError::BadRequest("Linear API key not configured for this project".to_string())
         })?;
 
@@ -601,6 +605,10 @@ pub async fn sync_linear_backlog(
         .clone()
         .or_else(|| get_linear_api_key_from_env(&project.name))
         .ok_or_else(|| {
+            tracing::error!(
+                "Linear sync failed for project {}: API key not configured",
+                project.id
+            );
             ApiError::BadRequest("Linear API key not configured for this project".to_string())
         })?;
 

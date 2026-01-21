@@ -14,7 +14,8 @@ use crate::storage::TaskStorage;
 use crate::terminal::Terminal;
 use crate::ui::{
     render_footer, render_header, render_help_modal, render_kanban_board, render_logs,
-    render_search, render_sessions, render_task_detail_with_actions, render_worktrees,
+    render_logs_overlay, render_search, render_sessions, render_task_detail_with_actions,
+    render_worktrees,
 };
 
 type WorktreeResult = Result<Vec<WorktreeInfo>, String>;
@@ -256,6 +257,11 @@ impl App {
 
             render_footer(frame, chunks[2], &self.state);
 
+            // Render logs overlay if visible (on top of everything except help modal)
+            if self.state.logs_overlay_visible {
+                render_logs_overlay(frame, frame.area(), &self.state.logs);
+            }
+
             // Render modal if present
             if let Some(Modal::Help) = &self.state.modal {
                 render_help_modal(frame, frame.area());
@@ -271,8 +277,13 @@ impl App {
         };
 
         let in_modal = self.state.modal.is_some();
-        let Some(action) = key_to_action(key, self.state.view, in_modal, self.state.search_active)
-        else {
+        let Some(action) = key_to_action(
+            key,
+            self.state.view,
+            in_modal,
+            self.state.search_active,
+            self.state.logs_overlay_visible,
+        ) else {
             return Ok(());
         };
 
@@ -314,7 +325,12 @@ impl App {
                 self.handle_select(terminal).await?;
             }
             Action::Refresh => {
-                self.refresh()?;
+                // If logs overlay is visible, refresh logs
+                if self.state.logs_overlay_visible {
+                    self.state.logs.refresh();
+                } else {
+                    self.refresh()?;
+                }
             }
             Action::EditTask => {
                 self.handle_edit_task(terminal)?;
@@ -406,8 +422,11 @@ impl App {
     }
 
     fn handle_show_logs(&mut self) {
-        self.state.logs.load_logs();
-        self.state.view = View::Logs;
+        // Toggle logs overlay
+        self.state.logs_overlay_visible = !self.state.logs_overlay_visible;
+        if self.state.logs_overlay_visible {
+            self.state.logs.load_logs();
+        }
     }
 
     fn handle_back(&mut self) {
@@ -432,6 +451,12 @@ impl App {
     }
 
     fn handle_up(&mut self) {
+        // If logs overlay is visible, scroll logs
+        if self.state.logs_overlay_visible {
+            self.state.logs.scroll_up();
+            return;
+        }
+
         match self.state.view {
             View::Projects => {}
             View::Kanban => {
@@ -456,6 +481,12 @@ impl App {
     }
 
     fn handle_down(&mut self) {
+        // If logs overlay is visible, scroll logs
+        if self.state.logs_overlay_visible {
+            self.state.logs.scroll_down();
+            return;
+        }
+
         match self.state.view {
             View::Projects => {}
             View::Kanban => {
