@@ -178,14 +178,22 @@ pub fn launch_zellij_claude_in_worktree(branch: &str, plan_mode: bool) -> Result
     };
 
     let launcher = create_launcher_script(&session_name, claude_cmd)?;
+    let launcher_path = launcher.to_str().unwrap();
 
-    // Use wt switch to create/switch worktree and execute launcher
+    // Try wt switch first (branch exists), fall back to --create (new branch)
     let status = Command::new("wt")
-        .args(["switch", "--create", branch, "-y", "-x", launcher.to_str().unwrap()])
-        .status()?;
+        .args(["switch", branch, "-y", "-x", launcher_path])
+        .status();
 
-    if !status.success() {
-        anyhow::bail!("wt switch failed");
+    if status.is_err() || !status.unwrap().success() {
+        // Branch doesn't exist, create it
+        let status = Command::new("wt")
+            .args(["switch", "--create", branch, "-y", "-x", launcher_path])
+            .status()?;
+
+        if !status.success() {
+            anyhow::bail!("wt switch failed");
+        }
     }
 
     Ok(())
@@ -233,14 +241,22 @@ pub fn launch_zellij_claude_in_worktree_with_context(
     };
 
     let launcher = create_launcher_script(&session_name, &claude_cmd)?;
+    let launcher_path = launcher.to_str().unwrap();
 
-    // Use wt switch to create/switch worktree and execute launcher
+    // Try wt switch first (branch exists), fall back to --create (new branch)
     let status = Command::new("wt")
-        .args(["switch", "--create", branch, "-y", "-x", launcher.to_str().unwrap()])
-        .status()?;
+        .args(["switch", branch, "-y", "-x", launcher_path])
+        .status();
 
-    if !status.success() {
-        anyhow::bail!("wt switch failed");
+    if status.is_err() || !status.unwrap().success() {
+        // Branch doesn't exist, create it
+        let status = Command::new("wt")
+            .args(["switch", "--create", branch, "-y", "-x", launcher_path])
+            .status()?;
+
+        if !status.success() {
+            anyhow::bail!("wt switch failed");
+        }
     }
 
     Ok(())
