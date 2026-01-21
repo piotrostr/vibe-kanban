@@ -7,30 +7,25 @@ edition = "2024"
 name = "vibe"
 path = "src/main.rs"
 
+[[bin]]
+name = "vibe-migrate"
+path = "src/bin/migrate.rs"
+
 [lints.clippy]
 uninlined-format-args = "allow"
 
 [dependencies]
-# Internal workspace deps
-db = { path = "../db" }
-server = { path = "../server" }
-utils = { path = "../utils" }
-
 # TUI framework
 ratatui = "0.29"
 crossterm = { version = "0.28", features = ["event-stream"] }
 
 # Async runtime
 tokio = { workspace = true }
-tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
-futures-util = "0.3"
-
-# HTTP client
-reqwest = { version = "0.12", features = ["json"] }
 
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = "0.9"
 
 # Error handling
 anyhow = { workspace = true }
@@ -40,12 +35,11 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
-# JSON Patch for WebSocket updates
-json-patch = "4.0"
-
 # Utilities
 uuid = { version = "1.0", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 dirs = "5"
 tempfile = "3"
 open = "5"
+glob = "0.3"
+rusqlite = "0.32"

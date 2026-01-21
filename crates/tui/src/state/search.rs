@@ -1,17 +1,9 @@
 use super::tasks::Task;
 
-/// Result item that can be searched
 #[derive(Debug, Clone)]
 pub struct SearchResult {
     pub id: String,
     pub title: String,
-    pub description: Option<String>,
-    pub result_type: SearchResultType,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SearchResultType {
-    Task,
 }
 
 impl SearchResult {
@@ -19,8 +11,6 @@ impl SearchResult {
         Self {
             id: task.id.clone(),
             title: task.title.clone(),
-            description: task.description.clone(),
-            result_type: SearchResultType::Task,
         }
     }
 }
@@ -58,12 +48,9 @@ impl SearchState {
     }
 
     pub fn delete_word(&mut self) {
-        // Delete backwards to the start of the previous word (like Ctrl-w in shell)
-        // First, skip trailing whitespace
         while self.query.ends_with(' ') {
             self.query.pop();
         }
-        // Then delete until whitespace or empty
         while !self.query.is_empty() && !self.query.ends_with(' ') {
             self.query.pop();
         }
@@ -83,7 +70,6 @@ impl SearchState {
 
     fn update_results(&mut self) {
         if self.query.is_empty() {
-            // Show all tasks when query is empty
             self.results = self
                 .all_tasks
                 .iter()
@@ -105,7 +91,6 @@ impl SearchState {
                 .collect();
         }
 
-        // Reset selection if out of bounds
         if self.selected_index >= self.results.len() {
             self.selected_index = 0;
         }

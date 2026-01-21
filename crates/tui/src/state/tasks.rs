@@ -12,17 +12,6 @@ pub enum TaskStatus {
 }
 
 impl TaskStatus {
-    // All statuses for serialization/backend
-    pub const ALL: [TaskStatus; 6] = [
-        TaskStatus::Backlog,
-        TaskStatus::Todo,
-        TaskStatus::Inprogress,
-        TaskStatus::Inreview,
-        TaskStatus::Done,
-        TaskStatus::Cancelled,
-    ];
-
-    // Visible columns in the TUI (skip Todo and Cancelled to save space)
     pub const VISIBLE: [TaskStatus; 4] = [
         TaskStatus::Backlog,
         TaskStatus::Inprogress,
@@ -41,15 +30,14 @@ impl TaskStatus {
         }
     }
 
-    // Column index for visible columns only
     pub fn column_index(&self) -> usize {
         match self {
             TaskStatus::Backlog => 0,
-            TaskStatus::Todo => 0, // Map to Backlog column
+            TaskStatus::Todo => 0,
             TaskStatus::Inprogress => 1,
             TaskStatus::Inreview => 2,
             TaskStatus::Done => 3,
-            TaskStatus::Cancelled => 3, // Map to Done column
+            TaskStatus::Cancelled => 3,
         }
     }
 
@@ -79,7 +67,6 @@ pub struct Task {
     pub created_at: String,
     pub updated_at: String,
 
-    // Attempt status fields
     #[serde(default)]
     pub has_in_progress_attempt: bool,
     #[serde(default)]
@@ -97,18 +84,12 @@ pub struct Task {
 use crate::external::BranchPrInfo;
 
 impl Task {
-    /// Compute the effective display status based on PR status.
-    /// - PR merged -> Done
-    /// - PR closed -> Cancelled (maps to Done column)
-    /// - PR open (not draft) -> InReview
-    /// - Otherwise, use the task's stored status
     pub fn effective_status(&self) -> TaskStatus {
         if let Some(ref pr_status) = self.pr_status {
             match pr_status.as_str() {
                 "merged" => return TaskStatus::Done,
                 "closed" => return TaskStatus::Cancelled,
                 "open" => {
-                    // Draft PRs stay in their current status
                     if self.pr_is_draft != Some(true) {
                         return TaskStatus::Inreview;
                     }
@@ -119,19 +100,15 @@ impl Task {
         self.status
     }
 
-    /// Compute effective status considering locally detected PR info and worktree
-    /// Priority: PR status > worktree exists > stored status
     pub fn effective_status_with_pr(
         &self,
         branch_pr: Option<&BranchPrInfo>,
         has_worktree: bool,
     ) -> TaskStatus {
-        // Backend PR info takes precedence
         if self.pr_status.is_some() {
             return self.effective_status();
         }
 
-        // Check locally detected PR
         if let Some(pr) = branch_pr {
             match pr.state.as_str() {
                 "MERGED" => return TaskStatus::Done,
@@ -140,7 +117,6 @@ impl Task {
                     if !pr.is_draft {
                         return TaskStatus::Inreview;
                     }
-                    // Draft PR with worktree -> In Progress
                     if has_worktree {
                         return TaskStatus::Inprogress;
                     }
@@ -149,7 +125,6 @@ impl Task {
             }
         }
 
-        // Worktree exists means we're working on it -> In Progress
         if has_worktree {
             return TaskStatus::Inprogress;
         }
@@ -164,7 +139,6 @@ pub struct TasksState {
     pub tasks: Vec<Task>,
     pub selected_column: usize,
     pub selected_card_per_column: [usize; NUM_VISIBLE_COLUMNS],
-    pub loading: bool,
     pub search_filter: String,
 }
 
@@ -172,24 +146,17 @@ impl TasksState {
     pub fn new() -> Self {
         Self {
             tasks: Vec::new(),
-            selected_column: 0, // Start on Backlog
+            selected_column: 0,
             selected_card_per_column: [0; NUM_VISIBLE_COLUMNS],
-            loading: false,
             search_filter: String::new(),
         }
     }
 
     pub fn set_tasks(&mut self, tasks: Vec<Task>) {
         self.tasks = tasks;
-        // Reset card selections
         self.selected_card_per_column = [0; NUM_VISIBLE_COLUMNS];
     }
 
-    pub fn tasks_in_column(&self, status: TaskStatus) -> Vec<&Task> {
-        self.tasks_in_column_with_prs(status, &std::collections::HashMap::new(), &[])
-    }
-
-    /// Get tasks in a column, considering locally detected PR status for transitions
     pub fn tasks_in_column_with_prs(
         &self,
         status: TaskStatus,
@@ -200,7 +167,6 @@ impl TasksState {
         self.tasks
             .iter()
             .filter(|t| {
-                // Find matching worktree for this task
                 let task_slug = t.title.to_lowercase().replace(' ', "-");
                 let matching_branch = worktrees.iter().find(|w| {
                     w.branch.to_lowercase().contains(&task_slug)
@@ -224,10 +190,6 @@ impl TasksState {
             .collect()
     }
 
-    pub fn selected_task(&self) -> Option<&Task> {
-        self.selected_task_with_prs(&std::collections::HashMap::new(), &[])
-    }
-
     pub fn selected_task_with_prs(
         &self,
         branch_prs: &std::collections::HashMap<String, BranchPrInfo>,
@@ -237,10 +199,6 @@ impl TasksState {
         let tasks = self.tasks_in_column_with_prs(status, branch_prs, worktrees);
         let card_index = self.selected_card_per_column[self.selected_column];
         tasks.get(card_index).copied()
-    }
-
-    pub fn select_next_card(&mut self) {
-        self.select_next_card_with_prs(&std::collections::HashMap::new(), &[]);
     }
 
     pub fn select_next_card_with_prs(
@@ -255,10 +213,6 @@ impl TasksState {
                 self.selected_card_per_column[self.selected_column] = (current + 1) % count;
             }
         }
-    }
-
-    pub fn select_prev_card(&mut self) {
-        self.select_prev_card_with_prs(&std::collections::HashMap::new(), &[]);
     }
 
     pub fn select_prev_card_with_prs(
@@ -340,7 +294,6 @@ mod tests {
         task.pr_url = Some("https://github.com/org/repo/pull/1".to_string());
         task.pr_status = Some("open".to_string());
         task.pr_is_draft = Some(false);
-        // Open non-draft PR should move to In Review
         assert_eq!(task.effective_status(), TaskStatus::Inreview);
     }
 
@@ -350,7 +303,6 @@ mod tests {
         task.pr_url = Some("https://github.com/org/repo/pull/1".to_string());
         task.pr_status = Some("open".to_string());
         task.pr_is_draft = Some(true);
-        // Draft PR should stay in current status
         assert_eq!(task.effective_status(), TaskStatus::Inprogress);
     }
 
@@ -359,7 +311,6 @@ mod tests {
         let mut task = make_task(TaskStatus::Inprogress);
         task.pr_url = Some("https://github.com/org/repo/pull/1".to_string());
         task.pr_status = Some("merged".to_string());
-        // Merged PR should move to Done
         assert_eq!(task.effective_status(), TaskStatus::Done);
     }
 
@@ -368,7 +319,6 @@ mod tests {
         let mut task = make_task(TaskStatus::Inprogress);
         task.pr_url = Some("https://github.com/org/repo/pull/1".to_string());
         task.pr_status = Some("closed".to_string());
-        // Closed PR should move to Cancelled
         assert_eq!(task.effective_status(), TaskStatus::Cancelled);
     }
 
@@ -390,18 +340,18 @@ mod tests {
 
         state.set_tasks(vec![task1, task2, task3]);
 
-        // In Progress column should only have task1 (no PR)
-        let in_progress = state.tasks_in_column(TaskStatus::Inprogress);
+        let empty_prs = std::collections::HashMap::new();
+        let empty_wt: Vec<crate::external::WorktreeInfo> = vec![];
+
+        let in_progress = state.tasks_in_column_with_prs(TaskStatus::Inprogress, &empty_prs, &empty_wt);
         assert_eq!(in_progress.len(), 1);
         assert_eq!(in_progress[0].id, "task1");
 
-        // In Review column should have task2 (open PR)
-        let in_review = state.tasks_in_column(TaskStatus::Inreview);
+        let in_review = state.tasks_in_column_with_prs(TaskStatus::Inreview, &empty_prs, &empty_wt);
         assert_eq!(in_review.len(), 1);
         assert_eq!(in_review[0].id, "task2");
 
-        // Done column should have task3 (merged PR)
-        let done = state.tasks_in_column(TaskStatus::Done);
+        let done = state.tasks_in_column_with_prs(TaskStatus::Done, &empty_prs, &empty_wt);
         assert_eq!(done.len(), 1);
         assert_eq!(done[0].id, "task3");
     }

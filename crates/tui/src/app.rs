@@ -2,37 +2,29 @@ use anyhow::Result;
 use crossterm::event::Event;
 use ratatui::layout::{Constraint, Direction, Layout};
 use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 
-use crate::api::{
-    create_task_channel, ApiClient, CreateTask, CreateTaskAttemptRepoRequest,
-    CreateTaskAttemptRequest, TaskStreamConnection, TaskUpdateReceiver, UpdateTask,
-};
 use crate::external::{
     attach_zellij_foreground, edit_markdown, get_pr_for_branch, launch_zellij_claude_in_worktree,
-    launch_zellij_claude_in_worktree_with_context, list_prs, list_sessions_with_status,
-    list_worktrees, select_pr_with_fzf, BranchPrInfo, WorktreeInfo, ZellijSession,
+    launch_zellij_claude_in_worktree_with_context, list_sessions_with_status, list_worktrees,
+    BranchPrInfo, WorktreeInfo, ZellijSession,
 };
 use crate::input::{extract_key_event, key_to_action, Action, EventStream};
 use crate::state::{check_linear_api_key, AppState, Modal, View};
+use crate::storage::TaskStorage;
 use crate::terminal::Terminal;
 use crate::ui::{
     render_footer, render_header, render_help_modal, render_kanban_board, render_logs,
-    render_project_list, render_search, render_sessions, render_task_detail_with_actions,
-    render_worktrees,
+    render_search, render_sessions, render_task_detail_with_actions, render_worktrees,
 };
 
 type WorktreeResult = Result<Vec<WorktreeInfo>, String>;
 type SessionResult = Result<Vec<ZellijSession>, String>;
-type BranchPrResult = (String, Option<BranchPrInfo>); // (branch_name, pr_info)
+type BranchPrResult = (String, Option<BranchPrInfo>);
 
 pub struct App {
     state: AppState,
-    api: ApiClient,
+    storage: TaskStorage,
     events: EventStream,
-    port: u16,
-    ws_task: Option<JoinHandle<()>>,
-    task_receiver: Option<TaskUpdateReceiver>,
     last_session_poll: std::time::Instant,
     last_animation_tick: std::time::Instant,
     last_pr_poll: std::time::Instant,
@@ -46,59 +38,24 @@ pub struct App {
 }
 
 impl App {
-    pub async fn new(port: u16) -> Result<Self> {
-        let api = ApiClient::new(port);
+    pub fn new() -> Result<Self> {
+        // Create storage from current directory
+        let storage = TaskStorage::from_cwd()?;
+        let project_name = storage.project_name().to_string();
+
         let mut state = AppState::new();
 
-        // Verify connection
-        api.health_check().await?;
-        state.backend_connected = true;
+        // Check if Linear API key env var is available
+        state.linear_api_key_available = check_linear_api_key(&project_name);
 
-        // Load initial data
-        let projects = api.get_projects().await?;
-        state.projects.set_projects(projects.clone());
+        // Load tasks from files
+        let tasks = storage.list_tasks()?;
+        state.tasks.set_tasks(tasks);
 
-        // Check if we're in a project directory - if so, auto-select it
-        let cwd = std::env::current_dir().ok();
-        let mut auto_selected_project: Option<(String, String)> = None;
-
-        if let Some(ref cwd) = cwd {
-            for project in &projects {
-                if let Some(ref dir) = project.default_agent_working_dir {
-                    let project_path = if dir.starts_with('/') {
-                        std::path::PathBuf::from(dir)
-                    } else if dir.starts_with('~') {
-                        if let Some(home) = dirs::home_dir() {
-                            home.join(&dir[2..])
-                        } else {
-                            continue;
-                        }
-                    } else {
-                        // Bare name like "vibe-kanban" -> ~/vibe-kanban
-                        if let Some(home) = dirs::home_dir() {
-                            home.join(dir)
-                        } else {
-                            continue;
-                        }
-                    };
-
-                    // Check if cwd is the project dir or a subdirectory of it
-                    if cwd.starts_with(&project_path) {
-                        auto_selected_project =
-                            Some((project.id.clone(), project.name.clone()));
-                        break;
-                    }
-                }
-            }
-        }
-
-        // If we found a matching project, auto-select it and load tasks
-        if let Some((project_id, project_name)) = auto_selected_project {
-            state.linear_api_key_available = check_linear_api_key(&project_name);
-            let tasks = api.get_tasks(&project_id).await?;
-            state.tasks.set_tasks(tasks);
-            state.select_project(project_id);
-        }
+        // No project selection - we're already in the project
+        state.selected_project_id = Some(project_name.clone());
+        state.view = View::Kanban;
+        state.backend_connected = true; // File-based, always "connected"
 
         // Create background loading channels
         let (worktree_sender, worktree_receiver) = mpsc::channel(4);
@@ -125,11 +82,8 @@ impl App {
 
         Ok(Self {
             state,
-            api,
+            storage,
             events: EventStream::new(),
-            port,
-            ws_task: None,
-            task_receiver: None,
             last_session_poll: std::time::Instant::now(),
             last_animation_tick: std::time::Instant::now(),
             last_pr_poll: std::time::Instant::now(),
@@ -150,15 +104,7 @@ impl App {
         // Tick animation every 250ms for smooth spinner
         const ANIMATION_TICK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
 
-        // If a project was auto-selected (we're in kanban view), start WebSocket
-        if let Some(project_id) = self.state.selected_project_id.clone() {
-            self.start_ws_stream(&project_id);
-        }
-
         loop {
-            // Check for WebSocket updates
-            self.check_ws_updates();
-
             // Check for background load results (worktrees, sessions, PRs)
             self.check_background_loads();
 
@@ -193,21 +139,7 @@ impl App {
             }
         }
 
-        // Cleanup WebSocket task
-        if let Some(task) = self.ws_task.take() {
-            task.abort();
-        }
-
         Ok(())
-    }
-
-    fn check_ws_updates(&mut self) {
-        if let Some(ref mut receiver) = self.task_receiver {
-            // Non-blocking check for updates
-            while let Ok(tasks) = receiver.try_recv() {
-                self.state.tasks.set_tasks(tasks);
-            }
-        }
     }
 
     fn check_background_loads(&mut self) {
@@ -286,7 +218,8 @@ impl App {
 
             match self.state.view {
                 View::Projects => {
-                    render_project_list(frame, chunks[1], &self.state.projects);
+                    // In standalone mode, skip project view - go back to kanban
+                    self.state.view = View::Kanban;
                 }
                 View::Kanban => {
                     render_kanban_board(
@@ -368,12 +301,6 @@ impl App {
             Action::Down => {
                 self.handle_down();
             }
-            Action::Left => {
-                self.handle_left();
-            }
-            Action::Right => {
-                self.handle_right();
-            }
             Action::NextRow => {
                 self.handle_next_row();
             }
@@ -387,19 +314,19 @@ impl App {
                 self.handle_select(terminal).await?;
             }
             Action::Refresh => {
-                self.refresh().await?;
+                self.refresh()?;
             }
             Action::EditTask => {
-                self.handle_edit_task(terminal).await?;
+                self.handle_edit_task(terminal)?;
             }
             Action::CreateTask => {
-                self.handle_create_task(terminal).await?;
+                self.handle_create_task(terminal)?;
             }
             Action::DeleteTask => {
-                self.handle_delete_task().await?;
+                self.handle_delete_task()?;
             }
             Action::ShowWorktrees => {
-                self.handle_show_worktrees().await?;
+                self.handle_show_worktrees()?;
             }
             Action::CreateWorktree => {
                 // TODO: Implement worktree creation modal
@@ -408,7 +335,7 @@ impl App {
                 // TODO: Implement worktree switching
             }
             Action::ShowSessions => {
-                self.handle_show_sessions().await?;
+                self.handle_show_sessions()?;
             }
             Action::LaunchSession => {
                 self.handle_launch_session(terminal, false)?;
@@ -420,7 +347,8 @@ impl App {
                 self.handle_view_pr()?;
             }
             Action::BindPR => {
-                self.handle_bind_pr(terminal).await?;
+                // PR binding not available in standalone mode
+                tracing::info!("PR binding requires server mode");
             }
             Action::AttachSession => {
                 self.handle_attach_session(terminal)?;
@@ -455,16 +383,6 @@ impl App {
                     self.state.search.delete_word();
                 }
             }
-            Action::SearchConfirm => {
-                self.state.search_active = false;
-                // Apply filter to tasks
-                self.state.tasks.search_filter = self.state.search_query.clone();
-            }
-            Action::SearchCancel => {
-                self.state.search_active = false;
-                self.state.search_query.clear();
-                self.state.tasks.search_filter.clear();
-            }
             Action::ClearSearch => {
                 if self.state.view == View::Search {
                     self.state.search.clear_query();
@@ -475,7 +393,8 @@ impl App {
             }
 
             Action::SyncLinear => {
-                self.handle_sync_linear().await?;
+                // Linear sync not available in standalone mode yet
+                tracing::info!("Linear sync not yet implemented in standalone mode");
             }
 
             Action::ShowLogs => {
@@ -492,26 +411,35 @@ impl App {
     }
 
     fn handle_back(&mut self) {
-        // Stop WebSocket when leaving kanban view
-        if self.state.view == View::Kanban {
-            self.stop_ws_stream();
+        match self.state.view {
+            View::Projects | View::Kanban => {
+                // In standalone mode, quit from kanban
+                self.state.should_quit = true;
+            }
+            View::TaskDetail => {
+                self.state.selected_task_id = None;
+                self.state.view = View::Kanban;
+            }
+            View::Worktrees | View::Sessions | View::Logs => {
+                self.state.view = View::Kanban;
+            }
+            View::Search => {
+                self.state.search.clear();
+                self.state.search_active = false;
+                self.state.view = View::Kanban;
+            }
         }
-        self.state.back();
     }
 
     fn handle_up(&mut self) {
         match self.state.view {
-            View::Projects => {
-                self.state.projects.select_prev();
-            }
+            View::Projects => {}
             View::Kanban => {
                 let branch_prs = self.state.worktrees.branch_prs.clone();
                 let worktrees = self.state.worktrees.worktrees.clone();
                 self.state.tasks.select_prev_card_with_prs(&branch_prs, &worktrees);
             }
-            View::TaskDetail => {
-                // TODO: Scroll
-            }
+            View::TaskDetail => {}
             View::Worktrees => {
                 self.state.worktrees.select_prev();
             }
@@ -529,17 +457,13 @@ impl App {
 
     fn handle_down(&mut self) {
         match self.state.view {
-            View::Projects => {
-                self.state.projects.select_next();
-            }
+            View::Projects => {}
             View::Kanban => {
                 let branch_prs = self.state.worktrees.branch_prs.clone();
                 let worktrees = self.state.worktrees.worktrees.clone();
                 self.state.tasks.select_next_card_with_prs(&branch_prs, &worktrees);
             }
-            View::TaskDetail => {
-                // TODO: Scroll
-            }
+            View::TaskDetail => {}
             View::Worktrees => {
                 self.state.worktrees.select_next();
             }
@@ -552,18 +476,6 @@ impl App {
             View::Search => {
                 self.state.search.select_next();
             }
-        }
-    }
-
-    fn handle_left(&mut self) {
-        if self.state.view == View::Kanban {
-            self.state.tasks.select_prev_column();
-        }
-    }
-
-    fn handle_right(&mut self) {
-        if self.state.view == View::Kanban {
-            self.state.tasks.select_next_column();
         }
     }
 
@@ -599,24 +511,7 @@ impl App {
     async fn handle_select(&mut self, terminal: &mut Terminal) -> Result<()> {
         match self.state.view {
             View::Projects => {
-                if let Some(project) = self.state.projects.selected() {
-                    let project_id = project.id.clone();
-                    let project_name = project.name.clone();
-
-                    // Check if Linear API key env var is available
-                    self.state.linear_api_key_available = check_linear_api_key(&project_name);
-
-                    // Load tasks for this project
-                    self.state.tasks.loading = true;
-                    let tasks = self.api.get_tasks(&project_id).await?;
-                    self.state.tasks.set_tasks(tasks);
-                    self.state.tasks.loading = false;
-
-                    // Start WebSocket stream for real-time updates
-                    self.start_ws_stream(&project_id);
-
-                    self.state.select_project(project_id);
-                }
+                // In standalone mode, no project selection needed
             }
             View::Kanban => {
                 if let Some(task) = self.selected_task() {
@@ -654,52 +549,12 @@ impl App {
         Ok(())
     }
 
-    fn start_ws_stream(&mut self, project_id: &str) {
-        // Stop any existing stream
-        self.stop_ws_stream();
-
-        let (sender, receiver) = create_task_channel();
-        self.task_receiver = Some(receiver);
-
-        let base_url = format!("http://127.0.0.1:{}", self.port);
-        let project_id = project_id.to_string();
-
-        let task = tokio::spawn(async move {
-            loop {
-                match TaskStreamConnection::connect(&base_url, &project_id, sender.clone()).await {
-                    Ok(()) => {
-                        tracing::info!("WebSocket connection closed normally");
-                        break;
-                    }
-                    Err(e) => {
-                        tracing::warn!("WebSocket connection error: {}, reconnecting...", e);
-                        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-                    }
-                }
-            }
-        });
-
-        self.ws_task = Some(task);
-    }
-
-    fn stop_ws_stream(&mut self) {
-        if let Some(task) = self.ws_task.take() {
-            task.abort();
-        }
-        self.task_receiver = None;
-    }
-
-    async fn refresh(&mut self) -> Result<()> {
+    fn refresh(&mut self) -> Result<()> {
         match self.state.view {
-            View::Projects => {
-                let projects = self.api.get_projects().await?;
-                self.state.projects.set_projects(projects);
-            }
+            View::Projects => {}
             View::Kanban | View::TaskDetail => {
-                if let Some(project_id) = &self.state.selected_project_id {
-                    let tasks = self.api.get_tasks(project_id).await?;
-                    self.state.tasks.set_tasks(tasks);
-                }
+                let tasks = self.storage.list_tasks()?;
+                self.state.tasks.set_tasks(tasks);
             }
             View::Worktrees => {
                 self.load_worktrees();
@@ -711,19 +566,16 @@ impl App {
                 self.state.logs.refresh();
             }
             View::Search => {
-                // Refresh the underlying tasks in search
-                if let Some(project_id) = &self.state.selected_project_id {
-                    let tasks = self.api.get_tasks(project_id).await?;
-                    self.state.tasks.set_tasks(tasks.clone());
-                    self.state.search.set_tasks(tasks);
-                }
+                let tasks = self.storage.list_tasks()?;
+                self.state.tasks.set_tasks(tasks.clone());
+                self.state.search.set_tasks(tasks);
             }
         }
 
         Ok(())
     }
 
-    async fn handle_edit_task(&mut self, terminal: &mut Terminal) -> Result<()> {
+    fn handle_edit_task(&mut self, terminal: &mut Terminal) -> Result<()> {
         // Get the selected task
         let task_id = match self.state.view {
             View::TaskDetail => self.state.selected_task_id.clone(),
@@ -771,31 +623,22 @@ impl App {
             let title = title_line.trim_start_matches('#').trim().to_string();
             let description: String = lines.collect::<Vec<_>>().join("\n").trim().to_string();
 
-            let update = UpdateTask {
-                title: Some(title),
-                description: Some(if description.is_empty() {
-                    task.description.clone().unwrap_or_default()
-                } else {
-                    description
-                }),
-                status: None,
-                sync_to_linear: false,
+            let description = if description.is_empty() {
+                task.description.clone()
+            } else {
+                Some(description)
             };
 
-            self.api.update_task(&task_id, update).await?;
+            self.storage.update_task(&task_id, &title, description.as_deref())?;
 
             // Refresh to get updated data
-            self.refresh().await?;
+            self.refresh()?;
         }
 
         Ok(())
     }
 
-    async fn handle_create_task(&mut self, terminal: &mut Terminal) -> Result<()> {
-        let Some(project_id) = self.state.selected_project_id.clone() else {
-            return Ok(());
-        };
-
+    fn handle_create_task(&mut self, terminal: &mut Terminal) -> Result<()> {
         // Suspend terminal for editor
         terminal.suspend()?;
 
@@ -818,27 +661,22 @@ impl App {
                 return Ok(()); // Cancelled
             }
 
-            let create = CreateTask {
-                project_id,
-                title,
-                description: if description.is_empty() || description == "Description here..." {
-                    None
-                } else {
-                    Some(description)
-                },
-                status: None,
+            let description = if description.is_empty() || description == "Description here..." {
+                None
+            } else {
+                Some(description)
             };
 
-            self.api.create_task(create).await?;
+            self.storage.create_task(&title, description.as_deref())?;
 
             // Refresh to get updated data
-            self.refresh().await?;
+            self.refresh()?;
         }
 
         Ok(())
     }
 
-    async fn handle_delete_task(&mut self) -> Result<()> {
+    fn handle_delete_task(&mut self) -> Result<()> {
         // Get the selected task
         let task_id = match self.state.view {
             View::TaskDetail => self.state.selected_task_id.clone(),
@@ -851,7 +689,7 @@ impl App {
         };
 
         // Delete the task
-        self.api.delete_task(&task_id).await?;
+        self.storage.delete_task(&task_id)?;
 
         // Go back if we were in task detail view
         if self.state.view == View::TaskDetail {
@@ -860,14 +698,14 @@ impl App {
         }
 
         // Refresh to get updated data
-        self.refresh().await?;
+        self.refresh()?;
 
         Ok(())
     }
 
     // Worktree and session handlers
 
-    async fn handle_show_worktrees(&mut self) -> Result<()> {
+    fn handle_show_worktrees(&mut self) -> Result<()> {
         self.load_worktrees();
         self.state.view = View::Worktrees;
         Ok(())
@@ -890,7 +728,7 @@ impl App {
         });
     }
 
-    async fn handle_show_sessions(&mut self) -> Result<()> {
+    fn handle_show_sessions(&mut self) -> Result<()> {
         self.load_sessions();
         self.state.view = View::Sessions;
         Ok(())
@@ -931,34 +769,9 @@ impl App {
         self.fetch_pr_info_for_branches(&worktrees);
     }
 
-    /// Get the project directory for the currently selected project
+    /// Get the project directory (current working directory)
     fn get_project_dir(&self) -> Option<std::path::PathBuf> {
-        let project_id = self.state.selected_project_id.as_ref()?;
-        let project = self
-            .state
-            .projects
-            .projects
-            .iter()
-            .find(|p| &p.id == project_id)?;
-
-        let dir = project.default_agent_working_dir.as_ref()?;
-        if dir.is_empty() {
-            return None;
-        }
-
-        // Handle different path formats
-        let path = if dir.starts_with('/') {
-            // Absolute path
-            std::path::PathBuf::from(dir)
-        } else if dir.starts_with('~') {
-            // Home-relative path
-            dirs::home_dir()?.join(&dir[2..])
-        } else {
-            // Assume it's a directory name under home (e.g., "vibe-kanban" -> ~/vibe-kanban)
-            dirs::home_dir()?.join(dir)
-        };
-
-        Some(path)
+        std::env::current_dir().ok()
     }
 
     fn handle_launch_session(&mut self, terminal: &mut Terminal, plan_mode: bool) -> Result<()> {
@@ -972,10 +785,7 @@ impl App {
                 dir
             }
             None => {
-                tracing::error!(
-                    "No project directory configured. Selected project: {:?}",
-                    self.state.selected_project_id
-                );
+                tracing::error!("Failed to get current directory");
                 return Ok(());
             }
         };
@@ -986,11 +796,8 @@ impl App {
                 // If in worktrees view, use selected worktree directly
                 if let Some(wt) = self.state.worktrees.selected() {
                     terminal.suspend()?;
-                    let result = launch_zellij_claude_in_worktree(
-                        &wt.branch,
-                        plan_mode,
-                        &project_dir,
-                    );
+                    let result =
+                        launch_zellij_claude_in_worktree(&wt.branch, plan_mode, &project_dir);
                     terminal.resume()?;
                     if let Err(e) = result {
                         tracing::error!("Failed to launch session: {}", e);
@@ -1049,128 +856,24 @@ impl App {
 
     fn handle_view_pr(&self) -> Result<()> {
         if let Some(task) = self.selected_task() {
+            // Check task's PR URL first
             if let Some(pr_url) = &task.pr_url {
                 if let Err(e) = open::that(pr_url) {
+                    tracing::error!("Failed to open PR URL: {}", e);
+                }
+                return Ok(());
+            }
+
+            // Check locally detected PR info
+            let branch = task_title_to_branch(&task.title);
+            if let Some(pr_info) = self.state.worktrees.branch_prs.get(&branch) {
+                if let Err(e) = open::that(&pr_info.url) {
                     tracing::error!("Failed to open PR URL: {}", e);
                 }
             } else {
                 tracing::warn!("No PR URL for this task");
             }
         }
-        Ok(())
-    }
-
-    async fn handle_bind_pr(&mut self, terminal: &mut Terminal) -> Result<()> {
-        // Get the selected task
-        let task = match self.state.view {
-            View::Kanban | View::TaskDetail => self.selected_task().cloned(),
-            _ => None,
-        };
-
-        let Some(task) = task else {
-            tracing::warn!("No task selected for PR binding");
-            return Ok(());
-        };
-
-        // Get project repos to find the repo_id
-        let project_id = &task.project_id;
-        let repos = match self.api.get_project_repos(project_id).await {
-            Ok(repos) => repos,
-            Err(e) => {
-                tracing::error!("Failed to get project repos: {}", e);
-                return Ok(());
-            }
-        };
-
-        let Some(repo) = repos.first() else {
-            tracing::warn!("Project has no repos configured");
-            return Ok(());
-        };
-
-        let repo_id = repo.repo_id.clone();
-
-        // Get or create attempt
-        let attempt_id = if let Some(id) = &task.parent_workspace_id {
-            id.clone()
-        } else {
-            // Auto-create an attempt for this task
-            tracing::info!("Creating attempt for task to bind PR");
-            let request = CreateTaskAttemptRequest {
-                task_id: task.id.clone(),
-                repos: vec![CreateTaskAttemptRepoRequest {
-                    repo_id: repo_id.clone(),
-                    target_branch: "main".to_string(), // Default target branch
-                }],
-            };
-            match self.api.create_task_attempt(request).await {
-                Ok(attempt) => attempt.id,
-                Err(e) => {
-                    tracing::error!("Failed to create attempt: {}", e);
-                    return Ok(());
-                }
-            }
-        };
-
-        // Suspend terminal for fzf
-        terminal.suspend()?;
-
-        // List PRs using gh CLI
-        let prs = match list_prs(20, None) {
-            Ok(prs) => prs,
-            Err(e) => {
-                terminal.resume()?;
-                tracing::error!("Failed to list PRs: {}", e);
-                return Ok(());
-            }
-        };
-
-        if prs.is_empty() {
-            terminal.resume()?;
-            tracing::warn!("No PRs found in repository");
-            return Ok(());
-        }
-
-        // Select PR with fzf
-        let selected_pr_number = match select_pr_with_fzf(&prs) {
-            Ok(Some(num)) => num,
-            Ok(None) => {
-                terminal.resume()?;
-                tracing::info!("PR selection cancelled");
-                return Ok(());
-            }
-            Err(e) => {
-                terminal.resume()?;
-                tracing::error!("Failed to select PR: {}", e);
-                return Ok(());
-            }
-        };
-
-        // Resume terminal
-        terminal.resume()?;
-
-        // Bind the PR via API
-        match self
-            .api
-            .bind_pr(&attempt_id, &repo_id, selected_pr_number)
-            .await
-        {
-            Ok(response) => {
-                if response.pr_attached {
-                    tracing::info!(
-                        "Bound PR #{} to task",
-                        response.pr_number.unwrap_or(selected_pr_number)
-                    );
-                    // Refresh to show updated PR status
-                    self.refresh().await?;
-                } else {
-                    tracing::warn!("Failed to bind PR");
-                }
-            }
-            Err(e) => {
-                tracing::error!("Failed to bind PR: {}", e);
-            }
-        }
-
         Ok(())
     }
 
@@ -1210,38 +913,6 @@ impl App {
             tracing::info!("Killed session {}", session.name);
             // Refresh the sessions list
             self.load_sessions();
-        }
-
-        Ok(())
-    }
-
-    async fn handle_sync_linear(&mut self) -> Result<()> {
-        if !self.state.linear_api_key_available {
-            tracing::warn!("Linear API key not available");
-            return Ok(());
-        }
-
-        let Some(project_id) = self.state.selected_project_id.clone() else {
-            tracing::warn!("No project selected for Linear sync");
-            return Ok(());
-        };
-
-        tracing::info!("Syncing Linear backlog for project {}", project_id);
-
-        match self.api.sync_linear_backlog(&project_id).await {
-            Ok(response) => {
-                tracing::info!(
-                    "Linear sync complete: {} synced, {} created, {} updated",
-                    response.synced_count,
-                    response.created_count,
-                    response.updated_count
-                );
-                // Refresh tasks to show newly synced items
-                self.refresh().await?;
-            }
-            Err(e) => {
-                tracing::error!("Failed to sync Linear backlog: {}", e);
-            }
         }
 
         Ok(())

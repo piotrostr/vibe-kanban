@@ -25,10 +25,6 @@ impl SessionsState {
         }
     }
 
-    pub fn set_error(&mut self, error: String) {
-        self.error = Some(error);
-    }
-
     pub fn selected(&self) -> Option<&ZellijSession> {
         self.sessions.get(self.selected_index)
     }
@@ -47,10 +43,6 @@ impl SessionsState {
                 self.selected_index - 1
             };
         }
-    }
-
-    pub fn active_sessions(&self) -> &[ZellijSession] {
-        &self.sessions
     }
 
     pub fn session_for_branch(&self, branch: &str) -> Option<&ZellijSession> {

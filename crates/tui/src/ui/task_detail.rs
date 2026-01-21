@@ -58,7 +58,7 @@ pub fn render_task_detail(frame: &mut Frame, area: Rect, task: &Task) {
     }
 
     // Add PR info
-    if let Some(pr_url) = &task.pr_url {
+    if task.pr_url.is_some() {
         metadata_spans.push(Span::raw(" | PR: "));
         let pr_status_color = match task.pr_status.as_deref() {
             Some("merged") => Color::Magenta,

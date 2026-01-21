@@ -122,20 +122,3 @@ pub fn render_worktrees(frame: &mut Frame, area: Rect, state: &WorktreesState) {
 
     frame.render_widget(list, area);
 }
-
-pub fn render_worktree_help(frame: &mut Frame, area: Rect) {
-    let help = Paragraph::new(Line::from(vec![
-        Span::styled("Legend: ", Style::default().fg(Color::DarkGray)),
-        Span::styled("*", Style::default().fg(Color::Green)),
-        Span::raw("=current "),
-        Span::styled("!", Style::default().fg(Color::Yellow)),
-        Span::raw("=dirty "),
-        Span::styled("+", Style::default().fg(Color::Green)),
-        Span::raw("=ahead "),
-        Span::styled("-", Style::default().fg(Color::Red)),
-        Span::raw("=behind"),
-    ]))
-    .style(Style::default().fg(Color::DarkGray));
-
-    frame.render_widget(help, area);
-}
