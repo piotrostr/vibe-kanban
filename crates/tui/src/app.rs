@@ -806,7 +806,13 @@ impl App {
                 }
                 return Ok(());
             }
-            View::Kanban | View::TaskDetail => self.selected_task(),
+            View::TaskDetail => {
+                // Use selected_task_id for detail view (set from search or kanban)
+                self.state.selected_task_id.as_ref().and_then(|id| {
+                    self.state.tasks.tasks.iter().find(|t| &t.id == id)
+                })
+            }
+            View::Kanban => self.selected_task(),
             _ => None,
         };
 
