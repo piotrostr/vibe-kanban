@@ -5,8 +5,8 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
 use crate::api::{
-    create_task_channel, ApiClient, CreateTask, TaskStreamConnection, TaskUpdateReceiver,
-    UpdateTask,
+    create_task_channel, ApiClient, CreateTask, CreateTaskAttemptRepoRequest,
+    CreateTaskAttemptRequest, TaskStreamConnection, TaskUpdateReceiver, UpdateTask,
 };
 use crate::external::{
     attach_zellij_foreground, edit_markdown, launch_zellij_claude_in_worktree,
@@ -804,12 +804,6 @@ impl App {
             return Ok(());
         };
 
-        // Check if task has an attempt (workspace_id)
-        let Some(attempt_id) = &task.parent_workspace_id else {
-            tracing::warn!("Task has no attempt - launch a session first to create one");
-            return Ok(());
-        };
-
         // Get project repos to find the repo_id
         let project_id = &task.project_id;
         let repos = match self.api.get_project_repos(project_id).await {
@@ -826,6 +820,28 @@ impl App {
         };
 
         let repo_id = repo.repo_id.clone();
+
+        // Get or create attempt
+        let attempt_id = if let Some(id) = &task.parent_workspace_id {
+            id.clone()
+        } else {
+            // Auto-create an attempt for this task
+            tracing::info!("Creating attempt for task to bind PR");
+            let request = CreateTaskAttemptRequest {
+                task_id: task.id.clone(),
+                repos: vec![CreateTaskAttemptRepoRequest {
+                    repo_id: repo_id.clone(),
+                    target_branch: "main".to_string(), // Default target branch
+                }],
+            };
+            match self.api.create_task_attempt(request).await {
+                Ok(attempt) => attempt.id,
+                Err(e) => {
+                    tracing::error!("Failed to create attempt: {}", e);
+                    return Ok(());
+                }
+            }
+        };
 
         // Suspend terminal for fzf
         terminal.suspend()?;
@@ -867,7 +883,7 @@ impl App {
         // Bind the PR via API
         match self
             .api
-            .bind_pr(attempt_id, &repo_id, selected_pr_number)
+            .bind_pr(&attempt_id, &repo_id, selected_pr_number)
             .await
         {
             Ok(response) => {

@@ -123,6 +123,8 @@ pub fn render_task_detail_with_actions(frame: &mut Frame, area: Rect, task: &Tas
         Span::raw(" Gas it  "),
         Span::styled("[p]", Style::default().fg(Color::Cyan)),
         Span::raw(" Plan it  "),
+        Span::styled("[b]", Style::default().fg(Color::Cyan)),
+        Span::raw(" Bind PR  "),
         Span::styled("[v]", Style::default().fg(Color::Cyan)),
         Span::raw(" View PR  "),
         Span::styled("[e]", Style::default().fg(Color::Cyan)),
