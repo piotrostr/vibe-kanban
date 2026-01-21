@@ -24,6 +24,10 @@ build-tui:
 build:
     cargo build --release
 
+# Install vibe to ~/.cargo/bin
+install:
+    cargo install --path crates/tui
+
 # Run tests
 test:
     cargo test --workspace
