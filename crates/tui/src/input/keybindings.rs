@@ -64,37 +64,45 @@ fn project_list_bindings(key: KeyEvent) -> Option<Action> {
 }
 
 fn kanban_bindings(key: KeyEvent) -> Option<Action> {
-    match key.code {
-        // Navigation
-        KeyCode::Char('j') | KeyCode::Down => Some(Action::Down),
-        KeyCode::Char('k') | KeyCode::Up => Some(Action::Up),
-        KeyCode::Char('h') | KeyCode::Left => Some(Action::Left),
-        KeyCode::Char('l') | KeyCode::Right => Some(Action::Right),
+    match (key.code, key.modifiers) {
+        // Navigation within current row (status section)
+        (KeyCode::Char('j') | KeyCode::Down, KeyModifiers::NONE) => Some(Action::Down),
+        (KeyCode::Char('k') | KeyCode::Up, KeyModifiers::NONE) => Some(Action::Up),
+
+        // Navigation between rows (status sections) - Shift+J/K
+        (KeyCode::Char('J'), KeyModifiers::SHIFT) => Some(Action::NextRow),
+        (KeyCode::Char('K'), KeyModifiers::SHIFT) => Some(Action::PrevRow),
+
+        // Open task detail with 'l'
+        (KeyCode::Char('l') | KeyCode::Right, KeyModifiers::NONE) => Some(Action::OpenTask),
+
+        // Back with 'h'
+        (KeyCode::Char('h') | KeyCode::Left, KeyModifiers::NONE) => Some(Action::Back),
 
         // Selection
-        KeyCode::Enter | KeyCode::Char(' ') => Some(Action::Select),
+        (KeyCode::Enter | KeyCode::Char(' '), KeyModifiers::NONE) => Some(Action::Select),
 
         // Task operations
-        KeyCode::Char('c') => Some(Action::CreateTask),
-        KeyCode::Char('e') => Some(Action::EditTask),
-        KeyCode::Char('d') => Some(Action::DeleteTask),
+        (KeyCode::Char('c'), KeyModifiers::NONE) => Some(Action::CreateTask),
+        (KeyCode::Char('e'), KeyModifiers::NONE) => Some(Action::EditTask),
+        (KeyCode::Char('d'), KeyModifiers::NONE) => Some(Action::DeleteTask),
 
         // Launch Claude Code session
-        KeyCode::Char('g') => Some(Action::LaunchSession),
-        KeyCode::Char('p') => Some(Action::LaunchSessionPlan),
-        KeyCode::Char('v') => Some(Action::ViewPR),
-        KeyCode::Char('b') => Some(Action::BindPR),
+        (KeyCode::Char('g'), KeyModifiers::NONE) => Some(Action::LaunchSession),
+        (KeyCode::Char('p'), KeyModifiers::NONE) => Some(Action::LaunchSessionPlan),
+        (KeyCode::Char('v'), KeyModifiers::NONE) => Some(Action::ViewPR),
+        (KeyCode::Char('b'), KeyModifiers::NONE) => Some(Action::BindPR),
 
         // Worktrees and sessions views
-        KeyCode::Char('w') => Some(Action::ShowWorktrees),
-        KeyCode::Char('W') => Some(Action::CreateWorktree),
-        KeyCode::Char('S') => Some(Action::ShowSessions),
+        (KeyCode::Char('w'), KeyModifiers::NONE) => Some(Action::ShowWorktrees),
+        (KeyCode::Char('W'), KeyModifiers::SHIFT) => Some(Action::CreateWorktree),
+        (KeyCode::Char('S'), KeyModifiers::SHIFT) => Some(Action::ShowSessions),
 
         // Linear sync
-        KeyCode::Char('L') => Some(Action::SyncLinear),
+        (KeyCode::Char('L'), KeyModifiers::SHIFT) => Some(Action::SyncLinear),
 
         // Refresh
-        KeyCode::Char('r') => Some(Action::Refresh),
+        (KeyCode::Char('r'), KeyModifiers::NONE) => Some(Action::Refresh),
 
         _ => None,
     }

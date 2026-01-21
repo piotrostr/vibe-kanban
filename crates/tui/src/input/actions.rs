@@ -5,6 +5,8 @@ pub enum Action {
     Down,
     Left,
     Right,
+    NextRow,
+    PrevRow,
 
     // Selection
     Select,
@@ -15,6 +17,7 @@ pub enum Action {
     CreateTask,
     EditTask,
     DeleteTask,
+    OpenTask,
 
     // Worktree operations
     ShowWorktrees,

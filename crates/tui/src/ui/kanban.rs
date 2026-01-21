@@ -16,9 +16,9 @@ pub fn render_kanban_board(
     sessions: &SessionsState,
     spinner_char: char,
 ) {
-    // Split into 4 columns (Backlog, In Progress, In Review, Done)
-    let columns = Layout::default()
-        .direction(Direction::Horizontal)
+    // Split into 4 horizontal rows (Backlog, In Progress, In Review, Done)
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
         .constraints([
             Constraint::Ratio(1, 4),
             Constraint::Ratio(1, 4),
@@ -29,11 +29,11 @@ pub fn render_kanban_board(
 
     for (i, status) in TaskStatus::VISIBLE.iter().enumerate() {
         let is_selected = tasks.selected_column == i;
-        render_column(frame, columns[i], tasks, worktrees, sessions, *status, is_selected, spinner_char);
+        render_row(frame, rows[i], tasks, worktrees, sessions, *status, is_selected, spinner_char);
     }
 }
 
-fn render_column(
+fn render_row(
     frame: &mut Frame,
     area: Rect,
     tasks_state: &TasksState,
@@ -55,26 +55,59 @@ fn render_column(
         Color::DarkGray
     };
 
+    // For horizontal rows, show tasks in a single-line compact format
     let items: Vec<ListItem> = tasks
         .iter()
         .map(|task| {
-            // Row 1: Worktree/session status + activity indicator
-            let mut row1_spans: Vec<Span> = vec![];
+            let mut spans: Vec<Span> = vec![];
 
-            // Activity indicator for in-progress tasks
+            // Activity indicator
             if task.has_in_progress_attempt {
-                row1_spans.push(Span::styled(
+                spans.push(Span::styled(
                     format!("[{}] ", spinner_char),
                     Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
                 ));
             } else if task.last_attempt_failed {
-                row1_spans.push(Span::styled(
+                spans.push(Span::styled(
                     "[!] ",
                     Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
                 ));
             }
 
-            // Try to find matching worktree by task title (simplified matching)
+            // Title (truncate if too long)
+            let max_title_len = 50;
+            let title_display = if task.title.len() > max_title_len {
+                format!("{}...", &task.title[..max_title_len - 3])
+            } else {
+                task.title.clone()
+            };
+            spans.push(Span::raw(title_display));
+
+            // PR status
+            if task.pr_url.is_some() {
+                let (pr_icon, pr_color) = match task.pr_status.as_deref() {
+                    Some("merged") => ("", Color::Magenta),
+                    Some("closed") => ("", Color::Red),
+                    _ => match (task.pr_review_decision.as_deref(), task.pr_checks_status.as_deref()) {
+                        (Some("APPROVED"), _) => ("", Color::Green),
+                        (Some("CHANGES_REQUESTED"), _) => ("", Color::Yellow),
+                        (_, Some("FAILURE")) => ("", Color::Red),
+                        (_, Some("SUCCESS")) => ("", Color::Green),
+                        _ => ("", Color::Cyan),
+                    },
+                };
+                spans.push(Span::styled(format!(" {}", pr_icon), Style::default().fg(pr_color)));
+                if task.pr_has_conflicts == Some(true) {
+                    spans.push(Span::styled(" !", Style::default().fg(Color::Red)));
+                }
+            }
+
+            // Linear indicator
+            if task.linear_issue_id.is_some() {
+                spans.push(Span::styled(" ", Style::default().fg(Color::Blue)));
+            }
+
+            // Worktree/branch info
             let task_slug = task.title.to_lowercase().replace(' ', "-");
             let matching_worktree = worktrees
                 .worktrees
@@ -82,60 +115,23 @@ fn render_column(
                 .find(|w| w.branch.to_lowercase().contains(&task_slug) || task_slug.contains(&w.branch.to_lowercase()));
 
             if let Some(wt) = matching_worktree {
-                // Show branch name
-                let branch_display = if wt.branch.len() > 20 {
-                    format!("{}...", &wt.branch[..17])
+                let branch_display = if wt.branch.len() > 15 {
+                    format!(" ({}...)", &wt.branch[..12])
                 } else {
-                    wt.branch.clone()
+                    format!(" ({})", wt.branch)
                 };
-                row1_spans.push(Span::styled(
-                    branch_display,
-                    Style::default().fg(Color::Cyan),
-                ));
+                spans.push(Span::styled(branch_display, Style::default().fg(Color::DarkGray)));
 
-                // Check for session
                 if let Some(session) = sessions.session_for_branch(&wt.branch) {
                     if session.needs_attention {
-                        row1_spans.push(Span::styled(" !", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)));
+                        spans.push(Span::styled(" !", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)));
                     } else {
-                        row1_spans.push(Span::styled(" ", Style::default().fg(Color::Green)));
+                        spans.push(Span::styled(" ", Style::default().fg(Color::Green)));
                     }
                 }
-            } else if !task.has_in_progress_attempt && !task.last_attempt_failed {
-                row1_spans.push(Span::styled("no worktree", Style::default().fg(Color::DarkGray)));
             }
 
-            // Row 2: Title + status indicators
-            let mut row2_spans = vec![Span::raw(&task.title)];
-
-            // PR status with more detail
-            if task.pr_url.is_some() {
-                let (pr_icon, pr_color) = match task.pr_status.as_deref() {
-                    Some("merged") => ("", Color::Magenta),
-                    Some("closed") => ("", Color::Red),
-                    _ => {
-                        // Check review/checks status for open PRs
-                        match (task.pr_review_decision.as_deref(), task.pr_checks_status.as_deref()) {
-                            (Some("APPROVED"), _) => ("", Color::Green),
-                            (Some("CHANGES_REQUESTED"), _) => ("", Color::Yellow),
-                            (_, Some("FAILURE")) => ("", Color::Red),
-                            (_, Some("SUCCESS")) => ("", Color::Green),
-                            _ => ("", Color::Cyan),
-                        }
-                    }
-                };
-                row2_spans.push(Span::styled(format!(" {}", pr_icon), Style::default().fg(pr_color)));
-
-                if task.pr_has_conflicts == Some(true) {
-                    row2_spans.push(Span::styled(" !", Style::default().fg(Color::Red)));
-                }
-            }
-
-            if task.linear_issue_id.is_some() {
-                row2_spans.push(Span::styled(" ", Style::default().fg(Color::Blue)));
-            }
-
-            ListItem::new(vec![Line::from(row1_spans), Line::from(row2_spans)])
+            ListItem::new(Line::from(spans))
         })
         .collect();
 

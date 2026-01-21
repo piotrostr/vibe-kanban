@@ -275,6 +275,15 @@ impl App {
             Action::Right => {
                 self.handle_right();
             }
+            Action::NextRow => {
+                self.handle_next_row();
+            }
+            Action::PrevRow => {
+                self.handle_prev_row();
+            }
+            Action::OpenTask => {
+                self.handle_open_task();
+            }
             Action::Select => {
                 self.handle_select(terminal).await?;
             }
@@ -411,6 +420,27 @@ impl App {
     fn handle_right(&mut self) {
         if self.state.view == View::Kanban {
             self.state.tasks.select_next_column();
+        }
+    }
+
+    fn handle_next_row(&mut self) {
+        if self.state.view == View::Kanban {
+            self.state.tasks.select_next_column();
+        }
+    }
+
+    fn handle_prev_row(&mut self) {
+        if self.state.view == View::Kanban {
+            self.state.tasks.select_prev_column();
+        }
+    }
+
+    fn handle_open_task(&mut self) {
+        if self.state.view == View::Kanban {
+            if let Some(task) = self.state.tasks.selected_task() {
+                self.state.selected_task_id = Some(task.id.clone());
+                self.state.view = View::TaskDetail;
+            }
         }
     }
 
