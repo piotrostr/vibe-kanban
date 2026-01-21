@@ -6,7 +6,7 @@ default:
 
 # Run the TUI (with embedded server)
 vibe:
-    cargo run -p tui --bin vibe
+    cargo watch -x "run -p tui --bin vibe"
 
 # Run the backend only
 backend:
