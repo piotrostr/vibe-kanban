@@ -18,7 +18,8 @@ use crate::state::{check_linear_api_key, AppState, Modal, View};
 use crate::terminal::Terminal;
 use crate::ui::{
     render_footer, render_header, render_help_modal, render_kanban_board, render_logs,
-    render_project_list, render_sessions, render_task_detail_with_actions, render_worktrees,
+    render_project_list, render_search, render_sessions, render_task_detail_with_actions,
+    render_worktrees,
 };
 
 type WorktreeResult = Result<Vec<WorktreeInfo>, String>;
@@ -268,6 +269,9 @@ impl App {
                 View::Logs => {
                     render_logs(frame, chunks[1], &self.state.logs);
                 }
+                View::Search => {
+                    render_search(frame, chunks[1], &self.state.search);
+                }
             }
 
             render_footer(frame, chunks[2], &self.state);
@@ -380,13 +384,24 @@ impl App {
 
             // Search actions
             Action::StartSearch => {
+                // Populate search with current tasks and switch to search view
+                self.state.search.set_tasks(self.state.tasks.tasks.clone());
+                self.state.view = View::Search;
                 self.state.search_active = true;
             }
             Action::SearchType(c) => {
-                self.state.search_query.push(c);
+                if self.state.view == View::Search {
+                    self.state.search.type_char(c);
+                } else {
+                    self.state.search_query.push(c);
+                }
             }
             Action::SearchBackspace => {
-                self.state.search_query.pop();
+                if self.state.view == View::Search {
+                    self.state.search.backspace();
+                } else {
+                    self.state.search_query.pop();
+                }
             }
             Action::SearchConfirm => {
                 self.state.search_active = false;
@@ -434,7 +449,9 @@ impl App {
                 self.state.projects.select_prev();
             }
             View::Kanban => {
-                self.state.tasks.select_prev_card();
+                let branch_prs = self.state.worktrees.branch_prs.clone();
+                let worktrees = self.state.worktrees.worktrees.clone();
+                self.state.tasks.select_prev_card_with_prs(&branch_prs, &worktrees);
             }
             View::TaskDetail => {
                 // TODO: Scroll
@@ -448,6 +465,9 @@ impl App {
             View::Logs => {
                 self.state.logs.scroll_up();
             }
+            View::Search => {
+                self.state.search.select_prev();
+            }
         }
     }
 
@@ -457,7 +477,9 @@ impl App {
                 self.state.projects.select_next();
             }
             View::Kanban => {
-                self.state.tasks.select_next_card();
+                let branch_prs = self.state.worktrees.branch_prs.clone();
+                let worktrees = self.state.worktrees.worktrees.clone();
+                self.state.tasks.select_next_card_with_prs(&branch_prs, &worktrees);
             }
             View::TaskDetail => {
                 // TODO: Scroll
@@ -470,6 +492,9 @@ impl App {
             }
             View::Logs => {
                 self.state.logs.scroll_down();
+            }
+            View::Search => {
+                self.state.search.select_next();
             }
         }
     }
@@ -498,9 +523,17 @@ impl App {
         }
     }
 
+    /// Get the currently selected task, considering PR status for column placement
+    fn selected_task(&self) -> Option<&crate::state::Task> {
+        self.state.tasks.selected_task_with_prs(
+            &self.state.worktrees.branch_prs,
+            &self.state.worktrees.worktrees,
+        )
+    }
+
     fn handle_open_task(&mut self) {
         if self.state.view == View::Kanban {
-            if let Some(task) = self.state.tasks.selected_task() {
+            if let Some(task) = self.selected_task() {
                 self.state.selected_task_id = Some(task.id.clone());
                 self.state.view = View::TaskDetail;
             }
@@ -530,7 +563,7 @@ impl App {
                 }
             }
             View::Kanban => {
-                if let Some(task) = self.state.tasks.selected_task() {
+                if let Some(task) = self.selected_task() {
                     self.state.selected_task_id = Some(task.id.clone());
                     self.state.view = View::TaskDetail;
                 }
@@ -550,6 +583,15 @@ impl App {
             View::Logs => {
                 // Refresh logs on select
                 self.state.logs.refresh();
+            }
+            View::Search => {
+                // Select task from search results and go to detail view
+                if let Some(task) = self.state.search.selected_task() {
+                    self.state.selected_task_id = Some(task.id.clone());
+                    self.state.search.clear();
+                    self.state.search_active = false;
+                    self.state.view = View::TaskDetail;
+                }
             }
         }
 
@@ -612,6 +654,14 @@ impl App {
             View::Logs => {
                 self.state.logs.refresh();
             }
+            View::Search => {
+                // Refresh the underlying tasks in search
+                if let Some(project_id) = &self.state.selected_project_id {
+                    let tasks = self.api.get_tasks(project_id).await?;
+                    self.state.tasks.set_tasks(tasks.clone());
+                    self.state.search.set_tasks(tasks);
+                }
+            }
         }
 
         Ok(())
@@ -621,7 +671,7 @@ impl App {
         // Get the selected task
         let task_id = match self.state.view {
             View::TaskDetail => self.state.selected_task_id.clone(),
-            View::Kanban => self.state.tasks.selected_task().map(|t| t.id.clone()),
+            View::Kanban => self.selected_task().map(|t| t.id.clone()),
             _ => None,
         };
 
@@ -736,7 +786,7 @@ impl App {
         // Get the selected task
         let task_id = match self.state.view {
             View::TaskDetail => self.state.selected_task_id.clone(),
-            View::Kanban => self.state.tasks.selected_task().map(|t| t.id.clone()),
+            View::Kanban => self.selected_task().map(|t| t.id.clone()),
             _ => None,
         };
 
@@ -893,7 +943,7 @@ impl App {
                 }
                 return Ok(());
             }
-            View::Kanban | View::TaskDetail => self.state.tasks.selected_task(),
+            View::Kanban | View::TaskDetail => self.selected_task(),
             _ => None,
         };
 
@@ -936,7 +986,7 @@ impl App {
     }
 
     fn handle_view_pr(&self) -> Result<()> {
-        if let Some(task) = self.state.tasks.selected_task() {
+        if let Some(task) = self.selected_task() {
             if let Some(pr_url) = &task.pr_url {
                 if let Err(e) = open::that(pr_url) {
                     tracing::error!("Failed to open PR URL: {}", e);
@@ -951,7 +1001,7 @@ impl App {
     async fn handle_bind_pr(&mut self, terminal: &mut Terminal) -> Result<()> {
         // Get the selected task
         let task = match self.state.view {
-            View::Kanban | View::TaskDetail => self.state.tasks.selected_task().cloned(),
+            View::Kanban | View::TaskDetail => self.selected_task().cloned(),
             _ => None,
         };
 

@@ -185,6 +185,9 @@ pub fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
         crate::state::View::Logs => {
             "j/k: scroll | r: refresh | Esc: back".to_string()
         }
+        crate::state::View::Search => {
+            "j/k/Ctrl-j/k: nav | Enter: select | Esc: cancel".to_string()
+        }
     };
 
     let footer = Paragraph::new(hints)

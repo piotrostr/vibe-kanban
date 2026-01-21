@@ -42,6 +42,26 @@ pub fn key_to_action(
         View::Worktrees => worktrees_bindings(key),
         View::Sessions => sessions_bindings(key),
         View::Logs => logs_bindings(key),
+        View::Search => search_bindings(key),
+    }
+}
+
+fn search_bindings(key: KeyEvent) -> Option<Action> {
+    match key.code {
+        // Navigation with j/k while typing
+        KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(Action::Down),
+        KeyCode::Char('k') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(Action::Up),
+        KeyCode::Down => Some(Action::Down),
+        KeyCode::Up => Some(Action::Up),
+        // Esc to close search
+        KeyCode::Esc => Some(Action::Back),
+        // Enter to select and go to task
+        KeyCode::Enter => Some(Action::Select),
+        // Backspace to delete char
+        KeyCode::Backspace => Some(Action::SearchBackspace),
+        // Any other char is typed into search
+        KeyCode::Char(c) => Some(Action::SearchType(c)),
+        _ => None,
     }
 }
 
@@ -54,15 +74,6 @@ fn logs_bindings(key: KeyEvent) -> Option<Action> {
     }
 }
 
-fn search_bindings(key: KeyEvent) -> Option<Action> {
-    match key.code {
-        KeyCode::Esc => Some(Action::SearchCancel),
-        KeyCode::Enter => Some(Action::SearchConfirm),
-        KeyCode::Backspace => Some(Action::SearchBackspace),
-        KeyCode::Char(c) => Some(Action::SearchType(c)),
-        _ => None,
-    }
-}
 
 fn project_list_bindings(key: KeyEvent) -> Option<Action> {
     match key.code {

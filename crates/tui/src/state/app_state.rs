@@ -1,4 +1,4 @@
-use super::{LogsState, ProjectsState, SessionsState, TasksState, WorktreesState};
+use super::{LogsState, ProjectsState, SearchState, SessionsState, TasksState, WorktreesState};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum View {
@@ -8,6 +8,7 @@ pub enum View {
     Worktrees,
     Sessions,
     Logs,
+    Search,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,6 +37,7 @@ pub struct AppState {
     pub worktrees: WorktreesState,
     pub sessions: SessionsState,
     pub logs: LogsState,
+    pub search: SearchState,
 
     pub selected_project_id: Option<String>,
     pub selected_task_id: Option<String>,
@@ -66,6 +68,7 @@ impl AppState {
             worktrees: WorktreesState::new(),
             sessions: SessionsState::new(),
             logs: LogsState::new(),
+            search: SearchState::new(),
 
             selected_project_id: None,
             selected_task_id: None,
@@ -123,6 +126,11 @@ impl AppState {
                 self.focus = Focus::KanbanColumn(1);
             }
             View::Logs => {
+                self.view = View::Kanban;
+                self.focus = Focus::KanbanColumn(1);
+            }
+            View::Search => {
+                self.search.clear();
                 self.view = View::Kanban;
                 self.focus = Focus::KanbanColumn(1);
             }
