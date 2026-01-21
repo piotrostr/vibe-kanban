@@ -1,4 +1,3 @@
-use std::io::Write;
 use std::process::Command;
 
 use anyhow::Result;
@@ -11,7 +10,7 @@ pub fn edit_in_editor(initial_content: &str, file_extension: &str) -> Result<Opt
     let editor = std::env::var("EDITOR").unwrap_or_else(|_| "nvim".to_string());
 
     // Create temp file with the appropriate extension
-    let mut temp_file = NamedTempFile::new()?;
+    let temp_file = NamedTempFile::new()?;
     let temp_path = temp_file.path().to_path_buf();
 
     // Rename with extension for syntax highlighting

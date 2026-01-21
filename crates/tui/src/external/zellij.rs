@@ -1,6 +1,7 @@
+#![allow(dead_code)]
+
 use anyhow::Result;
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 #[derive(Debug, Clone)]
@@ -198,80 +199,3 @@ pub fn is_zellij_installed() -> bool {
         .unwrap_or(false)
 }
 
-/// Get the zellij config directory
-fn zellij_config_dir() -> PathBuf {
-    dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from("~/.config"))
-        .join("zellij")
-}
-
-/// Minimal layout for vibe sessions - no status bar, just the pane
-const VIBE_LAYOUT: &str = r#"layout {
-    pane borderless=true
-}
-"#;
-
-/// Vibe-specific zellij config
-const VIBE_ZELLIJ_CONFIG: &str = r#"// Vibe TUI zellij config
-// Minimal UI - no status bar, Ctrl+o d to detach
-
-on_force_close "detach"
-pane_frames false
-mouse_mode false
-simplified_ui true
-session_serialization true
-default_mode "locked"
-
-// Hide ALL UI elements
-ui {
-    pane_frames {
-        hide_session_name true
-    }
-}
-
-// Use locked mode by default so keys pass through to app
-// Ctrl+o switches to normal mode for zellij commands
-keybinds clear-defaults=true {
-    locked {
-        bind "Ctrl o" { SwitchToMode "normal"; }
-    }
-
-    normal {
-        bind "Ctrl o" { SwitchToMode "locked"; }
-        bind "d" { Detach; }
-        bind "Esc" { SwitchToMode "locked"; }
-        bind "PageUp" { ScrollUp; }
-        bind "PageDown" { ScrollDown; }
-    }
-}
-"#;
-
-/// Get path to vibe layout file, creating it if needed
-pub fn get_vibe_layout_path() -> Result<PathBuf> {
-    let layout_dir = zellij_config_dir().join("layouts");
-    fs::create_dir_all(&layout_dir)?;
-
-    let layout_path = layout_dir.join("vibe.kdl");
-    if !layout_path.exists() {
-        fs::write(&layout_path, VIBE_LAYOUT)?;
-    }
-    Ok(layout_path)
-}
-
-/// Ensure zellij config exists with vibe-specific settings
-/// Overwrites existing config to ensure our settings are applied
-pub fn ensure_zellij_config() -> Result<bool> {
-    let config_dir = zellij_config_dir();
-    let config_path = config_dir.join("config.kdl");
-
-    // Create config directory if it doesn't exist
-    fs::create_dir_all(&config_dir)?;
-
-    // Always write our config (user can backup theirs if needed)
-    fs::write(&config_path, VIBE_ZELLIJ_CONFIG)?;
-
-    // Also ensure layout exists
-    get_vibe_layout_path()?;
-
-    Ok(true)
-}

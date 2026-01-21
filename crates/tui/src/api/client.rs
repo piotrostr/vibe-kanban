@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use anyhow::Result;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -7,6 +9,7 @@ use crate::state::{Project, Task, TaskStatus};
 pub struct ApiResponse<T> {
     pub success: bool,
     pub data: Option<T>,
+    #[allow(dead_code)]
     pub error_data: Option<serde_json::Value>,
     pub message: Option<String>,
 }
