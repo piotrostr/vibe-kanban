@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 use crate::external::{
     attach_zellij_foreground, edit_markdown, get_pr_for_branch, launch_zellij_claude_in_worktree,
     launch_zellij_claude_in_worktree_with_context, list_sessions_with_status, list_worktrees,
-    BranchPrInfo, WorktreeInfo, ZellijSession,
+    BranchPrInfo, ClaudeActivityTracker, WorktreeInfo, ZellijSession,
 };
 use crate::input::{extract_key_event, key_to_action, Action, EventStream};
 use crate::state::{check_linear_api_key, AppState, Modal, View};
@@ -29,6 +29,8 @@ pub struct App {
     last_session_poll: std::time::Instant,
     last_animation_tick: std::time::Instant,
     last_pr_poll: std::time::Instant,
+    last_activity_poll: std::time::Instant,
+    claude_activity_tracker: ClaudeActivityTracker,
     // Background loading channels
     worktree_receiver: mpsc::Receiver<WorktreeResult>,
     worktree_sender: mpsc::Sender<WorktreeResult>,
@@ -88,6 +90,8 @@ impl App {
             last_session_poll: std::time::Instant::now(),
             last_animation_tick: std::time::Instant::now(),
             last_pr_poll: std::time::Instant::now(),
+            last_activity_poll: std::time::Instant::now(),
+            claude_activity_tracker: ClaudeActivityTracker::new(),
             worktree_receiver,
             worktree_sender,
             session_receiver,
@@ -104,6 +108,8 @@ impl App {
         const PR_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
         // Tick animation every 250ms for smooth spinner
         const ANIMATION_TICK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
+        // Poll Claude activity every 500ms for responsive status updates
+        const ACTIVITY_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(500);
 
         loop {
             // Check for background load results (worktrees, sessions, PRs)
@@ -119,6 +125,12 @@ impl App {
             if self.last_pr_poll.elapsed() >= PR_POLL_INTERVAL {
                 self.poll_pr_info_async();
                 self.last_pr_poll = std::time::Instant::now();
+            }
+
+            // Poll Claude activity status more frequently for responsive indicators
+            if self.last_activity_poll.elapsed() >= ACTIVITY_POLL_INTERVAL {
+                self.poll_claude_activity();
+                self.last_activity_poll = std::time::Instant::now();
             }
 
             // Tick animation for spinners
@@ -245,7 +257,7 @@ impl App {
                     render_worktrees(frame, chunks[1], &self.state.worktrees);
                 }
                 View::Sessions => {
-                    render_sessions(frame, chunks[1], &self.state.sessions);
+                    render_sessions(frame, chunks[1], &self.state.sessions, self.state.spinner_char());
                 }
                 View::Logs => {
                     render_logs(frame, chunks[1], &self.state.logs);
@@ -798,6 +810,12 @@ impl App {
         // Re-fetch PR info for all known worktree branches
         let worktrees = self.state.worktrees.worktrees.clone();
         self.fetch_pr_info_for_branches(&worktrees);
+    }
+
+    fn poll_claude_activity(&mut self) {
+        // Update Claude activity state for all sessions
+        self.claude_activity_tracker
+            .update_sessions(&mut self.state.sessions.sessions);
     }
 
     /// Get the project directory (current working directory)

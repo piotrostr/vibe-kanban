@@ -6,6 +6,7 @@ use ratatui::{
     Frame,
 };
 
+use crate::external::ClaudeActivityState;
 use crate::state::{SessionsState, TaskStatus, TasksState, WorktreesState};
 
 pub fn render_kanban_board(
@@ -147,10 +148,33 @@ fn render_row(
                 ));
 
                 if let Some(session) = sessions.session_for_branch(&wt.branch) {
-                    if session.needs_attention {
-                        spans.push(Span::styled(" !", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)));
-                    } else {
-                        spans.push(Span::styled(" ", Style::default().fg(Color::Green)));
+                    match session.claude_activity {
+                        ClaudeActivityState::Thinking => {
+                            spans.push(Span::styled(
+                                format!(" [{}]", spinner_char),
+                                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                            ));
+                        }
+                        ClaudeActivityState::WaitingForUser => {
+                            spans.push(Span::styled(
+                                " [!]",
+                                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                            ));
+                        }
+                        ClaudeActivityState::Idle => {
+                            spans.push(Span::styled(" [-]", Style::default().fg(Color::DarkGray)));
+                        }
+                        ClaudeActivityState::Unknown => {
+                            // Fall back to legacy needs_attention check
+                            if session.needs_attention {
+                                spans.push(Span::styled(
+                                    " [!]",
+                                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                                ));
+                            } else {
+                                spans.push(Span::styled(" ", Style::default().fg(Color::Green)));
+                            }
+                        }
                     }
                 }
             }
