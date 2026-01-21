@@ -43,7 +43,11 @@ fn render_row(
     is_selected: bool,
     spinner_char: char,
 ) {
-    let tasks = tasks_state.tasks_in_column(status);
+    let tasks = tasks_state.tasks_in_column_with_prs(
+        status,
+        &worktrees.branch_prs,
+        &worktrees.worktrees,
+    );
     let count = tasks.len();
     let column_index = status.column_index();
 

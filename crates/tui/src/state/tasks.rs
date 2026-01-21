@@ -94,6 +94,8 @@ pub struct Task {
     pub pr_has_conflicts: Option<bool>,
 }
 
+use crate::external::BranchPrInfo;
+
 impl Task {
     /// Compute the effective display status based on PR status.
     /// - PR merged -> Done
@@ -114,6 +116,30 @@ impl Task {
                 _ => {}
             }
         }
+        self.status
+    }
+
+    /// Compute effective status considering locally detected PR info
+    pub fn effective_status_with_pr(&self, branch_pr: Option<&BranchPrInfo>) -> TaskStatus {
+        // Backend PR info takes precedence
+        if self.pr_status.is_some() {
+            return self.effective_status();
+        }
+
+        // Check locally detected PR
+        if let Some(pr) = branch_pr {
+            match pr.state.as_str() {
+                "MERGED" => return TaskStatus::Done,
+                "CLOSED" => return TaskStatus::Cancelled,
+                "OPEN" => {
+                    if !pr.is_draft {
+                        return TaskStatus::Inreview;
+                    }
+                }
+                _ => {}
+            }
+        }
+
         self.status
     }
 }
@@ -146,10 +172,30 @@ impl TasksState {
     }
 
     pub fn tasks_in_column(&self, status: TaskStatus) -> Vec<&Task> {
+        self.tasks_in_column_with_prs(status, &std::collections::HashMap::new(), &[])
+    }
+
+    /// Get tasks in a column, considering locally detected PR status for transitions
+    pub fn tasks_in_column_with_prs(
+        &self,
+        status: TaskStatus,
+        branch_prs: &std::collections::HashMap<String, BranchPrInfo>,
+        worktrees: &[crate::external::WorktreeInfo],
+    ) -> Vec<&Task> {
         let column_index = status.column_index();
         self.tasks
             .iter()
-            .filter(|t| t.effective_status().column_index() == column_index)
+            .filter(|t| {
+                // Find matching worktree for this task
+                let task_slug = t.title.to_lowercase().replace(' ', "-");
+                let matching_branch = worktrees.iter().find(|w| {
+                    w.branch.to_lowercase().contains(&task_slug)
+                        || task_slug.contains(&w.branch.to_lowercase())
+                });
+
+                let branch_pr = matching_branch.and_then(|wt| branch_prs.get(&wt.branch));
+                t.effective_status_with_pr(branch_pr).column_index() == column_index
+            })
             .filter(|t| {
                 if self.search_filter.is_empty() {
                     return true;
