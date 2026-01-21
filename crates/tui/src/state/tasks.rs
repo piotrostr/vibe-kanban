@@ -210,15 +210,31 @@ impl TasksState {
     }
 
     pub fn selected_task(&self) -> Option<&Task> {
+        self.selected_task_with_prs(&std::collections::HashMap::new(), &[])
+    }
+
+    pub fn selected_task_with_prs(
+        &self,
+        branch_prs: &std::collections::HashMap<String, BranchPrInfo>,
+        worktrees: &[crate::external::WorktreeInfo],
+    ) -> Option<&Task> {
         let status = TaskStatus::from_column_index(self.selected_column)?;
-        let tasks = self.tasks_in_column(status);
+        let tasks = self.tasks_in_column_with_prs(status, branch_prs, worktrees);
         let card_index = self.selected_card_per_column[self.selected_column];
         tasks.get(card_index).copied()
     }
 
     pub fn select_next_card(&mut self) {
+        self.select_next_card_with_prs(&std::collections::HashMap::new(), &[]);
+    }
+
+    pub fn select_next_card_with_prs(
+        &mut self,
+        branch_prs: &std::collections::HashMap<String, BranchPrInfo>,
+        worktrees: &[crate::external::WorktreeInfo],
+    ) {
         if let Some(status) = TaskStatus::from_column_index(self.selected_column) {
-            let count = self.tasks_in_column(status).len();
+            let count = self.tasks_in_column_with_prs(status, branch_prs, worktrees).len();
             if count > 0 {
                 let current = self.selected_card_per_column[self.selected_column];
                 self.selected_card_per_column[self.selected_column] = (current + 1) % count;
@@ -227,8 +243,16 @@ impl TasksState {
     }
 
     pub fn select_prev_card(&mut self) {
+        self.select_prev_card_with_prs(&std::collections::HashMap::new(), &[]);
+    }
+
+    pub fn select_prev_card_with_prs(
+        &mut self,
+        branch_prs: &std::collections::HashMap<String, BranchPrInfo>,
+        worktrees: &[crate::external::WorktreeInfo],
+    ) {
         if let Some(status) = TaskStatus::from_column_index(self.selected_column) {
-            let count = self.tasks_in_column(status).len();
+            let count = self.tasks_in_column_with_prs(status, branch_prs, worktrees).len();
             if count > 0 {
                 let current = self.selected_card_per_column[self.selected_column];
                 self.selected_card_per_column[self.selected_column] = if current == 0 {
