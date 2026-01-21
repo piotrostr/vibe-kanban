@@ -111,16 +111,16 @@ fn render_column(
             // PR status with more detail
             if task.pr_url.is_some() {
                 let (pr_icon, pr_color) = match task.pr_status.as_deref() {
-                    Some("merged") => ("", Color::Magenta),
-                    Some("closed") => ("", Color::Red),
+                    Some("merged") => ("[M]", Color::Magenta),
+                    Some("closed") => ("[X]", Color::Red),
                     _ => {
                         // Check review/checks status for open PRs
                         match (task.pr_review_decision.as_deref(), task.pr_checks_status.as_deref()) {
-                            (Some("APPROVED"), _) => ("", Color::Green),
-                            (Some("CHANGES_REQUESTED"), _) => ("", Color::Yellow),
-                            (_, Some("FAILURE")) => ("", Color::Red),
-                            (_, Some("SUCCESS")) => ("", Color::Green),
-                            _ => ("", Color::Cyan),
+                            (Some("APPROVED"), _) => ("[v]", Color::Green),
+                            (Some("CHANGES_REQUESTED"), _) => ("[?]", Color::Yellow),
+                            (_, Some("FAILURE")) => ("[x]", Color::Red),
+                            (_, Some("SUCCESS")) => ("[+]", Color::Green),
+                            _ => ("[PR]", Color::Cyan),
                         }
                     }
                 };
@@ -132,7 +132,7 @@ fn render_column(
             }
 
             if task.linear_issue_id.is_some() {
-                row2_spans.push(Span::styled(" ", Style::default().fg(Color::Blue)));
+                row2_spans.push(Span::styled(" [L]", Style::default().fg(Color::Blue)));
             }
 
             ListItem::new(vec![Line::from(row1_spans), Line::from(row2_spans)])

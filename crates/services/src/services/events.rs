@@ -3,8 +3,8 @@ use std::{str::FromStr, sync::Arc};
 use db::{
     DBService,
     models::{
-        execution_process::ExecutionProcess, project::Project, scratch::Scratch, task::Task,
-        workspace::Workspace,
+        execution_process::ExecutionProcess, merge::Merge, project::Project, scratch::Scratch,
+        session::Session, task::Task, workspace::Workspace,
     },
 };
 use serde_json::json;
@@ -67,10 +67,21 @@ impl EventService {
         msg_store: Arc<MsgStore>,
         session_id: Uuid,
     ) -> Result<(), SqlxError> {
-        use db::models::session::Session;
         if let Some(session) = Session::find_by_id(pool, session_id).await?
             && let Some(workspace) = Workspace::find_by_id(pool, session.workspace_id).await?
         {
+            Self::push_task_update_for_task(pool, msg_store, workspace.task_id).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn push_task_update_for_workspace(
+        pool: &SqlitePool,
+        msg_store: Arc<MsgStore>,
+        workspace_id: Uuid,
+    ) -> Result<(), SqlxError> {
+        if let Some(workspace) = Workspace::find_by_id(pool, workspace_id).await? {
             Self::push_task_update_for_task(pool, msg_store, workspace.task_id).await?;
         }
 
@@ -168,8 +179,68 @@ impl EventService {
                                 | (HookTables::Projects, SqliteOperation::Delete)
                                 | (HookTables::Workspaces, SqliteOperation::Delete)
                                 | (HookTables::ExecutionProcesses, SqliteOperation::Delete)
-                                | (HookTables::Scratch, SqliteOperation::Delete) => {
+                                | (HookTables::Scratch, SqliteOperation::Delete)
+                                | (HookTables::Merges, SqliteOperation::Delete)
+                                | (HookTables::Sessions, SqliteOperation::Delete) => {
                                     // Deletions handled in preupdate hook for reliable data capture
+                                    return;
+                                }
+                                // Merges: push task update for PR status changes
+                                (HookTables::Merges, _) => {
+                                    match Merge::find_by_rowid(&db.pool, rowid).await {
+                                        Ok(Some(merge)) => {
+                                            let workspace_id = match &merge {
+                                                Merge::Direct(d) => d.workspace_id,
+                                                Merge::Pr(pr) => pr.workspace_id,
+                                            };
+                                            if let Err(err) =
+                                                EventService::push_task_update_for_workspace(
+                                                    &db.pool,
+                                                    msg_store_for_hook.clone(),
+                                                    workspace_id,
+                                                )
+                                                .await
+                                            {
+                                                tracing::error!(
+                                                    "Failed to push task update after merge change: {:?}",
+                                                    err
+                                                );
+                                            }
+                                        }
+                                        Ok(None) => {
+                                            tracing::debug!("Merge not found for rowid {}", rowid);
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("Failed to fetch merge: {:?}", e);
+                                        }
+                                    }
+                                    return;
+                                }
+                                // Sessions: push task update for session activity changes
+                                (HookTables::Sessions, _) => {
+                                    match Session::find_by_rowid(&db.pool, rowid).await {
+                                        Ok(Some(session)) => {
+                                            if let Err(err) =
+                                                EventService::push_task_update_for_workspace(
+                                                    &db.pool,
+                                                    msg_store_for_hook.clone(),
+                                                    session.workspace_id,
+                                                )
+                                                .await
+                                            {
+                                                tracing::error!(
+                                                    "Failed to push task update after session change: {:?}",
+                                                    err
+                                                );
+                                            }
+                                        }
+                                        Ok(None) => {
+                                            tracing::debug!("Session not found for rowid {}", rowid);
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("Failed to fetch session: {:?}", e);
+                                        }
+                                    }
                                     return;
                                 }
                                 (HookTables::Tasks, _) => {

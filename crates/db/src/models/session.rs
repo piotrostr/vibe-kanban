@@ -46,6 +46,23 @@ impl Session {
         .await
     }
 
+    /// Find a session by SQLite rowid (used by database hooks)
+    pub async fn find_by_rowid(pool: &SqlitePool, rowid: i64) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as!(
+            Session,
+            r#"SELECT id AS "id!: Uuid",
+                      workspace_id AS "workspace_id!: Uuid",
+                      executor,
+                      created_at AS "created_at!: DateTime<Utc>",
+                      updated_at AS "updated_at!: DateTime<Utc>"
+               FROM sessions
+               WHERE rowid = $1"#,
+            rowid
+        )
+        .fetch_optional(pool)
+        .await
+    }
+
     pub async fn find_by_workspace_id(
         pool: &SqlitePool,
         workspace_id: Uuid,
