@@ -4,6 +4,15 @@ use anyhow::Result;
 use serde::Deserialize;
 use std::process::Command;
 
+/// Get the wt binary path - check WORKTRUNK_BIN env or fall back to cargo bin
+fn wt_binary() -> String {
+    std::env::var("WORKTRUNK_BIN").unwrap_or_else(|_| {
+        dirs::home_dir()
+            .map(|h| h.join(".cargo/bin/wt").to_string_lossy().to_string())
+            .unwrap_or_else(|| "wt".to_string())
+    })
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct WorktreeInfo {
     pub branch: String,
@@ -84,7 +93,7 @@ impl WorktreeInfo {
 }
 
 pub fn list_worktrees() -> Result<Vec<WorktreeInfo>> {
-    let output = Command::new("wt")
+    let output = Command::new(wt_binary())
         .args(["list", "--format=json"])
         .output()?;
 
@@ -99,7 +108,7 @@ pub fn list_worktrees() -> Result<Vec<WorktreeInfo>> {
 }
 
 pub fn create_worktree(branch: &str) -> Result<()> {
-    let status = Command::new("wt")
+    let status = Command::new(wt_binary())
         .args(["switch", "--create", branch])
         .status()?;
 
@@ -110,7 +119,7 @@ pub fn create_worktree(branch: &str) -> Result<()> {
 }
 
 pub fn switch_worktree(branch: &str) -> Result<()> {
-    let status = Command::new("wt")
+    let status = Command::new(wt_binary())
         .args(["switch", branch])
         .status()?;
 
@@ -121,7 +130,7 @@ pub fn switch_worktree(branch: &str) -> Result<()> {
 }
 
 pub fn remove_worktree() -> Result<()> {
-    let status = Command::new("wt").args(["remove"]).status()?;
+    let status = Command::new(wt_binary()).args(["remove"]).status()?;
 
     if !status.success() {
         anyhow::bail!("wt remove failed");

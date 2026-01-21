@@ -134,7 +134,8 @@ fn create_launcher_script(
         .join("vibe-scripts");
     std::fs::create_dir_all(&script_dir)?;
 
-    // Shell script for fresh sessions (with prompt)
+    // Create wrapper scripts for fresh and continue commands
+    // This is more reliable than passing complex commands via -- flag
     let fresh_script_path = script_dir.join(format!("{}-fresh.sh", session_name));
     let fresh_script = format!("#!/bin/zsh\nexec {}\n", fresh_cmd);
     let mut file = std::fs::File::create(&fresh_script_path)?;
@@ -142,7 +143,6 @@ fn create_launcher_script(
     drop(file);
     std::fs::set_permissions(&fresh_script_path, std::fs::Permissions::from_mode(0o755))?;
 
-    // Shell script for continuing sessions (with --continue)
     let continue_script_path = script_dir.join(format!("{}-continue.sh", session_name));
     let continue_script = format!("#!/bin/zsh\nexec {}\n", continue_cmd);
     let mut file = std::fs::File::create(&continue_script_path)?;
@@ -155,24 +155,25 @@ fn create_launcher_script(
     // - Running: attach to it
     // - EXITED: delete and create with --continue (resume conversation)
     // - Not found: create new with prompt
+    // Use SHELL=/path/to/script zellij -s session to run script as the shell
     let launcher_path = script_dir.join(format!("{}-launch.sh", session_name));
     let launcher_script = format!(
         r#"#!/bin/zsh
 # Strip ANSI color codes for reliable grep
-SESSION_LINE=$(zellij list-sessions 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep "^{0}")
+SESSION_LINE=$(zellij list-sessions 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep "^{session}")
 if [[ -n "$SESSION_LINE" ]]; then
   if echo "$SESSION_LINE" | grep -q "EXITED"; then
-    zellij delete-session {0} 2>/dev/null
-    SHELL={2} exec zellij -s {0}
+    zellij delete-session {session} 2>/dev/null
+    SHELL={continue_script} exec zellij -s {session}
   else
-    exec zellij attach {0}
+    exec zellij attach {session}
   fi
 fi
-SHELL={1} exec zellij -s {0}
+SHELL={fresh_script} exec zellij -s {session}
 "#,
-        session_name,
-        fresh_script_path.display(),
-        continue_script_path.display()
+        session = session_name,
+        fresh_script = fresh_script_path.display(),
+        continue_script = continue_script_path.display(),
     );
     let mut file = std::fs::File::create(&launcher_path)?;
     file.write_all(launcher_script.as_bytes())?;
@@ -182,12 +183,36 @@ SHELL={1} exec zellij -s {0}
     Ok(launcher_path)
 }
 
-/// Launch claude in a zellij session for an existing worktree
-/// Uses `wt switch` to ensure we're in the right worktree, then launches zellij
-pub fn launch_zellij_claude_in_worktree(branch: &str, plan_mode: bool) -> Result<()> {
-    let session_name = super::session_name_for_branch(branch);
+/// Get the wt binary path - check WORKTRUNK_BIN env or fall back to cargo bin
+fn wt_binary() -> String {
+    std::env::var("WORKTRUNK_BIN").unwrap_or_else(|_| {
+        dirs::home_dir()
+            .map(|h| h.join(".cargo/bin/wt").to_string_lossy().to_string())
+            .unwrap_or_else(|| "wt".to_string())
+    })
+}
 
-    // Both fresh and continue use --continue since this function is for existing worktrees
+/// Launch claude in a zellij session for a worktree
+/// Uses `wt switch -x` to switch/create worktree AND launch zellij in one step
+/// The -x script inherits TTY from wt, which inherits from us (via .status())
+/// project_dir: The project's git repo root directory (wt must run from within repo)
+pub fn launch_zellij_claude_in_worktree(
+    branch: &str,
+    plan_mode: bool,
+    project_dir: &std::path::Path,
+) -> Result<()> {
+    let session_name = super::session_name_for_branch(branch);
+    let wt = wt_binary();
+
+    // Verify paths exist
+    if !std::path::Path::new(&wt).exists() {
+        anyhow::bail!("wt binary not found at: {}", wt);
+    }
+    if !project_dir.exists() {
+        anyhow::bail!("project_dir does not exist: {:?}", project_dir);
+    }
+
+    // Both fresh and continue use --continue since this is for existing worktrees
     let claude_cmd = if plan_mode {
         "claude --continue --dangerously-skip-permissions --plan"
     } else {
@@ -197,45 +222,63 @@ pub fn launch_zellij_claude_in_worktree(branch: &str, plan_mode: bool) -> Result
     let launcher = create_launcher_script(&session_name, claude_cmd, claude_cmd)?;
     let launcher_path = launcher.to_str().unwrap();
 
-    // Try wt switch first (branch exists), fall back to --create (new branch)
-    let status = Command::new("wt")
+    // Use .status() to inherit TTY - this is critical for zellij to work!
+    // Try existing branch first, then --create if not found
+    let status = Command::new(&wt)
+        .current_dir(project_dir)
         .args(["switch", branch, "-y", "-x", launcher_path])
         .status();
 
-    if status.is_err() || !status.unwrap().success() {
-        // Branch doesn't exist, create it
-        let status = Command::new("wt")
-            .args(["switch", "--create", branch, "-y", "-x", launcher_path])
-            .status()?;
+    match status {
+        Ok(s) if s.success() => Ok(()),
+        Ok(_) => {
+            // Try with --create for new branches
+            let status = Command::new(&wt)
+                .current_dir(project_dir)
+                .args(["switch", "--create", branch, "-y", "-x", launcher_path])
+                .status()?;
 
-        if !status.success() {
-            anyhow::bail!("wt switch failed");
+            if status.success() {
+                Ok(())
+            } else {
+                anyhow::bail!("wt switch --create failed");
+            }
         }
+        Err(e) => anyhow::bail!("wt command error: {}", e),
     }
-
-    Ok(())
 }
 
 /// Launch claude in a zellij session with task context for fresh tasks
 /// Creates worktree if needed, passes task context as initial prompt
+/// project_dir: The project's git repo root directory (wt must run from within repo)
 pub fn launch_zellij_claude_in_worktree_with_context(
     branch: &str,
     task_context: &str,
     plan_mode: bool,
+    project_dir: &std::path::Path,
 ) -> Result<()> {
     let session_name = super::session_name_for_branch(branch);
+    let wt = wt_binary();
 
-    // Create launcher script with task context (handles attach to existing or create new)
-    // Write task context to a temp file to avoid escaping issues
-    let context_file = dirs::cache_dir()
+    // Verify paths exist
+    if !std::path::Path::new(&wt).exists() {
+        anyhow::bail!("wt binary not found at: {}", wt);
+    }
+    if !project_dir.exists() {
+        anyhow::bail!("project_dir does not exist: {:?}", project_dir);
+    }
+
+    // Write task context to file
+    let script_dir = dirs::cache_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
-        .join("vibe-scripts")
-        .join(format!("{}-context.txt", session_name));
-    std::fs::create_dir_all(context_file.parent().unwrap())?;
+        .join("vibe-scripts");
+    std::fs::create_dir_all(&script_dir)?;
+
+    let context_file = script_dir.join(format!("{}-context.txt", session_name));
     std::fs::write(&context_file, task_context)?;
 
-    // Fresh: pass prompt as positional argument for interactive session
-    // Continue: use --continue for EXITED sessions (conversation already exists)
+    // Fresh: pass prompt as positional argument
+    // Continue: use --continue for EXITED sessions
     let (fresh_cmd, continue_cmd) = if plan_mode {
         (
             format!(
@@ -257,23 +300,29 @@ pub fn launch_zellij_claude_in_worktree_with_context(
     let launcher = create_launcher_script(&session_name, &fresh_cmd, &continue_cmd)?;
     let launcher_path = launcher.to_str().unwrap();
 
-    // Try wt switch first (branch exists), fall back to --create (new branch)
-    let status = Command::new("wt")
+    // Use .status() to inherit TTY - critical for zellij!
+    let status = Command::new(&wt)
+        .current_dir(project_dir)
         .args(["switch", branch, "-y", "-x", launcher_path])
         .status();
 
-    if status.is_err() || !status.unwrap().success() {
-        // Branch doesn't exist, create it
-        let status = Command::new("wt")
-            .args(["switch", "--create", branch, "-y", "-x", launcher_path])
-            .status()?;
+    match status {
+        Ok(s) if s.success() => Ok(()),
+        Ok(_) => {
+            // Try with --create for new branches
+            let status = Command::new(&wt)
+                .current_dir(project_dir)
+                .args(["switch", "--create", branch, "-y", "-x", launcher_path])
+                .status()?;
 
-        if !status.success() {
-            anyhow::bail!("wt switch failed");
+            if status.success() {
+                Ok(())
+            } else {
+                anyhow::bail!("wt switch --create failed");
+            }
         }
+        Err(e) => anyhow::bail!("wt command error: {}", e),
     }
-
-    Ok(())
 }
 
 /// Attach to existing zellij session in current terminal (blocks)

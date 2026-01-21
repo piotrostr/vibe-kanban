@@ -825,7 +825,55 @@ impl App {
         self.fetch_pr_info_for_branches(&worktrees);
     }
 
+    /// Get the project directory for the currently selected project
+    fn get_project_dir(&self) -> Option<std::path::PathBuf> {
+        let project_id = self.state.selected_project_id.as_ref()?;
+        let project = self
+            .state
+            .projects
+            .projects
+            .iter()
+            .find(|p| &p.id == project_id)?;
+
+        let dir = project.default_agent_working_dir.as_ref()?;
+        if dir.is_empty() {
+            return None;
+        }
+
+        // Handle different path formats
+        let path = if dir.starts_with('/') {
+            // Absolute path
+            std::path::PathBuf::from(dir)
+        } else if dir.starts_with('~') {
+            // Home-relative path
+            dirs::home_dir()?.join(&dir[2..])
+        } else {
+            // Assume it's a directory name under home (e.g., "vibe-kanban" -> ~/vibe-kanban)
+            dirs::home_dir()?.join(dir)
+        };
+
+        Some(path)
+    }
+
     fn handle_launch_session(&mut self, terminal: &mut Terminal, plan_mode: bool) -> Result<()> {
+        // Get project directory - required for wt to work
+        let project_dir = match self.get_project_dir() {
+            Some(dir) => {
+                if !dir.exists() {
+                    tracing::error!("Project directory does not exist: {:?}", dir);
+                    return Ok(());
+                }
+                dir
+            }
+            None => {
+                tracing::error!(
+                    "No project directory configured. Selected project: {:?}",
+                    self.state.selected_project_id
+                );
+                return Ok(());
+            }
+        };
+
         // Get task and derive branch name
         let task = match self.state.view {
             View::Worktrees => {
@@ -835,6 +883,7 @@ impl App {
                     let result = launch_zellij_claude_in_worktree(
                         &wt.branch,
                         plan_mode,
+                        &project_dir,
                     );
                     terminal.resume()?;
                     if let Err(e) = result {
@@ -874,6 +923,7 @@ impl App {
             &branch,
             &task_context,
             plan_mode,
+            &project_dir,
         );
 
         terminal.resume()?;
