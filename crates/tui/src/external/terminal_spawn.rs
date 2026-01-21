@@ -142,9 +142,11 @@ fn create_launcher_script(session_name: &str, claude_cmd: &str) -> Result<std::p
     std::fs::set_permissions(&shell_script_path, std::fs::Permissions::from_mode(0o755))?;
 
     // Launcher script that wt switch -x will execute
+    // Try to attach to existing session first (resurrects EXITED sessions), create if not found
     let launcher_path = script_dir.join(format!("{}-launch.sh", session_name));
     let launcher_script = format!(
-        "#!/bin/zsh\nSHELL={} zellij -s {}\n",
+        "#!/bin/zsh\nzellij attach -f {} 2>/dev/null || SHELL={} zellij -s {}\n",
+        session_name,
         shell_script_path.display(),
         session_name
     );
@@ -161,18 +163,7 @@ fn create_launcher_script(session_name: &str, claude_cmd: &str) -> Result<std::p
 pub fn launch_zellij_claude_in_worktree(branch: &str, plan_mode: bool) -> Result<()> {
     let session_name = super::session_name_for_branch(branch);
 
-    // Try to attach to existing zellij session first
-    let attach_result = Command::new("zellij")
-        .args(["attach", "-f", &session_name])
-        .status();
-
-    if let Ok(status) = attach_result {
-        if status.success() {
-            return Ok(());
-        }
-    }
-
-    // No existing session - create launcher script
+    // Create launcher script (handles attach to existing or create new)
     let claude_cmd = if plan_mode {
         "claude --continue --dangerously-skip-permissions --plan"
     } else {
@@ -210,18 +201,7 @@ pub fn launch_zellij_claude_in_worktree_with_context(
 ) -> Result<()> {
     let session_name = super::session_name_for_branch(branch);
 
-    // Try to attach to existing zellij session first
-    let attach_result = Command::new("zellij")
-        .args(["attach", "-f", &session_name])
-        .status();
-
-    if let Ok(status) = attach_result {
-        if status.success() {
-            return Ok(());
-        }
-    }
-
-    // No existing session - create launcher script with task context
+    // Create launcher script with task context (handles attach to existing or create new)
     // Write task context to a temp file to avoid escaping issues
     let context_file = dirs::cache_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
