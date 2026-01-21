@@ -123,6 +123,29 @@ impl ApiClient {
         }
     }
 
+    pub async fn sync_linear_backlog(&self, project_id: &str) -> Result<LinearSyncResponse> {
+        let url = format!("{}/api/projects/{}/linear/sync", self.base_url, project_id);
+        let response: ApiResponse<LinearSyncResponse> =
+            self.client.post(&url).send().await?.json().await?;
+
+        if response.success {
+            response
+                .data
+                .ok_or_else(|| anyhow::anyhow!("No data in response"))
+        } else {
+            anyhow::bail!(
+                "API error: {}",
+                response.message.unwrap_or_else(|| "Unknown error".to_string())
+            )
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LinearSyncResponse {
+    pub synced_count: usize,
+    pub created_count: usize,
+    pub updated_count: usize,
 }
 
 #[derive(Debug, Serialize)]
