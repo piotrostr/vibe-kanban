@@ -13,7 +13,7 @@ use crate::external::{
     session_name_for_branch,
 };
 use crate::input::{extract_key_event, key_to_action, Action, EventStream};
-use crate::state::{AppState, Modal, View};
+use crate::state::{check_linear_api_key, AppState, Modal, View};
 use crate::terminal::Terminal;
 use crate::ui::{
     render_footer, render_header, render_help_modal, render_kanban_board, render_project_list,
@@ -261,6 +261,10 @@ impl App {
                 self.state.search_query.clear();
                 self.state.tasks.search_filter.clear();
             }
+
+            Action::SyncLinear => {
+                self.handle_sync_linear().await?;
+            }
         }
 
         Ok(())
@@ -331,6 +335,10 @@ impl App {
             View::Projects => {
                 if let Some(project) = self.state.projects.selected() {
                     let project_id = project.id.clone();
+                    let project_name = project.name.clone();
+
+                    // Check if Linear API key env var is available
+                    self.state.linear_api_key_available = check_linear_api_key(&project_name);
 
                     // Load tasks for this project
                     self.state.tasks.loading = true;
@@ -735,6 +743,38 @@ impl App {
             tracing::info!("Killed session {}", session.name);
             // Refresh the sessions list
             self.load_sessions();
+        }
+
+        Ok(())
+    }
+
+    async fn handle_sync_linear(&mut self) -> Result<()> {
+        if !self.state.linear_api_key_available {
+            tracing::warn!("Linear API key not available");
+            return Ok(());
+        }
+
+        let Some(project_id) = self.state.selected_project_id.clone() else {
+            tracing::warn!("No project selected for Linear sync");
+            return Ok(());
+        };
+
+        tracing::info!("Syncing Linear backlog for project {}", project_id);
+
+        match self.api.sync_linear_backlog(&project_id).await {
+            Ok(response) => {
+                tracing::info!(
+                    "Linear sync complete: {} synced, {} created, {} updated",
+                    response.synced_count,
+                    response.created_count,
+                    response.updated_count
+                );
+                // Refresh tasks to show newly synced items
+                self.refresh().await?;
+            }
+            Err(e) => {
+                tracing::error!("Failed to sync Linear backlog: {}", e);
+            }
         }
 
         Ok(())

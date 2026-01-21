@@ -6,7 +6,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::state::AppState;
+use crate::state::{linear_env_var_name, AppState};
 
 const LOGO: &str = r#"
  __   _(_) |__   ___
@@ -24,18 +24,30 @@ pub fn render_header(frame: &mut Frame, area: Rect, state: &AppState) {
 }
 
 fn render_header_with_logo(frame: &mut Frame, area: Rect, state: &AppState) {
-    let project_info = match &state.selected_project_id {
+    let (project_info, project_name) = match &state.selected_project_id {
         Some(id) => {
-            let project_name = state
+            let name = state
                 .projects
                 .projects
                 .iter()
                 .find(|p| &p.id == id)
                 .map(|p| p.name.as_str())
                 .unwrap_or("Unknown");
-            format!("Project: {}", project_name)
+            (format!("Project: {}", name), Some(name.to_string()))
         }
-        None => String::new(),
+        None => (String::new(), None),
+    };
+
+    // Linear API key status
+    let linear_info = if let Some(ref name) = project_name {
+        let env_var = linear_env_var_name(name);
+        if state.linear_api_key_available {
+            Some((format!("Linear: {} set", env_var), Color::Green))
+        } else {
+            Some((format!("Linear: {} not set", env_var), Color::DarkGray))
+        }
+    } else {
+        None
     };
 
     let status_text = if state.backend_connected {
@@ -69,6 +81,11 @@ fn render_header_with_logo(frame: &mut Frame, area: Rect, state: &AppState) {
                 &project_info,
                 Style::default().fg(Color::Yellow),
             ));
+        } else if i == 2 {
+            if let Some((ref linear_text, linear_color)) = linear_info {
+                spans.push(Span::raw("  "));
+                spans.push(Span::styled(linear_text, Style::default().fg(linear_color)));
+            }
         }
 
         lines.push(Line::from(spans));
@@ -212,6 +229,11 @@ pub fn render_help_modal(frame: &mut Frame, area: Rect) {
         Line::from("  S                  Show sessions"),
         Line::from("  a / Enter          Attach to session"),
         Line::from("  K                  Kill session"),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Linear", Style::default().add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from("  L                  Sync Linear backlog"),
         Line::from(""),
         Line::from(vec![
             Span::styled("Other", Style::default().add_modifier(Modifier::BOLD)),
