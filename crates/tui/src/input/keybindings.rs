@@ -83,6 +83,7 @@ fn kanban_bindings(key: KeyEvent) -> Option<Action> {
         KeyCode::Char('g') => Some(Action::LaunchSession),
         KeyCode::Char('p') => Some(Action::LaunchSessionPlan),
         KeyCode::Char('v') => Some(Action::ViewPR),
+        KeyCode::Char('b') => Some(Action::BindPR),
 
         // Worktrees and sessions views
         KeyCode::Char('w') => Some(Action::ShowWorktrees),
@@ -104,6 +105,7 @@ fn task_detail_bindings(key: KeyEvent) -> Option<Action> {
         KeyCode::Char('g') => Some(Action::LaunchSession),
         KeyCode::Char('p') => Some(Action::LaunchSessionPlan),
         KeyCode::Char('v') => Some(Action::ViewPR),
+        KeyCode::Char('b') => Some(Action::BindPR),
         KeyCode::Enter | KeyCode::Char(' ') => Some(Action::LaunchSession),
         KeyCode::Char('w') => Some(Action::ShowWorktrees),
         KeyCode::Char('S') => Some(Action::ShowSessions),
