@@ -123,10 +123,73 @@ impl ApiClient {
         }
     }
 
+    pub async fn bind_pr(
+        &self,
+        attempt_id: &str,
+        repo_id: &str,
+        pr_number: i64,
+    ) -> Result<BindPrResponse> {
+        let url = format!("{}/api/task-attempts/{}/pr/bind", self.base_url, attempt_id);
+        let request = BindPrRequest {
+            repo_id: repo_id.to_string(),
+            pr_number,
+        };
+        let response: ApiResponse<BindPrResponse> = self
+            .client
+            .post(&url)
+            .json(&request)
+            .send()
+            .await?
+            .json()
+            .await?;
+
+        if response.success {
+            response
+                .data
+                .ok_or_else(|| anyhow::anyhow!("No data in response"))
+        } else {
+            anyhow::bail!(
+                "API error: {}",
+                response.message.unwrap_or_else(|| "Unknown error".to_string())
+            )
+        }
+    }
+
+    pub async fn get_project_repos(&self, project_id: &str) -> Result<Vec<ProjectRepo>> {
+        self.get(&format!("/api/projects/{}/repos", project_id))
+            .await
+    }
+
     pub async fn sync_linear_backlog(&self, project_id: &str) -> Result<LinearSyncResponse> {
         let url = format!("{}/api/projects/{}/linear/sync", self.base_url, project_id);
         let response: ApiResponse<LinearSyncResponse> =
             self.client.post(&url).send().await?.json().await?;
+
+        if response.success {
+            response
+                .data
+                .ok_or_else(|| anyhow::anyhow!("No data in response"))
+        } else {
+            anyhow::bail!(
+                "API error: {}",
+                response.message.unwrap_or_else(|| "Unknown error".to_string())
+            )
+        }
+    }
+
+    pub async fn create_task_attempt(
+        &self,
+        request: CreateTaskAttemptRequest,
+    ) -> Result<TaskAttempt> {
+        let url = format!("{}/api/task-attempts", self.base_url);
+        let response: ApiResponse<TaskAttempt> = self
+            .client
+            .post(&url)
+            .json(&request)
+            .send()
+            .await?
+            .json()
+            .await?;
 
         if response.success {
             response
@@ -168,4 +231,44 @@ pub struct CreateTask {
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<TaskStatus>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BindPrRequest {
+    pub repo_id: String,
+    pub pr_number: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BindPrResponse {
+    pub pr_attached: bool,
+    pub pr_url: Option<String>,
+    pub pr_number: Option<i64>,
+    pub pr_status: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ProjectRepo {
+    pub id: String,
+    pub project_id: String,
+    pub repo_id: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CreateTaskAttemptRepoRequest {
+    pub repo_id: String,
+    pub target_branch: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CreateTaskAttemptRequest {
+    pub task_id: String,
+    pub repos: Vec<CreateTaskAttemptRepoRequest>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TaskAttempt {
+    pub id: String,
+    pub task_id: String,
+    pub branch: String,
 }

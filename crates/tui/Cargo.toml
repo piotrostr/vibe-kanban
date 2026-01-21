@@ -13,6 +13,7 @@ uninlined-format-args = "allow"
 [dependencies]
 # Internal workspace deps
 db = { path = "../db" }
+server = { path = "../server" }
 utils = { path = "../utils" }
 
 # TUI framework

@@ -10,9 +10,38 @@ use services::services::container::ContainerService;
 use sqlx::Error as SqlxError;
 use strip_ansi_escapes::strip;
 use thiserror::Error;
+use tokio::sync::oneshot;
 use utils::{assets::asset_dir, browser::open_browser, port_file::write_port_file};
 
 pub type DeploymentImpl = local_deployment::LocalDeployment;
+
+/// Handle for an embedded server instance.
+/// Dropping this handle triggers graceful shutdown.
+pub struct EmbeddedServerHandle {
+    port: u16,
+    shutdown_tx: Option<oneshot::Sender<()>>,
+}
+
+impl EmbeddedServerHandle {
+    pub fn port(&self) -> u16 {
+        self.port
+    }
+
+    /// Trigger graceful shutdown of the embedded server.
+    pub fn shutdown(mut self) {
+        if let Some(tx) = self.shutdown_tx.take() {
+            let _ = tx.send(());
+        }
+    }
+}
+
+impl Drop for EmbeddedServerHandle {
+    fn drop(&mut self) {
+        if let Some(tx) = self.shutdown_tx.take() {
+            let _ = tx.send(());
+        }
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum VibeKanbanError {
@@ -167,4 +196,98 @@ pub async fn perform_cleanup_actions(deployment: &DeploymentImpl) {
         .kill_all_running_processes()
         .await
         .expect("Failed to cleanly kill running execution processes");
+}
+
+/// Run the server in embedded mode (non-blocking).
+/// Returns a handle that can be used to get the port and trigger shutdown.
+/// The server runs as a background task until the handle is dropped.
+pub async fn run_embedded() -> Result<EmbeddedServerHandle, VibeKanbanError> {
+    if !asset_dir().exists() {
+        std::fs::create_dir_all(asset_dir())?;
+    }
+
+    let deployment = DeploymentImpl::new().await?;
+    deployment
+        .container()
+        .cleanup_orphan_executions()
+        .await
+        .map_err(DeploymentError::from)?;
+    deployment
+        .container()
+        .backfill_before_head_commits()
+        .await
+        .map_err(DeploymentError::from)?;
+    deployment
+        .container()
+        .backfill_repo_names()
+        .await
+        .map_err(DeploymentError::from)?;
+    deployment.spawn_pr_monitor_service().await;
+
+    let deployment_for_cache = deployment.clone();
+    tokio::spawn(async move {
+        if let Err(e) = deployment_for_cache
+            .file_search_cache()
+            .warm_most_active(&deployment_for_cache.db().pool, 3)
+            .await
+        {
+            tracing::warn!("Failed to warm file search cache: {}", e);
+        }
+    });
+
+    let deployment_for_verification = deployment.clone();
+    tokio::spawn(async move {
+        if let Some(publisher) = deployment_for_verification.container().share_publisher()
+            && let Err(e) = publisher.cleanup_shared_tasks().await
+        {
+            tracing::warn!("Failed to verify shared tasks: {}", e);
+        }
+    });
+
+    let app_router = routes::router(deployment.clone());
+
+    let port = std::env::var("BACKEND_PORT")
+        .or_else(|_| std::env::var("PORT"))
+        .ok()
+        .and_then(|s| {
+            let cleaned =
+                String::from_utf8(strip(s.as_bytes())).expect("UTF-8 after stripping ANSI");
+            cleaned.trim().parse::<u16>().ok()
+        })
+        .unwrap_or_else(|| {
+            tracing::info!("No PORT environment variable set, using port 0 for auto-assignment");
+            0
+        });
+
+    let host = std::env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let listener = tokio::net::TcpListener::bind(format!("{host}:{port}")).await?;
+    let actual_port = listener.local_addr()?.port();
+
+    if let Err(e) = write_port_file(actual_port).await {
+        tracing::warn!("Failed to write port file: {}", e);
+    }
+
+    tracing::info!("Embedded server running on http://{host}:{actual_port}");
+
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+
+    tokio::spawn(async move {
+        let shutdown_future = async {
+            let _ = shutdown_rx.await;
+        };
+
+        if let Err(e) = axum::serve(listener, app_router)
+            .with_graceful_shutdown(shutdown_future)
+            .await
+        {
+            tracing::error!("Server error: {}", e);
+        }
+
+        perform_cleanup_actions(&deployment).await;
+    });
+
+    Ok(EmbeddedServerHandle {
+        port: actual_port,
+        shutdown_tx: Some(shutdown_tx),
+    })
 }

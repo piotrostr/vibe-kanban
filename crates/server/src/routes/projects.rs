@@ -535,14 +535,36 @@ pub struct ValidateLinearAssigneeResponse {
     pub name: Option<String>,
 }
 
+/// Derive the env var name for the Linear API key from a project name.
+/// E.g., "reflex" -> "REFLEX_LINEAR_API_KEY"
+fn get_linear_api_key_from_env(project_name: &str) -> Option<String> {
+    let normalized: String = project_name
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() {
+                c.to_ascii_uppercase()
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let env_var = format!("{}_LINEAR_API_KEY", normalized);
+    std::env::var(&env_var).ok()
+}
+
 /// Validate that a Linear user ID exists
 pub async fn validate_linear_assignee(
     Extension(project): Extension<Project>,
     Json(payload): Json<ValidateLinearAssigneeRequest>,
 ) -> Result<ResponseJson<ApiResponse<ValidateLinearAssigneeResponse>>, ApiError> {
-    let api_key = project.linear_api_key.ok_or_else(|| {
-        ApiError::BadRequest("Linear API key not configured for this project".to_string())
-    })?;
+    // Try database field first, then fall back to environment variable
+    let api_key = project
+        .linear_api_key
+        .clone()
+        .or_else(|| get_linear_api_key_from_env(&project.name))
+        .ok_or_else(|| {
+            ApiError::BadRequest("Linear API key not configured for this project".to_string())
+        })?;
 
     let client = LinearClient::new(api_key);
     match client.validate_user(&payload.assignee_id).await {
@@ -573,9 +595,14 @@ pub async fn sync_linear_backlog(
     Extension(project): Extension<Project>,
     State(deployment): State<DeploymentImpl>,
 ) -> Result<ResponseJson<ApiResponse<LinearSyncResponse>>, ApiError> {
-    let api_key = project.linear_api_key.ok_or_else(|| {
-        ApiError::BadRequest("Linear API key not configured for this project".to_string())
-    })?;
+    // Try database field first, then fall back to environment variable
+    let api_key = project
+        .linear_api_key
+        .clone()
+        .or_else(|| get_linear_api_key_from_env(&project.name))
+        .ok_or_else(|| {
+            ApiError::BadRequest("Linear API key not configured for this project".to_string())
+        })?;
 
     let client = LinearClient::new(api_key);
 
