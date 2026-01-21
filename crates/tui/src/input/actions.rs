@@ -32,6 +32,13 @@ pub enum Action {
     SearchDeleteWord,
     ClearSearch,
 
+    // Command mode (vim-like ;f)
+    StartCommand,
+    CommandType(char),
+    CommandBackspace,
+    ExecuteCommand,
+    CancelCommand,
+
     ShowHelp,
     Refresh,
     SyncLinear,
