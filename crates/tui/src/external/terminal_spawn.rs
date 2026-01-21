@@ -142,13 +142,18 @@ fn create_launcher_script(session_name: &str, claude_cmd: &str) -> Result<std::p
     std::fs::set_permissions(&shell_script_path, std::fs::Permissions::from_mode(0o755))?;
 
     // Launcher script that wt switch -x will execute
-    // Try to attach to existing session first (resurrects EXITED sessions), create if not found
+    // 1. Try attach (works for running sessions)
+    // 2. If fails, check if EXITED and clean it up
+    // 3. Create new session - claude --continue resumes conversation from worktree
     let launcher_path = script_dir.join(format!("{}-launch.sh", session_name));
     let launcher_script = format!(
-        "#!/bin/zsh\nzellij attach -f {} 2>/dev/null || SHELL={} zellij -s {}\n",
+        r#"#!/bin/zsh
+zellij attach {0} 2>/dev/null && exit 0
+zellij list-sessions 2>/dev/null | grep -q "^{0}.*EXITED" && zellij delete-session {0} 2>/dev/null
+SHELL={1} zellij -s {0}
+"#,
         session_name,
-        shell_script_path.display(),
-        session_name
+        shell_script_path.display()
     );
     let mut file = std::fs::File::create(&launcher_path)?;
     file.write_all(launcher_script.as_bytes())?;
