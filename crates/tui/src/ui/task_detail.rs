@@ -9,28 +9,26 @@ use ratatui::{
 use crate::state::Task;
 
 pub fn render_task_detail(frame: &mut Frame, area: Rect, task: &Task) {
+    let has_linear = task.linear_url.is_some() || task.linear_issue_id.is_some();
+    let has_pr = task.pr_url.is_some();
+
+    let mut constraints = vec![Constraint::Length(3)]; // Title with status
+    if has_linear {
+        constraints.push(Constraint::Length(3)); // Linear
+    }
+    if has_pr {
+        constraints.push(Constraint::Length(3)); // PR
+    }
+    constraints.push(Constraint::Min(0)); // Description
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),  // Title
-            Constraint::Length(3),  // Status & metadata
-            Constraint::Min(0),     // Description
-        ])
+        .constraints(constraints)
         .split(area);
 
-    // Title
-    let title_block = Block::default()
-        .borders(Borders::ALL)
-        .title(" Task ")
-        .border_style(Style::default().fg(Color::Cyan));
+    let mut chunk_idx = 0;
 
-    let title = Paragraph::new(task.title.clone())
-        .style(Style::default().add_modifier(Modifier::BOLD))
-        .block(title_block);
-
-    frame.render_widget(title, chunks[0]);
-
-    // Status & metadata row
+    // Title with status inlined
     let status_color = match task.status {
         crate::state::TaskStatus::Backlog => Color::Gray,
         crate::state::TaskStatus::Todo => Color::Blue,
@@ -40,57 +38,71 @@ pub fn render_task_detail(frame: &mut Frame, area: Rect, task: &Task) {
         crate::state::TaskStatus::Cancelled => Color::Red,
     };
 
-    let mut metadata_spans = vec![
-        Span::raw("Status: "),
-        Span::styled(task.status.label(), Style::default().fg(status_color)),
+    let mut title_spans = vec![
+        Span::styled(task.title.clone(), Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(" "),
+        Span::styled(
+            format!("[{}]", task.status.label()),
+            Style::default().fg(status_color),
+        ),
     ];
 
-    // Add attempt status
+    // Add attempt status inline
     if task.has_in_progress_attempt {
-        metadata_spans.push(Span::raw(" | "));
-        metadata_spans.push(Span::styled(
-            "Running",
-            Style::default().fg(Color::Yellow),
-        ));
+        title_spans.push(Span::raw(" "));
+        title_spans.push(Span::styled("Running", Style::default().fg(Color::Yellow)));
     } else if task.last_attempt_failed {
-        metadata_spans.push(Span::raw(" | "));
-        metadata_spans.push(Span::styled("Failed", Style::default().fg(Color::Red)));
+        title_spans.push(Span::raw(" "));
+        title_spans.push(Span::styled("Failed", Style::default().fg(Color::Red)));
     }
 
-    // Add PR info with clickable URL
-    if let Some(pr_url) = &task.pr_url {
-        metadata_spans.push(Span::raw(" | PR: "));
+    let title = Paragraph::new(Line::from(title_spans)).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Cyan)),
+    );
+    frame.render_widget(title, chunks[chunk_idx]);
+    chunk_idx += 1;
+
+    // Linear URL row
+    if has_linear {
+        let linear_text = task
+            .linear_url
+            .as_deref()
+            .or(task.linear_issue_id.as_deref())
+            .unwrap_or("");
+
+        let linear = Paragraph::new(linear_text).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Linear ")
+                .border_style(Style::default().fg(Color::Blue)),
+        );
+        frame.render_widget(linear, chunks[chunk_idx]);
+        chunk_idx += 1;
+    }
+
+    // PR URL row
+    if has_pr {
+        let pr_url = task.pr_url.as_deref().unwrap_or("");
         let pr_status_color = match task.pr_status.as_deref() {
             Some("merged") => Color::Magenta,
             Some("closed") => Color::Red,
             _ => Color::Green,
         };
-        metadata_spans.push(Span::styled(pr_url.clone(), Style::default().fg(pr_status_color)));
+
+        let pr = Paragraph::new(pr_url).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Pull Request ")
+                .border_style(Style::default().fg(pr_status_color)),
+        );
+        frame.render_widget(pr, chunks[chunk_idx]);
+        chunk_idx += 1;
     }
-
-    // Add Linear info with clickable URL
-    if let Some(linear_url) = &task.linear_url {
-        metadata_spans.push(Span::raw(" | Linear: "));
-        metadata_spans.push(Span::styled(linear_url.clone(), Style::default().fg(Color::Blue)));
-    } else if let Some(linear_id) = &task.linear_issue_id {
-        metadata_spans.push(Span::raw(" | Linear: "));
-        metadata_spans.push(Span::styled(linear_id.clone(), Style::default().fg(Color::Blue)));
-    }
-
-    let metadata = Paragraph::new(Line::from(metadata_spans)).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(" Info ")
-            .border_style(Style::default().fg(Color::DarkGray)),
-    );
-
-    frame.render_widget(metadata, chunks[1]);
 
     // Description
-    let description_text = task
-        .description
-        .as_deref()
-        .unwrap_or("No description");
+    let description_text = task.description.as_deref().unwrap_or("No description");
 
     let description = Paragraph::new(description_text)
         .wrap(Wrap { trim: false })
@@ -101,7 +113,7 @@ pub fn render_task_detail(frame: &mut Frame, area: Rect, task: &Task) {
                 .border_style(Style::default().fg(Color::DarkGray)),
         );
 
-    frame.render_widget(description, chunks[2]);
+    frame.render_widget(description, chunks[chunk_idx]);
 }
 
 pub fn render_task_detail_with_actions(frame: &mut Frame, area: Rect, task: &Task) {
