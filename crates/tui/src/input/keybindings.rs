@@ -29,6 +29,7 @@ pub fn key_to_action(
         (KeyCode::Char('c'), KeyModifiers::CONTROL) => return Some(Action::Quit),
         (KeyCode::Char('?'), KeyModifiers::NONE) => return Some(Action::ShowHelp),
         (KeyCode::Char('/'), KeyModifiers::NONE) => return Some(Action::StartSearch),
+        (KeyCode::Char('I'), KeyModifiers::SHIFT) => return Some(Action::ShowLogs),
         (KeyCode::Esc, _) => return Some(Action::Back),
         _ => {}
     }
@@ -40,6 +41,16 @@ pub fn key_to_action(
         View::TaskDetail => task_detail_bindings(key),
         View::Worktrees => worktrees_bindings(key),
         View::Sessions => sessions_bindings(key),
+        View::Logs => logs_bindings(key),
+    }
+}
+
+fn logs_bindings(key: KeyEvent) -> Option<Action> {
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => Some(Action::Down),
+        KeyCode::Char('k') | KeyCode::Up => Some(Action::Up),
+        KeyCode::Char('r') => Some(Action::Refresh),
+        _ => None,
     }
 }
 

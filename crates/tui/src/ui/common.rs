@@ -182,6 +182,9 @@ pub fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
                 search_indicator
             )
         }
+        crate::state::View::Logs => {
+            "j/k: scroll | r: refresh | Esc: back".to_string()
+        }
     };
 
     let footer = Paragraph::new(hints)

@@ -17,8 +17,8 @@ use crate::input::{extract_key_event, key_to_action, Action, EventStream};
 use crate::state::{check_linear_api_key, AppState, Modal, View};
 use crate::terminal::Terminal;
 use crate::ui::{
-    render_footer, render_header, render_help_modal, render_kanban_board, render_project_list,
-    render_sessions, render_task_detail_with_actions, render_worktrees,
+    render_footer, render_header, render_help_modal, render_kanban_board, render_logs,
+    render_project_list, render_sessions, render_task_detail_with_actions, render_worktrees,
 };
 
 type WorktreeResult = Result<Vec<WorktreeInfo>, String>;
@@ -265,6 +265,9 @@ impl App {
                 View::Sessions => {
                     render_sessions(frame, chunks[1], &self.state.sessions);
                 }
+                View::Logs => {
+                    render_logs(frame, chunks[1], &self.state.logs);
+                }
             }
 
             render_footer(frame, chunks[2], &self.state);
@@ -403,9 +406,18 @@ impl App {
             Action::SyncLinear => {
                 self.handle_sync_linear().await?;
             }
+
+            Action::ShowLogs => {
+                self.handle_show_logs();
+            }
         }
 
         Ok(())
+    }
+
+    fn handle_show_logs(&mut self) {
+        self.state.logs.load_logs();
+        self.state.view = View::Logs;
     }
 
     fn handle_back(&mut self) {
@@ -433,6 +445,9 @@ impl App {
             View::Sessions => {
                 self.state.sessions.select_prev();
             }
+            View::Logs => {
+                self.state.logs.scroll_up();
+            }
         }
     }
 
@@ -452,6 +467,9 @@ impl App {
             }
             View::Sessions => {
                 self.state.sessions.select_next();
+            }
+            View::Logs => {
+                self.state.logs.scroll_down();
             }
         }
     }
@@ -529,6 +547,10 @@ impl App {
                 // Attach to selected session
                 self.handle_attach_session(terminal)?;
             }
+            View::Logs => {
+                // Refresh logs on select
+                self.state.logs.refresh();
+            }
         }
 
         Ok(())
@@ -586,6 +608,9 @@ impl App {
             }
             View::Sessions => {
                 self.load_sessions();
+            }
+            View::Logs => {
+                self.state.logs.refresh();
             }
         }
 

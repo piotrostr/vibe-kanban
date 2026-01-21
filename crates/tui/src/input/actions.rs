@@ -49,4 +49,7 @@ pub enum Action {
 
     // Linear integration
     SyncLinear,
+
+    // Logs
+    ShowLogs,
 }
