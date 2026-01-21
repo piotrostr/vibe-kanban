@@ -1,6 +1,7 @@
 use anyhow::Result;
 use crossterm::event::Event;
 use ratatui::layout::{Constraint, Direction, Layout};
+use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
 use crate::api::{
@@ -10,7 +11,7 @@ use crate::api::{
 use crate::external::{
     attach_zellij_foreground, edit_markdown, launch_zellij_claude_in_worktree,
     launch_zellij_claude_in_worktree_with_context, list_sessions_with_status, list_worktrees,
-    session_name_for_branch,
+    WorktreeInfo, ZellijSession,
 };
 use crate::input::{extract_key_event, key_to_action, Action, EventStream};
 use crate::state::{check_linear_api_key, AppState, Modal, View};
@@ -20,6 +21,9 @@ use crate::ui::{
     render_sessions, render_task_detail_with_actions, render_worktrees,
 };
 
+type WorktreeResult = Result<Vec<WorktreeInfo>, String>;
+type SessionResult = Result<Vec<ZellijSession>, String>;
+
 pub struct App {
     state: AppState,
     api: ApiClient,
@@ -28,6 +32,11 @@ pub struct App {
     ws_task: Option<JoinHandle<()>>,
     task_receiver: Option<TaskUpdateReceiver>,
     last_session_poll: std::time::Instant,
+    // Background loading channels
+    worktree_receiver: mpsc::Receiver<WorktreeResult>,
+    worktree_sender: mpsc::Sender<WorktreeResult>,
+    session_receiver: mpsc::Receiver<SessionResult>,
+    session_sender: mpsc::Sender<SessionResult>,
 }
 
 impl App {
@@ -43,6 +52,28 @@ impl App {
         let projects = api.get_projects().await?;
         state.projects.set_projects(projects);
 
+        // Create background loading channels
+        let (worktree_sender, worktree_receiver) = mpsc::channel(4);
+        let (session_sender, session_receiver) = mpsc::channel(4);
+
+        // Mark as loading immediately so UI shows loading state
+        state.worktrees.loading = true;
+        state.sessions.loading = true;
+
+        // Spawn immediate background load for worktrees
+        let wt_sender = worktree_sender.clone();
+        tokio::task::spawn_blocking(move || {
+            let result = list_worktrees().map_err(|e| e.to_string());
+            let _ = wt_sender.blocking_send(result);
+        });
+
+        // Spawn immediate background load for sessions
+        let sess_sender = session_sender.clone();
+        tokio::task::spawn_blocking(move || {
+            let result = list_sessions_with_status().map_err(|e| e.to_string());
+            let _ = sess_sender.blocking_send(result);
+        });
+
         Ok(Self {
             state,
             api,
@@ -51,6 +82,10 @@ impl App {
             ws_task: None,
             task_receiver: None,
             last_session_poll: std::time::Instant::now(),
+            worktree_receiver,
+            worktree_sender,
+            session_receiver,
+            session_sender,
         })
     }
 
@@ -62,9 +97,12 @@ impl App {
             // Check for WebSocket updates
             self.check_ws_updates();
 
-            // Poll session status periodically (non-blocking)
+            // Check for background load results (worktrees, sessions)
+            self.check_background_loads();
+
+            // Poll session status periodically (non-blocking background refresh)
             if self.last_session_poll.elapsed() >= SESSION_POLL_INTERVAL {
-                self.poll_sessions();
+                self.poll_sessions_async();
                 self.last_session_poll = std::time::Instant::now();
             }
 
@@ -94,6 +132,38 @@ impl App {
             // Non-blocking check for updates
             while let Ok(tasks) = receiver.try_recv() {
                 self.state.tasks.set_tasks(tasks);
+            }
+        }
+    }
+
+    fn check_background_loads(&mut self) {
+        // Non-blocking check for worktree results
+        while let Ok(result) = self.worktree_receiver.try_recv() {
+            match result {
+                Ok(worktrees) => {
+                    self.state.worktrees.set_worktrees(worktrees);
+                    self.state.worktrees.loading = false;
+                    self.state.worktrees.error = None;
+                }
+                Err(e) => {
+                    self.state.worktrees.error = Some(e);
+                    self.state.worktrees.loading = false;
+                }
+            }
+        }
+
+        // Non-blocking check for session results
+        while let Ok(result) = self.session_receiver.try_recv() {
+            match result {
+                Ok(sessions) => {
+                    self.state.sessions.set_sessions(sessions);
+                    self.state.sessions.loading = false;
+                    self.state.sessions.error = None;
+                }
+                Err(e) => {
+                    self.state.sessions.error = Some(e);
+                    self.state.sessions.loading = false;
+                }
             }
         }
     }
@@ -584,19 +654,20 @@ impl App {
     }
 
     fn load_worktrees(&mut self) {
+        // Skip if already loading
+        if self.state.worktrees.loading {
+            return;
+        }
+
         self.state.worktrees.loading = true;
         self.state.worktrees.error = None;
 
-        match list_worktrees() {
-            Ok(worktrees) => {
-                self.state.worktrees.set_worktrees(worktrees);
-                self.state.worktrees.loading = false;
-            }
-            Err(e) => {
-                self.state.worktrees.error = Some(e.to_string());
-                self.state.worktrees.loading = false;
-            }
-        }
+        // Spawn background task
+        let sender = self.worktree_sender.clone();
+        tokio::task::spawn_blocking(move || {
+            let result = list_worktrees().map_err(|e| e.to_string());
+            let _ = sender.blocking_send(result);
+        });
     }
 
     async fn handle_show_sessions(&mut self) -> Result<()> {
@@ -606,31 +677,31 @@ impl App {
     }
 
     fn load_sessions(&mut self) {
+        // Skip if already loading
+        if self.state.sessions.loading {
+            return;
+        }
+
         self.state.sessions.loading = true;
         self.state.sessions.error = None;
 
-        match list_sessions_with_status() {
-            Ok(sessions) => {
-                self.state.sessions.set_sessions(sessions);
-                self.state.sessions.loading = false;
-            }
-            Err(e) => {
-                self.state.sessions.error = Some(e.to_string());
-                self.state.sessions.loading = false;
-            }
-        }
+        // Spawn background task
+        let sender = self.session_sender.clone();
+        tokio::task::spawn_blocking(move || {
+            let result = list_sessions_with_status().map_err(|e| e.to_string());
+            let _ = sender.blocking_send(result);
+        });
     }
 
-    fn poll_sessions(&mut self) {
-        // Only poll if sessions have been loaded at least once
-        if self.state.sessions.sessions.is_empty() && self.state.worktrees.worktrees.is_empty() {
-            // Initial load of worktrees and sessions
-            self.load_worktrees();
-        }
-
-        // Update session status (checks for attention needed)
-        if let Ok(sessions) = list_sessions_with_status() {
-            self.state.sessions.set_sessions(sessions);
+    fn poll_sessions_async(&mut self) {
+        // Spawn background task to refresh session status
+        // Only if not already loading (avoid stacking requests)
+        if !self.state.sessions.loading {
+            let sender = self.session_sender.clone();
+            tokio::task::spawn_blocking(move || {
+                let result = list_sessions_with_status().map_err(|e| e.to_string());
+                let _ = sender.blocking_send(result);
+            });
         }
     }
 
