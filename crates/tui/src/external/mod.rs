@@ -1,4 +1,5 @@
 mod claude_activity;
+mod claude_plans;
 mod editor;
 mod gh;
 #[allow(dead_code)]
@@ -10,6 +11,7 @@ mod worktrunk;
 mod zellij;
 
 pub use claude_activity::ClaudeActivityTracker;
+pub use claude_plans::ClaudePlanReader;
 pub use editor::edit_markdown;
 pub use gh::*;
 pub use terminal_spawn::*;

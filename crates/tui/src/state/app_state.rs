@@ -30,6 +30,9 @@ pub struct AppState {
     pub selected_project_id: Option<String>,
     pub selected_task_id: Option<String>,
 
+    /// Cached plan content for the currently selected task
+    pub selected_task_plan: Option<String>,
+
     pub search_active: bool,
     pub search_query: String,
 
@@ -59,6 +62,7 @@ impl AppState {
 
             selected_project_id: None,
             selected_task_id: None,
+            selected_task_plan: None,
 
             search_active: false,
             search_query: String::new(),
