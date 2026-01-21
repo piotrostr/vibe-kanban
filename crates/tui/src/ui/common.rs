@@ -170,7 +170,7 @@ pub fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
         }
         crate::state::View::TaskDetail => {
             format!(
-                "{}e: edit | s/Enter: session | /: search | Esc: back",
+                "{}e: edit | r: refresh | s/Enter: session | /: search | Esc: back",
                 search_indicator
             )
         }
