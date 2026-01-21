@@ -142,6 +142,7 @@ fn task_detail_bindings(key: KeyEvent) -> Option<Action> {
     match key.code {
         KeyCode::Char('j') | KeyCode::Down => Some(Action::Down),
         KeyCode::Char('k') | KeyCode::Up => Some(Action::Up),
+        KeyCode::Char('h') | KeyCode::Left => Some(Action::Back),
         KeyCode::Char('e') => Some(Action::EditTask),
         KeyCode::Char('g') => Some(Action::LaunchSession),
         KeyCode::Char('p') => Some(Action::LaunchSessionPlan),

@@ -1038,6 +1038,12 @@ impl App {
             tracing::error!("Failed to launch session: {}", e);
         }
 
+        // After returning from session, go back to kanban board
+        if self.state.view == View::TaskDetail {
+            self.state.selected_task_id = None;
+            self.state.view = View::Kanban;
+        }
+
         Ok(())
     }
 
