@@ -70,11 +70,10 @@ impl SearchState {
 
     fn update_results(&mut self) {
         if self.query.is_empty() {
-            self.results = self
-                .all_tasks
-                .iter()
-                .map(SearchResult::from_task)
-                .collect();
+            // Sort by updated_at descending to show most recent first
+            let mut tasks: Vec<_> = self.all_tasks.iter().collect();
+            tasks.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+            self.results = tasks.iter().map(|t| SearchResult::from_task(t)).collect();
         } else {
             let query_lower = self.query.to_lowercase();
             self.results = self

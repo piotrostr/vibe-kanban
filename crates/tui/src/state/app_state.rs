@@ -39,6 +39,9 @@ pub struct AppState {
     pub animation_frame: u8,
 
     pub linear_api_key_available: bool,
+
+    /// When true, logs are shown as an overlay on top of the current view
+    pub logs_overlay_visible: bool,
 }
 
 impl AppState {
