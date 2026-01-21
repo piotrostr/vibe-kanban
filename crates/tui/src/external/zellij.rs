@@ -208,11 +208,17 @@ fn zellij_config_dir() -> PathBuf {
 /// Vibe-specific zellij config that:
 /// - Unbinds Ctrl+p and Ctrl+n to let bash handle history navigation
 /// - Binds Ctrl+q for quick detach
+/// - Hides the status bar for a cleaner look
 const VIBE_ZELLIJ_CONFIG: &str = r#"// Vibe TUI zellij config
 // Unbinds common bash shortcuts to allow history navigation
 
 // Skip intro screen
 on_force_close "detach"
+
+// Hide the mode/status bar at the bottom for a cleaner look
+simplified_ui true
+pane_frames false
+default_layout "compact"
 
 keybinds clear-defaults=true {
     // Unbind Ctrl+p and Ctrl+n to let bash handle them for history
