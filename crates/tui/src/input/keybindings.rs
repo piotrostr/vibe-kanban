@@ -148,6 +148,7 @@ fn task_detail_bindings(key: KeyEvent) -> Option<Action> {
         KeyCode::Char('p') => Some(Action::LaunchSessionPlan),
         KeyCode::Char('v') => Some(Action::ViewPR),
         KeyCode::Char('b') => Some(Action::BindPR),
+        KeyCode::Char('r') => Some(Action::Refresh),
         KeyCode::Enter | KeyCode::Char(' ') => Some(Action::LaunchSession),
         KeyCode::Char('w') => Some(Action::ShowWorktrees),
         KeyCode::Char('S') => Some(Action::ShowSessions),
