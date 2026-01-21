@@ -1,8 +1,26 @@
+# vibe
+
+## Version Control
+
+Merging requires making a PR and merging into main, though `main` exists in the root worktree, use `gh` cli 
+
+You can safely create PR and merge the work ONLY when the TDD turns green OR user asks you to OR user gives feedback regarding testing done manually, completing a "chunk" of work, i.e. completing the task
+
+If you don't have tests - write them
+
+If you need user to test - prompt them
+
+`gh pr merge 41 --squash`
+
 ## Build and Run Commands (TUI)
+
+You have a `justfile`, check it out
+
+Quick commands:
 
 ```bash
 # Run the TUI
-cargo run --bin vibe
+cargo run --bin vibe # or `just vibe`
 
 # Run with logging
 RUST_LOG=info cargo run --bin vibe
