@@ -45,6 +45,9 @@ pub struct AppState {
     pub backend_connected: bool,
     pub should_quit: bool,
 
+    // Animation state for activity spinners
+    pub animation_frame: u8,
+
     // Linear integration
     pub linear_api_key_available: bool,
 }
@@ -70,8 +73,21 @@ impl AppState {
             backend_connected: false,
             should_quit: false,
 
+            animation_frame: 0,
+
             linear_api_key_available: false,
         }
+    }
+
+    /// Advance the animation frame counter (wraps at 4 for spinner animation)
+    pub fn tick_animation(&mut self) {
+        self.animation_frame = (self.animation_frame + 1) % 4;
+    }
+
+    /// Get the current spinner character based on animation frame
+    pub fn spinner_char(&self) -> char {
+        const SPINNER: [char; 4] = ['|', '/', '-', '\\'];
+        SPINNER[self.animation_frame as usize]
     }
 
     pub fn select_project(&mut self, project_id: String) {
