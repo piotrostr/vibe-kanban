@@ -173,7 +173,7 @@ pub fn kill_session(name: &str) -> Result<()> {
 pub fn sanitize_session_name(branch: &str) -> String {
     // Convert branch name to valid zellij session name
     // Replace slashes and special chars with dashes
-    // Truncate to 40 chars to avoid zellij session name length limits
+    // Truncate to 36 chars - longer names cause zellij to hang when started via wt -x
     let sanitized: String = branch
         .chars()
         .map(|c| {
@@ -187,8 +187,8 @@ pub fn sanitize_session_name(branch: &str) -> String {
         .trim_matches('-')
         .to_string();
 
-    if sanitized.len() > 40 {
-        sanitized[..40].trim_end_matches('-').to_string()
+    if sanitized.len() > 36 {
+        sanitized[..36].trim_end_matches('-').to_string()
     } else {
         sanitized
     }

@@ -161,8 +161,9 @@ fn create_launcher_script(
         r#"#!/bin/zsh
 # Strip ANSI color codes for reliable grep
 SESSION_LINE=$(zellij list-sessions 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep "^{session}")
-# Reset terminal state - pipes above can corrupt it
+# Reset terminal state - pipes above can corrupt it, sleep lets terminal settle
 stty sane 2>/dev/null
+sleep 0.1
 if [[ -n "$SESSION_LINE" ]]; then
   if echo "$SESSION_LINE" | grep -q "EXITED"; then
     zellij delete-session {session} 2>/dev/null
