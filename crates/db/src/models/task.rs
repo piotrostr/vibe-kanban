@@ -217,13 +217,15 @@ impl Task {
   ) IN ('failed','killed') THEN 1 ELSE 0 END
                                  AS "last_attempt_failed!: i64",
 
-  ( SELECT s.executor
-      FROM workspaces w
-      JOIN sessions s ON s.workspace_id = w.id
-      WHERE w.task_id = t.id
-     ORDER BY s.created_at DESC
-      LIMIT 1
-    )                               AS "executor!: String",
+  COALESCE(
+    ( SELECT s.executor
+        FROM workspaces w
+        JOIN sessions s ON s.workspace_id = w.id
+        WHERE w.task_id = t.id
+       ORDER BY s.created_at DESC
+        LIMIT 1
+    ), ''
+  )                                 AS "executor!: String",
 
   ( SELECT m.pr_url
       FROM workspaces w

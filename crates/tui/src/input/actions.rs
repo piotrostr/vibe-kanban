@@ -24,8 +24,10 @@ pub enum Action {
     // Session operations
     ShowSessions,
     LaunchSession,
+    LaunchSessionPlan,
     AttachSession,
     KillSession,
+    ViewPR,
 
     // Search (vim-style /)
     StartSearch,

@@ -221,7 +221,13 @@ impl App {
                 self.handle_show_sessions().await?;
             }
             Action::LaunchSession => {
-                self.handle_launch_session(terminal)?;
+                self.handle_launch_session(terminal, false)?;
+            }
+            Action::LaunchSessionPlan => {
+                self.handle_launch_session(terminal, true)?;
+            }
+            Action::ViewPR => {
+                self.handle_view_pr()?;
             }
             Action::AttachSession => {
                 self.handle_attach_session(terminal)?;
@@ -345,11 +351,11 @@ impl App {
             }
             View::TaskDetail => {
                 // Launch session for task
-                self.handle_launch_session(terminal)?;
+                self.handle_launch_session(terminal, false)?;
             }
             View::Worktrees => {
                 // Launch session in selected worktree
-                self.handle_launch_session(terminal)?;
+                self.handle_launch_session(terminal, false)?;
             }
             View::Sessions => {
                 // Attach to selected session
@@ -619,7 +625,7 @@ impl App {
         }
     }
 
-    fn handle_launch_session(&mut self, terminal: &mut Terminal) -> Result<()> {
+    fn handle_launch_session(&mut self, terminal: &mut Terminal, plan_mode: bool) -> Result<()> {
         // Ensure worktrees are loaded
         if self.state.worktrees.worktrees.is_empty() {
             self.load_worktrees();
@@ -640,13 +646,29 @@ impl App {
             return Ok(());
         };
 
+        // Get task context if available
+        let task_context = self.state.tasks.selected_task().map(|t| {
+            let mut context = format!("Task: {}\nBranch: {}", t.title, worktree.branch);
+            if let Some(desc) = &t.description {
+                if !desc.is_empty() {
+                    context.push_str(&format!("\n\nDescription:\n{}", desc));
+                }
+            }
+            context
+        });
+
         let session_name = session_name_for_branch(&worktree.branch);
         let worktree_path = std::path::Path::new(&worktree.path);
 
         // Suspend TUI, run zellij in foreground, then resume TUI
         terminal.suspend()?;
 
-        let result = launch_zellij_claude_foreground(&session_name, worktree_path);
+        let result = launch_zellij_claude_foreground(
+            &session_name,
+            worktree_path,
+            task_context.as_deref(),
+            plan_mode,
+        );
 
         terminal.resume()?;
 
@@ -656,6 +678,19 @@ impl App {
             tracing::info!("Returned from session {}", session_name);
         }
 
+        Ok(())
+    }
+
+    fn handle_view_pr(&self) -> Result<()> {
+        if let Some(task) = self.state.tasks.selected_task() {
+            if let Some(pr_url) = &task.pr_url {
+                if let Err(e) = open::that(pr_url) {
+                    tracing::error!("Failed to open PR URL: {}", e);
+                }
+            } else {
+                tracing::warn!("No PR URL for this task");
+            }
+        }
         Ok(())
     }
 

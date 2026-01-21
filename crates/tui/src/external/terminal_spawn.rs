@@ -120,26 +120,16 @@ fn shell_escape(s: &str) -> String {
 
 /// Launch claude in a zellij session (Ctrl+b d to detach)
 /// Creates session if it doesn't exist, attaches if it does
-pub fn launch_zellij_claude_foreground(session_name: &str, cwd: &Path) -> Result<()> {
+/// If task_context is provided and this is a new session, it will be passed as the initial prompt
+/// If plan_mode is true, Claude will be started in plan mode
+pub fn launch_zellij_claude_foreground(
+    session_name: &str,
+    cwd: &Path,
+    task_context: Option<&str>,
+    plan_mode: bool,
+) -> Result<()> {
     use std::io::Write;
     use std::os::unix::fs::PermissionsExt;
-
-    // Always ensure the shell script exists for new sessions
-    let script_dir = dirs::cache_dir()
-        .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
-        .join("vibe-scripts");
-    std::fs::create_dir_all(&script_dir)?;
-
-    let script_path = script_dir.join(format!("{}.sh", session_name));
-    let script_content = format!(
-        "#!/bin/bash\ncd {}\nclaude --continue --dangerously-skip-permissions\nexec bash\n",
-        shell_escape(&cwd.to_string_lossy())
-    );
-
-    let mut file = std::fs::File::create(&script_path)?;
-    file.write_all(script_content.as_bytes())?;
-    drop(file);
-    std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755))?;
 
     // Try to attach first (with -f to resurrect dead sessions)
     let attach_result = Command::new("zellij")
@@ -153,6 +143,42 @@ pub fn launch_zellij_claude_foreground(session_name: &str, cwd: &Path) -> Result
     }
 
     // Attach failed - create new session with custom shell
+    // Build the claude command with optional flags
+    let script_dir = dirs::cache_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
+        .join("vibe-scripts");
+    std::fs::create_dir_all(&script_dir)?;
+
+    let script_path = script_dir.join(format!("{}.sh", session_name));
+
+    // Build claude command with appropriate flags
+    let mut claude_args = vec!["--dangerously-skip-permissions".to_string()];
+
+    if plan_mode {
+        claude_args.push("--plan".to_string());
+    }
+
+    // If we have task context, pass it as the initial prompt using --print
+    let claude_cmd = if let Some(context) = task_context {
+        claude_args.push("--print".to_string());
+        claude_args.push(shell_escape(context));
+        format!("claude {}", claude_args.join(" "))
+    } else {
+        claude_args.insert(0, "--continue".to_string());
+        format!("claude {}", claude_args.join(" "))
+    };
+
+    let script_content = format!(
+        "#!/bin/zsh\ncd {}\n{}\nexec zsh\n",
+        shell_escape(&cwd.to_string_lossy()),
+        claude_cmd
+    );
+
+    let mut file = std::fs::File::create(&script_path)?;
+    file.write_all(script_content.as_bytes())?;
+    drop(file);
+    std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755))?;
+
     let status = Command::new("zellij")
         .args(["-s", session_name])
         .env("SHELL", &script_path)

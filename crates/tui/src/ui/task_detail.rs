@@ -119,14 +119,14 @@ pub fn render_task_detail_with_actions(frame: &mut Frame, area: Rect, task: &Tas
 
     // Actions bar
     let actions = Paragraph::new(Line::from(vec![
+        Span::styled("[g]", Style::default().fg(Color::Cyan)),
+        Span::raw(" Gas it  "),
+        Span::styled("[p]", Style::default().fg(Color::Cyan)),
+        Span::raw(" Plan it  "),
+        Span::styled("[v]", Style::default().fg(Color::Cyan)),
+        Span::raw(" View PR  "),
         Span::styled("[e]", Style::default().fg(Color::Cyan)),
         Span::raw(" Edit  "),
-        Span::styled("[s]", Style::default().fg(Color::Cyan)),
-        Span::raw(" Start Attempt  "),
-        Span::styled("[S]", Style::default().fg(Color::Cyan)),
-        Span::raw(" Stop  "),
-        Span::styled("[p]", Style::default().fg(Color::Cyan)),
-        Span::raw(" Open PR  "),
         Span::styled("[d]", Style::default().fg(Color::Cyan)),
         Span::raw(" Delete  "),
     ]))

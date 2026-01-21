@@ -122,9 +122,10 @@ impl TasksState {
     }
 
     pub fn tasks_in_column(&self, status: TaskStatus) -> Vec<&Task> {
+        let column_index = status.column_index();
         self.tasks
             .iter()
-            .filter(|t| t.status == status)
+            .filter(|t| t.status.column_index() == column_index)
             .filter(|t| {
                 if self.search_filter.is_empty() {
                     return true;

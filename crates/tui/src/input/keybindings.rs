@@ -80,7 +80,9 @@ fn kanban_bindings(key: KeyEvent) -> Option<Action> {
         KeyCode::Char('d') => Some(Action::DeleteTask),
 
         // Launch Claude Code session
-        KeyCode::Char('s') => Some(Action::LaunchSession),
+        KeyCode::Char('g') => Some(Action::LaunchSession),
+        KeyCode::Char('p') => Some(Action::LaunchSessionPlan),
+        KeyCode::Char('v') => Some(Action::ViewPR),
 
         // Worktrees and sessions views
         KeyCode::Char('w') => Some(Action::ShowWorktrees),
@@ -99,7 +101,9 @@ fn task_detail_bindings(key: KeyEvent) -> Option<Action> {
         KeyCode::Char('j') | KeyCode::Down => Some(Action::Down),
         KeyCode::Char('k') | KeyCode::Up => Some(Action::Up),
         KeyCode::Char('e') => Some(Action::EditTask),
-        KeyCode::Char('s') => Some(Action::LaunchSession),
+        KeyCode::Char('g') => Some(Action::LaunchSession),
+        KeyCode::Char('p') => Some(Action::LaunchSessionPlan),
+        KeyCode::Char('v') => Some(Action::ViewPR),
         KeyCode::Enter | KeyCode::Char(' ') => Some(Action::LaunchSession),
         KeyCode::Char('w') => Some(Action::ShowWorktrees),
         KeyCode::Char('S') => Some(Action::ShowSessions),
@@ -112,7 +116,8 @@ fn worktrees_bindings(key: KeyEvent) -> Option<Action> {
         KeyCode::Char('j') | KeyCode::Down => Some(Action::Down),
         KeyCode::Char('k') | KeyCode::Up => Some(Action::Up),
         KeyCode::Enter | KeyCode::Char(' ') => Some(Action::SwitchWorktree),
-        KeyCode::Char('s') => Some(Action::LaunchSession),
+        KeyCode::Char('g') => Some(Action::LaunchSession),
+        KeyCode::Char('p') => Some(Action::LaunchSessionPlan),
         KeyCode::Char('W') => Some(Action::CreateWorktree),
         KeyCode::Char('S') => Some(Action::ShowSessions),
         KeyCode::Char('r') => Some(Action::Refresh),

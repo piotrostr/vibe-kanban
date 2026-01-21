@@ -206,7 +206,9 @@ pub fn render_help_modal(frame: &mut Frame, area: Rect) {
         Line::from(vec![
             Span::styled("Sessions", Style::default().add_modifier(Modifier::BOLD)),
         ]),
-        Line::from("  s                  Launch Claude session"),
+        Line::from("  g                  Gas it (launch Claude)"),
+        Line::from("  p                  Plan it (launch in plan mode)"),
+        Line::from("  v                  View PR"),
         Line::from("  S                  Show sessions"),
         Line::from("  a / Enter          Attach to session"),
         Line::from("  K                  Kill session"),
