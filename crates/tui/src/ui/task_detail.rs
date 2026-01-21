@@ -1,16 +1,17 @@
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
-    Frame,
 };
 
 use crate::state::Task;
 
-pub fn render_task_detail(frame: &mut Frame, area: Rect, task: &Task) {
+pub fn render_task_detail(frame: &mut Frame, area: Rect, task: &Task, plan: Option<&str>) {
     let has_linear = task.linear_url.is_some() || task.linear_issue_id.is_some();
     let has_pr = task.pr_url.is_some();
+    let has_plan = plan.is_some();
 
     let mut constraints = vec![Constraint::Length(3)]; // Title with status
     if has_linear {
@@ -18,6 +19,10 @@ pub fn render_task_detail(frame: &mut Frame, area: Rect, task: &Task) {
     }
     if has_pr {
         constraints.push(Constraint::Length(3)); // PR
+    }
+    if has_plan {
+        // Plan section takes up to 50% of remaining space
+        constraints.push(Constraint::Percentage(50));
     }
     constraints.push(Constraint::Min(0)); // Description
 
@@ -39,7 +44,10 @@ pub fn render_task_detail(frame: &mut Frame, area: Rect, task: &Task) {
     };
 
     let mut title_spans = vec![
-        Span::styled(task.title.clone(), Style::default().add_modifier(Modifier::BOLD)),
+        Span::styled(
+            task.title.clone(),
+            Style::default().add_modifier(Modifier::BOLD),
+        ),
         Span::raw(" "),
         Span::styled(
             format!("[{}]", task.status.label()),
@@ -101,6 +109,20 @@ pub fn render_task_detail(frame: &mut Frame, area: Rect, task: &Task) {
         chunk_idx += 1;
     }
 
+    // Plan section
+    if let Some(plan_content) = plan {
+        let plan_widget = Paragraph::new(plan_content)
+            .wrap(Wrap { trim: false })
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Claude Plan ")
+                    .border_style(Style::default().fg(Color::Magenta)),
+            );
+        frame.render_widget(plan_widget, chunks[chunk_idx]);
+        chunk_idx += 1;
+    }
+
     // Description
     let description_text = task.description.as_deref().unwrap_or("No description");
 
@@ -116,16 +138,21 @@ pub fn render_task_detail(frame: &mut Frame, area: Rect, task: &Task) {
     frame.render_widget(description, chunks[chunk_idx]);
 }
 
-pub fn render_task_detail_with_actions(frame: &mut Frame, area: Rect, task: &Task) {
+pub fn render_task_detail_with_actions(
+    frame: &mut Frame,
+    area: Rect,
+    task: &Task,
+    plan: Option<&str>,
+) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Min(0),     // Task detail
+            Constraint::Min(0),    // Task detail
             Constraint::Length(3), // Actions bar
         ])
         .split(area);
 
-    render_task_detail(frame, chunks[0], task);
+    render_task_detail(frame, chunks[0], task, plan);
 
     // Actions bar
     let actions = Paragraph::new(Line::from(vec![

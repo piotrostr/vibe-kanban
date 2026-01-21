@@ -4,12 +4,12 @@ use ratatui::layout::{Constraint, Direction, Layout};
 use tokio::sync::mpsc;
 
 use crate::external::{
+    BranchPrInfo, ClaudeActivityTracker, ClaudePlanReader, WorktreeInfo, ZellijSession,
     attach_zellij_foreground, edit_markdown, get_pr_for_branch, launch_zellij_claude_in_worktree,
     launch_zellij_claude_in_worktree_with_context, list_sessions_with_status, list_worktrees,
-    BranchPrInfo, ClaudeActivityTracker, WorktreeInfo, ZellijSession,
 };
-use crate::input::{extract_key_event, key_to_action, Action, EventStream};
-use crate::state::{check_linear_api_key, AppState, Modal, View};
+use crate::input::{Action, EventStream, extract_key_event, key_to_action};
+use crate::state::{AppState, Modal, View, check_linear_api_key};
 use crate::storage::TaskStorage;
 use crate::terminal::Terminal;
 use crate::ui::{
@@ -31,6 +31,7 @@ pub struct App {
     last_pr_poll: std::time::Instant,
     last_activity_poll: std::time::Instant,
     claude_activity_tracker: ClaudeActivityTracker,
+    plan_reader: ClaudePlanReader,
     // Background loading channels
     worktree_receiver: mpsc::Receiver<WorktreeResult>,
     worktree_sender: mpsc::Sender<WorktreeResult>,
@@ -92,6 +93,7 @@ impl App {
             last_pr_poll: std::time::Instant::now(),
             last_activity_poll: std::time::Instant::now(),
             claude_activity_tracker: ClaudeActivityTracker::new(),
+            plan_reader: ClaudePlanReader::new(),
             worktree_receiver,
             worktree_sender,
             session_receiver,
@@ -249,7 +251,12 @@ impl App {
                     if let Some(task_id) = &self.state.selected_task_id {
                         if let Some(task) = self.state.tasks.tasks.iter().find(|t| &t.id == task_id)
                         {
-                            render_task_detail_with_actions(frame, chunks[1], task);
+                            render_task_detail_with_actions(
+                                frame,
+                                chunks[1],
+                                task,
+                                self.state.selected_task_plan.as_deref(),
+                            );
                         }
                     }
                 }
@@ -257,7 +264,12 @@ impl App {
                     render_worktrees(frame, chunks[1], &self.state.worktrees);
                 }
                 View::Sessions => {
-                    render_sessions(frame, chunks[1], &self.state.sessions, self.state.spinner_char());
+                    render_sessions(
+                        frame,
+                        chunks[1],
+                        &self.state.sessions,
+                        self.state.spinner_char(),
+                    );
                 }
                 View::Logs => {
                     render_logs(frame, chunks[1], &self.state.logs);
@@ -488,6 +500,7 @@ impl App {
             }
             View::TaskDetail => {
                 self.state.selected_task_id = None;
+                self.state.selected_task_plan = None;
                 self.state.view = View::Kanban;
             }
             View::Worktrees | View::Sessions | View::Logs => {
@@ -513,7 +526,9 @@ impl App {
             View::Kanban => {
                 let branch_prs = self.state.worktrees.branch_prs.clone();
                 let worktrees = self.state.worktrees.worktrees.clone();
-                self.state.tasks.select_prev_card_with_prs(&branch_prs, &worktrees);
+                self.state
+                    .tasks
+                    .select_prev_card_with_prs(&branch_prs, &worktrees);
             }
             View::TaskDetail => {}
             View::Worktrees => {
@@ -543,7 +558,9 @@ impl App {
             View::Kanban => {
                 let branch_prs = self.state.worktrees.branch_prs.clone();
                 let worktrees = self.state.worktrees.worktrees.clone();
-                self.state.tasks.select_next_card_with_prs(&branch_prs, &worktrees);
+                self.state
+                    .tasks
+                    .select_next_card_with_prs(&branch_prs, &worktrees);
             }
             View::TaskDetail => {}
             View::Worktrees => {
@@ -583,10 +600,24 @@ impl App {
 
     fn handle_open_task(&mut self) {
         if self.state.view == View::Kanban {
-            if let Some(task) = self.selected_task() {
+            if let Some(task) = self.selected_task().cloned() {
                 self.state.selected_task_id = Some(task.id.clone());
+                self.load_plan_for_task(&task);
                 self.state.view = View::TaskDetail;
             }
+        }
+    }
+
+    /// Load the Claude Code plan for a task based on its branch.
+    fn load_plan_for_task(&mut self, task: &crate::state::Task) {
+        let branch = task_title_to_branch(&task.title);
+        if let Some(project_dir) = self.get_project_dir() {
+            let project_path = project_dir.to_string_lossy().to_string();
+            self.state.selected_task_plan = self
+                .plan_reader
+                .find_plan_for_branch(&project_path, &branch);
+        } else {
+            self.state.selected_task_plan = None;
         }
     }
 
@@ -596,8 +627,9 @@ impl App {
                 // In standalone mode, no project selection needed
             }
             View::Kanban => {
-                if let Some(task) = self.selected_task() {
+                if let Some(task) = self.selected_task().cloned() {
                     self.state.selected_task_id = Some(task.id.clone());
+                    self.load_plan_for_task(&task);
                     self.state.view = View::TaskDetail;
                 }
             }
@@ -619,8 +651,9 @@ impl App {
             }
             View::Search => {
                 // Select task from search results and go to detail view
-                if let Some(task) = self.state.search.selected_task() {
+                if let Some(task) = self.state.search.selected_task().cloned() {
                     self.state.selected_task_id = Some(task.id.clone());
+                    self.load_plan_for_task(&task);
                     self.state.search.clear();
                     self.state.search_active = false;
                     self.state.view = View::TaskDetail;
@@ -711,7 +744,8 @@ impl App {
                 Some(description)
             };
 
-            self.storage.update_task(&task_id, &title, description.as_deref())?;
+            self.storage
+                .update_task(&task_id, &title, description.as_deref())?;
 
             // Refresh to get updated data
             self.refresh()?;
@@ -896,9 +930,10 @@ impl App {
             }
             View::TaskDetail => {
                 // Use selected_task_id for detail view (set from search or kanban)
-                self.state.selected_task_id.as_ref().and_then(|id| {
-                    self.state.tasks.tasks.iter().find(|t| &t.id == id)
-                })
+                self.state
+                    .selected_task_id
+                    .as_ref()
+                    .and_then(|id| self.state.tasks.tasks.iter().find(|t| &t.id == id))
             }
             View::Kanban => self.selected_task(),
             _ => None,
@@ -942,6 +977,7 @@ impl App {
         // After returning from session, go back to kanban board
         if self.state.view == View::TaskDetail {
             self.state.selected_task_id = None;
+            self.state.selected_task_plan = None;
             self.state.view = View::Kanban;
         }
 
