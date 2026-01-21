@@ -57,26 +57,24 @@ pub fn render_task_detail(frame: &mut Frame, area: Rect, task: &Task) {
         metadata_spans.push(Span::styled("Failed", Style::default().fg(Color::Red)));
     }
 
-    // Add PR info
-    if task.pr_url.is_some() {
+    // Add PR info with clickable URL
+    if let Some(pr_url) = &task.pr_url {
         metadata_spans.push(Span::raw(" | PR: "));
         let pr_status_color = match task.pr_status.as_deref() {
             Some("merged") => Color::Magenta,
             Some("closed") => Color::Red,
             _ => Color::Green,
         };
-        let pr_label = task
-            .pr_status
-            .as_deref()
-            .unwrap_or("open")
-            .to_uppercase();
-        metadata_spans.push(Span::styled(pr_label, Style::default().fg(pr_status_color)));
+        metadata_spans.push(Span::styled(pr_url.clone(), Style::default().fg(pr_status_color)));
     }
 
-    // Add Linear info
-    if let Some(linear_id) = &task.linear_issue_id {
+    // Add Linear info with clickable URL
+    if let Some(linear_url) = &task.linear_url {
         metadata_spans.push(Span::raw(" | Linear: "));
-        metadata_spans.push(Span::styled(linear_id, Style::default().fg(Color::Blue)));
+        metadata_spans.push(Span::styled(linear_url.clone(), Style::default().fg(Color::Blue)));
+    } else if let Some(linear_id) = &task.linear_issue_id {
+        metadata_spans.push(Span::raw(" | Linear: "));
+        metadata_spans.push(Span::styled(linear_id.clone(), Style::default().fg(Color::Blue)));
     }
 
     let metadata = Paragraph::new(Line::from(metadata_spans)).block(
