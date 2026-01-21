@@ -10,6 +10,7 @@ members = [
     "crates/deployment",
     "crates/remote",
     "crates/review",
+    "crates/tui",
     "src-tauri"
 ]
 

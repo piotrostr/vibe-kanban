@@ -1,0 +1,49 @@
+[package]
+name = "tui"
+version = "0.0.1"
+edition = "2024"
+
+[[bin]]
+name = "vibe"
+path = "src/main.rs"
+
+[lints.clippy]
+uninlined-format-args = "allow"
+
+[dependencies]
+# Internal workspace deps
+db = { path = "../db" }
+utils = { path = "../utils" }
+
+# TUI framework
+ratatui = "0.29"
+crossterm = { version = "0.28", features = ["event-stream"] }
+
+# Async runtime
+tokio = { workspace = true }
+tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
+futures-util = "0.3"
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json"] }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# JSON Patch for WebSocket updates
+json-patch = "4.0"
+
+# Utilities
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "5"
+tempfile = "3"
