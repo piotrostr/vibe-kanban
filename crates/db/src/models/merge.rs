@@ -132,6 +132,37 @@ impl Merge {
         Ok(())
     }
 
+    /// Find a merge by SQLite rowid (used by database hooks)
+    pub async fn find_by_rowid(pool: &SqlitePool, rowid: i64) -> Result<Option<Self>, sqlx::Error> {
+        let row = sqlx::query_as!(
+            MergeRow,
+            r#"SELECT
+                id as "id!: Uuid",
+                workspace_id as "workspace_id!: Uuid",
+                repo_id as "repo_id!: Uuid",
+                merge_type as "merge_type!: MergeType",
+                merge_commit,
+                pr_number,
+                pr_url,
+                pr_status as "pr_status?: MergeStatus",
+                pr_merged_at as "pr_merged_at?: DateTime<Utc>",
+                pr_merge_commit_sha,
+                pr_is_draft,
+                pr_review_decision as "pr_review_decision?: ReviewDecision",
+                pr_checks_status as "pr_checks_status?: ChecksStatus",
+                pr_has_conflicts,
+                created_at as "created_at!: DateTime<Utc>",
+                target_branch_name as "target_branch_name!: String"
+            FROM merges
+            WHERE rowid = $1"#,
+            rowid
+        )
+        .fetch_optional(pool)
+        .await?;
+
+        Ok(row.map(Into::into))
+    }
+
     /// Create a direct merge record
     pub async fn create_direct(
         pool: &SqlitePool,

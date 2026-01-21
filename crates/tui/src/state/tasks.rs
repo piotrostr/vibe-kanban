@@ -212,3 +212,112 @@ impl Default for TasksState {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_task(status: TaskStatus) -> Task {
+        Task {
+            id: "test-id".to_string(),
+            project_id: "test-project".to_string(),
+            title: "Test Task".to_string(),
+            description: None,
+            status,
+            parent_workspace_id: None,
+            shared_task_id: None,
+            linear_issue_id: None,
+            linear_url: None,
+            linear_labels: None,
+            created_at: "2024-01-01".to_string(),
+            updated_at: "2024-01-01".to_string(),
+            has_in_progress_attempt: false,
+            last_attempt_failed: false,
+            executor: String::new(),
+            pr_url: None,
+            pr_status: None,
+            pr_is_draft: None,
+            pr_review_decision: None,
+            pr_checks_status: None,
+            pr_has_conflicts: None,
+        }
+    }
+
+    #[test]
+    fn test_effective_status_no_pr() {
+        let task = make_task(TaskStatus::Inprogress);
+        assert_eq!(task.effective_status(), TaskStatus::Inprogress);
+    }
+
+    #[test]
+    fn test_effective_status_pr_open() {
+        let mut task = make_task(TaskStatus::Inprogress);
+        task.pr_url = Some("https://github.com/org/repo/pull/1".to_string());
+        task.pr_status = Some("open".to_string());
+        task.pr_is_draft = Some(false);
+        // Open non-draft PR should move to In Review
+        assert_eq!(task.effective_status(), TaskStatus::Inreview);
+    }
+
+    #[test]
+    fn test_effective_status_pr_draft() {
+        let mut task = make_task(TaskStatus::Inprogress);
+        task.pr_url = Some("https://github.com/org/repo/pull/1".to_string());
+        task.pr_status = Some("open".to_string());
+        task.pr_is_draft = Some(true);
+        // Draft PR should stay in current status
+        assert_eq!(task.effective_status(), TaskStatus::Inprogress);
+    }
+
+    #[test]
+    fn test_effective_status_pr_merged() {
+        let mut task = make_task(TaskStatus::Inprogress);
+        task.pr_url = Some("https://github.com/org/repo/pull/1".to_string());
+        task.pr_status = Some("merged".to_string());
+        // Merged PR should move to Done
+        assert_eq!(task.effective_status(), TaskStatus::Done);
+    }
+
+    #[test]
+    fn test_effective_status_pr_closed() {
+        let mut task = make_task(TaskStatus::Inprogress);
+        task.pr_url = Some("https://github.com/org/repo/pull/1".to_string());
+        task.pr_status = Some("closed".to_string());
+        // Closed PR should move to Cancelled
+        assert_eq!(task.effective_status(), TaskStatus::Cancelled);
+    }
+
+    #[test]
+    fn test_tasks_in_column_with_pr_transitions() {
+        let mut state = TasksState::new();
+
+        let mut task1 = make_task(TaskStatus::Inprogress);
+        task1.id = "task1".to_string();
+
+        let mut task2 = make_task(TaskStatus::Inprogress);
+        task2.id = "task2".to_string();
+        task2.pr_status = Some("open".to_string());
+        task2.pr_is_draft = Some(false);
+
+        let mut task3 = make_task(TaskStatus::Inprogress);
+        task3.id = "task3".to_string();
+        task3.pr_status = Some("merged".to_string());
+
+        state.set_tasks(vec![task1, task2, task3]);
+
+        // In Progress column should only have task1 (no PR)
+        let in_progress = state.tasks_in_column(TaskStatus::Inprogress);
+        assert_eq!(in_progress.len(), 1);
+        assert_eq!(in_progress[0].id, "task1");
+
+        // In Review column should have task2 (open PR)
+        let in_review = state.tasks_in_column(TaskStatus::Inreview);
+        assert_eq!(in_review.len(), 1);
+        assert_eq!(in_review[0].id, "task2");
+
+        // Done column should have task3 (merged PR)
+        let done = state.tasks_in_column(TaskStatus::Done);
+        assert_eq!(done.len(), 1);
+        assert_eq!(done[0].id, "task3");
+    }
+}

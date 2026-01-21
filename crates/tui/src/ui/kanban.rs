@@ -83,17 +83,17 @@ fn render_row(
             };
             spans.push(Span::raw(title_display));
 
-            // PR status
+            // PR status with visible icons
             if task.pr_url.is_some() {
                 let (pr_icon, pr_color) = match task.pr_status.as_deref() {
-                    Some("merged") => ("", Color::Magenta),
-                    Some("closed") => ("", Color::Red),
+                    Some("merged") => ("[M]", Color::Magenta),
+                    Some("closed") => ("[X]", Color::Red),
                     _ => match (task.pr_review_decision.as_deref(), task.pr_checks_status.as_deref()) {
-                        (Some("APPROVED"), _) => ("", Color::Green),
-                        (Some("CHANGES_REQUESTED"), _) => ("", Color::Yellow),
-                        (_, Some("FAILURE")) => ("", Color::Red),
-                        (_, Some("SUCCESS")) => ("", Color::Green),
-                        _ => ("", Color::Cyan),
+                        (Some("APPROVED"), _) => ("[v]", Color::Green),
+                        (Some("CHANGES_REQUESTED"), _) => ("[?]", Color::Yellow),
+                        (_, Some("FAILURE")) => ("[x]", Color::Red),
+                        (_, Some("SUCCESS")) => ("[+]", Color::Green),
+                        _ => ("[PR]", Color::Cyan),
                     },
                 };
                 spans.push(Span::styled(format!(" {}", pr_icon), Style::default().fg(pr_color)));
@@ -104,7 +104,7 @@ fn render_row(
 
             // Linear indicator
             if task.linear_issue_id.is_some() {
-                spans.push(Span::styled(" ", Style::default().fg(Color::Blue)));
+                spans.push(Span::styled(" [L]", Style::default().fg(Color::Blue)));
             }
 
             // Worktree/branch info
