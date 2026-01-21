@@ -47,6 +47,9 @@ pub struct AppState {
 
     // Animation state for activity spinners
     pub animation_frame: u8,
+
+    // Linear integration
+    pub linear_api_key_available: bool,
 }
 
 impl AppState {
@@ -71,6 +74,8 @@ impl AppState {
             should_quit: false,
 
             animation_frame: 0,
+
+            linear_api_key_available: false,
         }
     }
 
@@ -122,4 +127,26 @@ impl Default for AppState {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Derive the env var name for the Linear API key from a project name.
+/// E.g., "vibe-kanban" -> "VIBE_KANBAN_LINEAR_API_KEY"
+pub fn linear_env_var_name(project_name: &str) -> String {
+    let normalized: String = project_name
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() {
+                c.to_ascii_uppercase()
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    format!("{}_LINEAR_API_KEY", normalized)
+}
+
+/// Check if the Linear API key env var is set for the given project name
+pub fn check_linear_api_key(project_name: &str) -> bool {
+    let env_var = linear_env_var_name(project_name);
+    std::env::var(&env_var).is_ok()
 }
