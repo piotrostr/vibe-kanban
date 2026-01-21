@@ -78,14 +78,8 @@ fn render_row(
                 ));
             }
 
-            // Title (truncate if too long)
-            let max_title_len = 50;
-            let title_display = if task.title.len() > max_title_len {
-                format!("{}...", &task.title[..max_title_len - 3])
-            } else {
-                task.title.clone()
-            };
-            spans.push(Span::raw(title_display));
+            // Title
+            spans.push(Span::raw(task.title.clone()));
 
             // Worktree/branch info - find it first so we can use it for PR lookup
             let task_slug = task.title.to_lowercase().replace(' ', "-");
@@ -147,12 +141,10 @@ fn render_row(
 
             // Worktree/branch display
             if let Some(wt) = matching_worktree {
-                let branch_display = if wt.branch.len() > 15 {
-                    format!(" ({}...)", &wt.branch[..12])
-                } else {
-                    format!(" ({})", wt.branch)
-                };
-                spans.push(Span::styled(branch_display, Style::default().fg(Color::DarkGray)));
+                spans.push(Span::styled(
+                    format!(" ({})", wt.branch),
+                    Style::default().fg(Color::DarkGray),
+                ));
 
                 if let Some(session) = sessions.session_for_branch(&wt.branch) {
                     if session.needs_attention {
