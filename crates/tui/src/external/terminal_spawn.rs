@@ -129,9 +129,11 @@ fn create_launcher_script(session_name: &str, claude_cmd: &str) -> Result<std::p
     std::fs::create_dir_all(&script_dir)?;
 
     // Shell script that zellij will use
+    // Just run claude directly - it's interactive and will keep the session alive
+    // When user exits claude, zellij pane closes (which is expected behavior)
     let shell_script_path = script_dir.join(format!("{}-shell.sh", session_name));
     let shell_script = format!(
-        "#!/bin/zsh\n{}\nexec zsh\n",
+        "#!/bin/zsh\nexec {}\n",
         claude_cmd
     );
     let mut file = std::fs::File::create(&shell_script_path)?;
