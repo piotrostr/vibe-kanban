@@ -228,14 +228,15 @@ pub fn launch_zellij_claude_in_worktree_with_context(
     std::fs::create_dir_all(context_file.parent().unwrap())?;
     std::fs::write(&context_file, task_context)?;
 
+    // Pass prompt as positional argument for interactive session (not --print which exits)
     let claude_cmd = if plan_mode {
         format!(
-            "claude --dangerously-skip-permissions --plan --print \"$(cat {})\"",
+            "claude --dangerously-skip-permissions --plan \"$(cat {})\"",
             context_file.display()
         )
     } else {
         format!(
-            "claude --dangerously-skip-permissions --print \"$(cat {})\"",
+            "claude --dangerously-skip-permissions \"$(cat {})\"",
             context_file.display()
         )
     };
