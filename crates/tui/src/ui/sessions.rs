@@ -62,6 +62,8 @@ pub fn render_sessions(frame: &mut Frame, area: Rect, state: &SessionsState) {
 
             let status_marker = if session.is_current {
                 Span::styled(" (attached)", Style::default().fg(Color::Yellow))
+            } else if session.is_dead {
+                Span::styled(" (dead)", Style::default().fg(Color::DarkGray))
             } else if session.needs_attention {
                 Span::styled(" [!]", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))
             } else {

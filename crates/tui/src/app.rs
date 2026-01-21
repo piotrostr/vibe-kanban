@@ -102,7 +102,7 @@ impl App {
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([
-                    Constraint::Length(2), // Header
+                    Constraint::Length(6), // Header with ASCII logo
                     Constraint::Min(0),    // Main content
                     Constraint::Length(2), // Footer
                 ])

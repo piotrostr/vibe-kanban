@@ -120,64 +120,80 @@ fn shell_escape(s: &str) -> String {
 /// Creates session if it doesn't exist, attaches if it does
 /// User can detach with Ctrl+q to return to TUI while claude keeps running
 pub fn launch_zellij_claude_foreground(session_name: &str, cwd: &Path) -> Result<()> {
+    use super::zellij::{ensure_zellij_config, get_session_status};
     use std::io::Write;
     use std::os::unix::fs::PermissionsExt;
 
-    // Check if session already exists
-    let existing = Command::new("zellij")
-        .args(["list-sessions", "-n"])
-        .output()?;
+    // Ensure zellij config is set up with keybindings that allow Ctrl+p/n passthrough
+    let _ = ensure_zellij_config();
 
-    let sessions = String::from_utf8_lossy(&existing.stdout);
-    let session_exists = sessions.lines().any(|line| line.trim() == session_name);
+    // Check if session exists and whether it's dead
+    // None = doesn't exist, Some(is_dead) = exists
+    match get_session_status(session_name) {
+        Some(is_dead) => {
+            // Session exists - attach (with -f to resurrect if dead)
+            let mut args = vec!["attach"];
+            if is_dead {
+                args.push("-f"); // Force resurrection of dead session
+            }
+            args.push(session_name);
 
-    if session_exists {
-        // Attach to existing session
-        let status = Command::new("zellij")
-            .args(["attach", session_name])
-            .status()?;
+            let status = Command::new("zellij").args(&args).status()?;
 
-        if !status.success() {
-            anyhow::bail!("zellij attach exited with error");
+            if !status.success() {
+                anyhow::bail!("zellij attach exited with error");
+            }
         }
-    } else {
-        // Create a wrapper script that runs claude
-        let script_dir = dirs::cache_dir()
-            .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
-            .join("vibe-scripts");
-        std::fs::create_dir_all(&script_dir)?;
+        None => {
+            // New session - create with claude as shell
+            let script_dir = dirs::cache_dir()
+                .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
+                .join("vibe-scripts");
+            std::fs::create_dir_all(&script_dir)?;
 
-        let script_path = script_dir.join(format!("{}.sh", session_name));
-        let script_content = format!(
-            "#!/bin/bash\ncd {}\nexec claude --continue --dangerously-skip-permissions\n",
-            shell_escape(&cwd.to_string_lossy())
-        );
+            let script_path = script_dir.join(format!("{}.sh", session_name));
+            // Script runs claude, then keeps bash alive so session persists
+            let script_content = format!(
+                "#!/bin/bash\ncd {}\nclaude --continue --dangerously-skip-permissions\nexec bash\n",
+                shell_escape(&cwd.to_string_lossy())
+            );
 
-        let mut file = std::fs::File::create(&script_path)?;
-        file.write_all(script_content.as_bytes())?;
-        drop(file);
+            let mut file = std::fs::File::create(&script_path)?;
+            file.write_all(script_content.as_bytes())?;
+            drop(file);
 
-        // Make script executable
-        std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755))?;
+            // Make script executable
+            std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755))?;
 
-        // Create session with custom shell that runs our script
-        let status = Command::new("zellij")
-            .args(["-s", session_name])
-            .env("SHELL", &script_path)
-            .status()?;
+            // Create session with custom shell that runs our script
+            let status = Command::new("zellij")
+                .args(["-s", session_name])
+                .env("SHELL", &script_path)
+                .status()?;
 
-        if !status.success() {
-            anyhow::bail!("zellij create exited with error");
+            if !status.success() {
+                anyhow::bail!("zellij create exited with error");
+            }
         }
     }
     Ok(())
 }
 
 /// Attach to existing zellij session in current terminal (blocks)
+/// Handles dead sessions by force-resurrecting them
 pub fn attach_zellij_foreground(session_name: &str) -> Result<()> {
-    let status = Command::new("zellij")
-        .args(["attach", session_name])
-        .status()?;
+    use super::zellij::get_session_status;
+
+    // Check if session is dead (None = doesn't exist, Some(is_dead) = exists)
+    let is_dead = get_session_status(session_name).unwrap_or(false);
+
+    let mut args = vec!["attach"];
+    if is_dead {
+        args.push("-f"); // Force resurrection of dead session
+    }
+    args.push(session_name);
+
+    let status = Command::new("zellij").args(&args).status()?;
 
     if !status.success() {
         anyhow::bail!("zellij attach exited with error");

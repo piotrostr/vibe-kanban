@@ -8,7 +8,78 @@ use ratatui::{
 
 use crate::state::AppState;
 
+const LOGO: &str = r#"
+ __   _(_) |__   ___
+ \ \ / / | '_ \ / _ \
+  \ V /| | |_) |  __/
+   \_/ |_|_.__/ \___|"#;
+
 pub fn render_header(frame: &mut Frame, area: Rect, state: &AppState) {
+    // If area is tall enough, render the ASCII logo
+    if area.height >= 5 {
+        render_header_with_logo(frame, area, state);
+    } else {
+        render_header_compact(frame, area, state);
+    }
+}
+
+fn render_header_with_logo(frame: &mut Frame, area: Rect, state: &AppState) {
+    let project_info = match &state.selected_project_id {
+        Some(id) => {
+            let project_name = state
+                .projects
+                .projects
+                .iter()
+                .find(|p| &p.id == id)
+                .map(|p| p.name.as_str())
+                .unwrap_or("Unknown");
+            format!("Project: {}", project_name)
+        }
+        None => String::new(),
+    };
+
+    let status_text = if state.backend_connected {
+        "Connected"
+    } else {
+        "Disconnected"
+    };
+    let status_color = if state.backend_connected {
+        Color::Green
+    } else {
+        Color::Red
+    };
+
+    // Build lines: logo on left, status on right
+    let logo_lines: Vec<&str> = LOGO.lines().skip(1).collect(); // Skip empty first line
+    let mut lines: Vec<Line> = Vec::new();
+
+    for (i, logo_line) in logo_lines.iter().enumerate() {
+        let mut spans = vec![Span::styled(
+            *logo_line,
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        )];
+
+        // Add status info on the right side of the first few lines
+        if i == 0 {
+            spans.push(Span::raw("  "));
+            spans.push(Span::styled(status_text, Style::default().fg(status_color)));
+        } else if i == 1 && !project_info.is_empty() {
+            spans.push(Span::raw("  "));
+            spans.push(Span::styled(
+                &project_info,
+                Style::default().fg(Color::Yellow),
+            ));
+        }
+
+        lines.push(Line::from(spans));
+    }
+
+    let header = Paragraph::new(lines).block(Block::default().borders(Borders::BOTTOM));
+
+    frame.render_widget(header, area);
+}
+
+fn render_header_compact(frame: &mut Frame, area: Rect, state: &AppState) {
     let title = match &state.selected_project_id {
         Some(id) => {
             let project_name = state
@@ -18,9 +89,9 @@ pub fn render_header(frame: &mut Frame, area: Rect, state: &AppState) {
                 .find(|p| &p.id == id)
                 .map(|p| p.name.as_str())
                 .unwrap_or("Unknown");
-            format!(" Vibe - {} ", project_name)
+            format!(" vibe - {} ", project_name)
         }
-        None => " Vibe ".to_string(),
+        None => " vibe ".to_string(),
     };
 
     let status = if state.backend_connected {
