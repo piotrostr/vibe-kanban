@@ -119,7 +119,13 @@ fn shell_escape(s: &str) -> String {
 }
 
 /// Create a launcher script for zellij session
-fn create_launcher_script(session_name: &str, claude_cmd: &str) -> Result<std::path::PathBuf> {
+/// fresh_cmd: command for new sessions (with prompt)
+/// continue_cmd: command for resuming EXITED sessions (with --continue)
+fn create_launcher_script(
+    session_name: &str,
+    fresh_cmd: &str,
+    continue_cmd: &str,
+) -> Result<std::path::PathBuf> {
     use std::io::Write;
     use std::os::unix::fs::PermissionsExt;
 
@@ -128,25 +134,27 @@ fn create_launcher_script(session_name: &str, claude_cmd: &str) -> Result<std::p
         .join("vibe-scripts");
     std::fs::create_dir_all(&script_dir)?;
 
-    // Shell script that zellij will use
-    // Just run claude directly - it's interactive and will keep the session alive
-    // When user exits claude, zellij pane closes (which is expected behavior)
-    let shell_script_path = script_dir.join(format!("{}-shell.sh", session_name));
-    let shell_script = format!(
-        "#!/bin/zsh\nexec {}\n",
-        claude_cmd
-    );
-    let mut file = std::fs::File::create(&shell_script_path)?;
-    file.write_all(shell_script.as_bytes())?;
+    // Shell script for fresh sessions (with prompt)
+    let fresh_script_path = script_dir.join(format!("{}-fresh.sh", session_name));
+    let fresh_script = format!("#!/bin/zsh\nexec {}\n", fresh_cmd);
+    let mut file = std::fs::File::create(&fresh_script_path)?;
+    file.write_all(fresh_script.as_bytes())?;
     drop(file);
-    std::fs::set_permissions(&shell_script_path, std::fs::Permissions::from_mode(0o755))?;
+    std::fs::set_permissions(&fresh_script_path, std::fs::Permissions::from_mode(0o755))?;
+
+    // Shell script for continuing sessions (with --continue)
+    let continue_script_path = script_dir.join(format!("{}-continue.sh", session_name));
+    let continue_script = format!("#!/bin/zsh\nexec {}\n", continue_cmd);
+    let mut file = std::fs::File::create(&continue_script_path)?;
+    file.write_all(continue_script.as_bytes())?;
+    drop(file);
+    std::fs::set_permissions(&continue_script_path, std::fs::Permissions::from_mode(0o755))?;
 
     // Launcher script that wt switch -x will execute
     // Check session state and handle accordingly:
     // - Running: attach to it
-    // - EXITED: delete and create fresh
-    // - Not found: create new
-    // claude --continue resumes conversation from worktree
+    // - EXITED: delete and create with --continue (resume conversation)
+    // - Not found: create new with prompt
     let launcher_path = script_dir.join(format!("{}-launch.sh", session_name));
     let launcher_script = format!(
         r#"#!/bin/zsh
@@ -155,6 +163,7 @@ SESSION_LINE=$(zellij list-sessions 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | gr
 if [[ -n "$SESSION_LINE" ]]; then
   if echo "$SESSION_LINE" | grep -q "EXITED"; then
     zellij delete-session {0} 2>/dev/null
+    SHELL={2} exec zellij -s {0}
   else
     exec zellij attach {0}
   fi
@@ -162,7 +171,8 @@ fi
 SHELL={1} exec zellij -s {0}
 "#,
         session_name,
-        shell_script_path.display()
+        fresh_script_path.display(),
+        continue_script_path.display()
     );
     let mut file = std::fs::File::create(&launcher_path)?;
     file.write_all(launcher_script.as_bytes())?;
@@ -177,14 +187,14 @@ SHELL={1} exec zellij -s {0}
 pub fn launch_zellij_claude_in_worktree(branch: &str, plan_mode: bool) -> Result<()> {
     let session_name = super::session_name_for_branch(branch);
 
-    // Create launcher script (handles attach to existing or create new)
+    // Both fresh and continue use --continue since this function is for existing worktrees
     let claude_cmd = if plan_mode {
         "claude --continue --dangerously-skip-permissions --plan"
     } else {
         "claude --continue --dangerously-skip-permissions"
     };
 
-    let launcher = create_launcher_script(&session_name, claude_cmd)?;
+    let launcher = create_launcher_script(&session_name, claude_cmd, claude_cmd)?;
     let launcher_path = launcher.to_str().unwrap();
 
     // Try wt switch first (branch exists), fall back to --create (new branch)
@@ -224,20 +234,27 @@ pub fn launch_zellij_claude_in_worktree_with_context(
     std::fs::create_dir_all(context_file.parent().unwrap())?;
     std::fs::write(&context_file, task_context)?;
 
-    // Pass prompt as positional argument for interactive session (not --print which exits)
-    let claude_cmd = if plan_mode {
-        format!(
-            "claude --dangerously-skip-permissions --plan \"$(cat {})\"",
-            context_file.display()
+    // Fresh: pass prompt as positional argument for interactive session
+    // Continue: use --continue for EXITED sessions (conversation already exists)
+    let (fresh_cmd, continue_cmd) = if plan_mode {
+        (
+            format!(
+                "claude --dangerously-skip-permissions --plan \"$(cat {})\"",
+                context_file.display()
+            ),
+            "claude --continue --dangerously-skip-permissions --plan".to_string(),
         )
     } else {
-        format!(
-            "claude --dangerously-skip-permissions \"$(cat {})\"",
-            context_file.display()
+        (
+            format!(
+                "claude --dangerously-skip-permissions \"$(cat {})\"",
+                context_file.display()
+            ),
+            "claude --continue --dangerously-skip-permissions".to_string(),
         )
     };
 
-    let launcher = create_launcher_script(&session_name, &claude_cmd)?;
+    let launcher = create_launcher_script(&session_name, &fresh_cmd, &continue_cmd)?;
     let launcher_path = launcher.to_str().unwrap();
 
     // Try wt switch first (branch exists), fall back to --create (new branch)
