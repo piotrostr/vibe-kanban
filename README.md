@@ -71,3 +71,65 @@ Key commands:
 | `task format` | Format all code |
 | `task build` | Production build |
 | `task desktop-install` | Build and install macOS app |
+
+## TUI (Terminal UI)
+
+A standalone terminal-based kanban board that works with Zellij sessions:
+
+```bash
+cargo install --path crates/tui
+vibe
+```
+
+Features:
+- File-based task storage (`.vibe/tasks/*.md`)
+- Zellij session management for Claude Code
+- Git worktree integration
+- PR status tracking via `gh` CLI
+
+### Claude Activity Indication (Optional)
+
+For real-time Claude session status indicators (thinking/waiting/idle), configure Claude Code's statusline:
+
+1. Create `~/.vibe/claude-statusline.sh`:
+
+```bash
+#!/bin/bash
+STATE_DIR="$HOME/.vibe/claude-activity"
+mkdir -p "$STATE_DIR"
+
+input=$(cat)
+working_dir=$(echo "$input" | jq -r '.workspace.current_dir // empty')
+input_tokens=$(echo "$input" | jq -r '.context_window.current_usage.input_tokens // "null"')
+output_tokens=$(echo "$input" | jq -r '.context_window.current_usage.output_tokens // "null"')
+
+if [ -n "$working_dir" ]; then
+    dir_hash=$(echo -n "$working_dir" | md5 | cut -c1-16)
+    cat > "$STATE_DIR/$dir_hash.json" << EOF
+{"working_dir":"$working_dir","input_tokens":$input_tokens,"output_tokens":$output_tokens,"timestamp":$(date +%s)}
+EOF
+fi
+
+# Optional: display git branch
+cd "$working_dir" 2>/dev/null || true
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+[ -n "$branch" ] && printf '\033[33mgit:\033[31m%s\033[0m' "$branch"
+```
+
+2. Make executable: `chmod +x ~/.vibe/claude-statusline.sh`
+
+3. Add to `~/.claude/settings.json`:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "~/.vibe/claude-statusline.sh"
+  }
+}
+```
+
+Activity indicators:
+- `[spinner]` (yellow) - Claude is thinking
+- `[!]` (red) - Claude is waiting for input
+- `[-]` (gray) - Session idle/stale
