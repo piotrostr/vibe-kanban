@@ -28,6 +28,7 @@ pub struct App {
     ws_task: Option<JoinHandle<()>>,
     task_receiver: Option<TaskUpdateReceiver>,
     last_session_poll: std::time::Instant,
+    last_animation_tick: std::time::Instant,
 }
 
 impl App {
@@ -51,12 +52,15 @@ impl App {
             ws_task: None,
             task_receiver: None,
             last_session_poll: std::time::Instant::now(),
+            last_animation_tick: std::time::Instant::now(),
         })
     }
 
     pub async fn run(&mut self, terminal: &mut Terminal) -> Result<()> {
         // Poll session status every 5 seconds
         const SESSION_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
+        // Tick animation every 250ms for smooth spinner
+        const ANIMATION_TICK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
 
         loop {
             // Check for WebSocket updates
@@ -66,6 +70,12 @@ impl App {
             if self.last_session_poll.elapsed() >= SESSION_POLL_INTERVAL {
                 self.poll_sessions();
                 self.last_session_poll = std::time::Instant::now();
+            }
+
+            // Tick animation for spinners
+            if self.last_animation_tick.elapsed() >= ANIMATION_TICK_INTERVAL {
+                self.state.tick_animation();
+                self.last_animation_tick = std::time::Instant::now();
             }
 
             // Render
@@ -122,6 +132,7 @@ impl App {
                         &self.state.tasks,
                         &self.state.worktrees,
                         &self.state.sessions,
+                        self.state.spinner_char(),
                     );
                 }
                 View::TaskDetail => {
