@@ -289,12 +289,14 @@ impl App {
         };
 
         let in_modal = self.state.modal.is_some();
+        let command_active = self.state.command_input.is_some();
         let Some(action) = key_to_action(
             key,
             self.state.view,
             in_modal,
             self.state.search_active,
             self.state.logs_overlay_visible,
+            command_active,
         ) else {
             return Ok(());
         };
@@ -428,6 +430,27 @@ impl App {
             Action::ShowLogs => {
                 self.handle_show_logs();
             }
+
+            // Command mode actions (vim-like ;f)
+            Action::StartCommand => {
+                self.state.command_input = Some(String::new());
+            }
+            Action::CommandType(c) => {
+                if let Some(ref mut cmd) = self.state.command_input {
+                    cmd.push(c);
+                }
+            }
+            Action::CommandBackspace => {
+                if let Some(ref mut cmd) = self.state.command_input {
+                    cmd.pop();
+                }
+            }
+            Action::CancelCommand => {
+                self.state.command_input = None;
+            }
+            Action::ExecuteCommand => {
+                self.execute_command();
+            }
         }
 
         Ok(())
@@ -438,6 +461,22 @@ impl App {
         self.state.logs_overlay_visible = !self.state.logs_overlay_visible;
         if self.state.logs_overlay_visible {
             self.state.logs.load_logs();
+        }
+    }
+
+    fn execute_command(&mut self) {
+        let cmd = self.state.command_input.take().unwrap_or_default();
+        match cmd.as_str() {
+            "f" | "find" => {
+                // Start search mode
+                self.state.search.set_tasks(self.state.tasks.tasks.clone());
+                self.state.view = View::Search;
+                self.state.search_active = true;
+            }
+            _ => {
+                // Unknown command - just clear
+                tracing::debug!("Unknown command: {}", cmd);
+            }
         }
     }
 

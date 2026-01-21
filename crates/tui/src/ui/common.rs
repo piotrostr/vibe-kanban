@@ -132,6 +132,22 @@ fn render_header_compact(frame: &mut Frame, area: Rect, state: &AppState) {
 }
 
 pub fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
+    // Show command bar when active (vim-like ;f)
+    if let Some(ref cmd) = state.command_input {
+        let cmd_line = Line::from(vec![
+            Span::styled(";", Style::default().fg(Color::Yellow)),
+            Span::raw(cmd.as_str()),
+            Span::styled("_", Style::default().fg(Color::Yellow)), // cursor
+        ]);
+
+        let footer = Paragraph::new(cmd_line)
+            .style(Style::default())
+            .block(Block::default().borders(Borders::TOP));
+
+        frame.render_widget(footer, area);
+        return;
+    }
+
     // Show search bar when active
     if state.search_active {
         let search_line = Line::from(vec![
@@ -248,7 +264,7 @@ pub fn render_help_modal(frame: &mut Frame, area: Rect) {
         Line::from(vec![
             Span::styled("Other", Style::default().add_modifier(Modifier::BOLD)),
         ]),
-        Line::from("  /                  Search"),
+        Line::from("  / or ;f            Search"),
         Line::from("  r                  Refresh"),
         Line::from("  ?                  This help"),
         Line::from(""),

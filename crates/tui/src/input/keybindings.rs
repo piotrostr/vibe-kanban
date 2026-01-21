@@ -9,6 +9,7 @@ pub fn key_to_action(
     in_modal: bool,
     search_active: bool,
     logs_overlay_visible: bool,
+    command_active: bool,
 ) -> Option<Action> {
     // Modal-specific bindings
     if in_modal {
@@ -31,6 +32,11 @@ pub fn key_to_action(
         };
     }
 
+    // Command mode bindings (vim-like ;f)
+    if command_active {
+        return command_bindings(key);
+    }
+
     // Search mode bindings - capture all input for search
     if search_active {
         return search_bindings(key);
@@ -42,6 +48,7 @@ pub fn key_to_action(
         (KeyCode::Char('c'), KeyModifiers::CONTROL) => return Some(Action::Quit),
         (KeyCode::Char('?'), KeyModifiers::NONE) => return Some(Action::ShowHelp),
         (KeyCode::Char('/'), KeyModifiers::NONE) => return Some(Action::StartSearch),
+        (KeyCode::Char(';'), KeyModifiers::NONE) => return Some(Action::StartCommand),
         (KeyCode::Char('I'), KeyModifiers::SHIFT) => return Some(Action::ShowLogs),
         (KeyCode::Esc, _) => return Some(Action::Back),
         _ => {}
@@ -81,6 +88,22 @@ fn search_bindings(key: KeyEvent) -> Option<Action> {
         // Any other char is typed into search
         (KeyCode::Char(c), KeyModifiers::NONE | KeyModifiers::SHIFT) => {
             Some(Action::SearchType(c))
+        }
+        _ => None,
+    }
+}
+
+fn command_bindings(key: KeyEvent) -> Option<Action> {
+    match (key.code, key.modifiers) {
+        // Esc to cancel command
+        (KeyCode::Esc, _) => Some(Action::CancelCommand),
+        // Enter to execute command
+        (KeyCode::Enter, _) => Some(Action::ExecuteCommand),
+        // Backspace to delete char
+        (KeyCode::Backspace, _) => Some(Action::CommandBackspace),
+        // Any char is typed into command
+        (KeyCode::Char(c), KeyModifiers::NONE | KeyModifiers::SHIFT) => {
+            Some(Action::CommandType(c))
         }
         _ => None,
     }

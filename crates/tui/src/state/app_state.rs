@@ -42,6 +42,10 @@ pub struct AppState {
 
     /// When true, logs are shown as an overlay on top of the current view
     pub logs_overlay_visible: bool,
+
+    /// Vim-like command mode input (e.g., ";f" for search)
+    /// None means not in command mode, Some(s) means currently typing command
+    pub command_input: Option<String>,
 }
 
 impl AppState {
@@ -71,6 +75,8 @@ impl AppState {
             linear_api_key_available: false,
 
             logs_overlay_visible: false,
+
+            command_input: None,
         }
     }
 
