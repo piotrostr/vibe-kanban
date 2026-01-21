@@ -118,22 +118,14 @@ fn shell_escape(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
-/// Launch claude in a zellij session (Ctrl+b d to detach)
-/// Creates session if it doesn't exist, attaches if it does
-/// If task_context is provided and this is a new session, it will be passed as the initial prompt
-/// If plan_mode is true, Claude will be started in plan mode
-pub fn launch_zellij_claude_foreground(
-    session_name: &str,
-    cwd: &Path,
-    task_context: Option<&str>,
-    plan_mode: bool,
-) -> Result<()> {
-    use std::io::Write;
-    use std::os::unix::fs::PermissionsExt;
+/// Launch claude in a zellij session for an existing worktree
+/// Uses `wt switch` to ensure we're in the right worktree, then launches zellij
+pub fn launch_zellij_claude_in_worktree(branch: &str, plan_mode: bool) -> Result<()> {
+    let session_name = super::session_name_for_branch(branch);
 
-    // Try to attach first (with -f to resurrect dead sessions)
+    // Try to attach to existing zellij session first
     let attach_result = Command::new("zellij")
-        .args(["attach", "-f", session_name])
+        .args(["attach", "-f", &session_name])
         .status();
 
     if let Ok(status) = attach_result {
@@ -142,50 +134,76 @@ pub fn launch_zellij_claude_foreground(
         }
     }
 
-    // Attach failed - create new session with custom shell
-    // Build the claude command with optional flags
-    let script_dir = dirs::cache_dir()
-        .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
-        .join("vibe-scripts");
-    std::fs::create_dir_all(&script_dir)?;
-
-    let script_path = script_dir.join(format!("{}.sh", session_name));
-
-    // Build claude command with appropriate flags
-    let mut claude_args = vec!["--dangerously-skip-permissions".to_string()];
-
+    // No existing session - use wt switch to go to worktree and launch claude
+    // wt switch --create is idempotent - creates if needed, switches if exists
+    let mut claude_cmd = "claude --continue --dangerously-skip-permissions".to_string();
     if plan_mode {
-        claude_args.push("--plan".to_string());
+        claude_cmd = "claude --continue --dangerously-skip-permissions --plan".to_string();
     }
 
-    // If we have task context, pass it as the initial prompt using --print
-    let claude_cmd = if let Some(context) = task_context {
-        claude_args.push("--print".to_string());
-        claude_args.push(shell_escape(context));
-        format!("claude {}", claude_args.join(" "))
-    } else {
-        claude_args.insert(0, "--continue".to_string());
-        format!("claude {}", claude_args.join(" "))
-    };
-
-    let script_content = format!(
-        "#!/bin/zsh\ncd {}\n{}\nexec zsh\n",
-        shell_escape(&cwd.to_string_lossy()),
+    // Use wt switch with -x to execute zellij after switching
+    let zellij_cmd = format!(
+        "zellij -s {} -e -- zsh -c '{} ; exec zsh'",
+        shell_escape(&session_name),
         claude_cmd
     );
 
-    let mut file = std::fs::File::create(&script_path)?;
-    file.write_all(script_content.as_bytes())?;
-    drop(file);
-    std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755))?;
-
-    let status = Command::new("zellij")
-        .args(["-s", session_name])
-        .env("SHELL", &script_path)
+    let status = Command::new("wt")
+        .args(["switch", "--create", branch, "-y", "-x", &zellij_cmd])
         .status()?;
 
     if !status.success() {
-        anyhow::bail!("zellij session failed");
+        anyhow::bail!("wt switch failed");
+    }
+
+    Ok(())
+}
+
+/// Launch claude in a zellij session with task context for fresh tasks
+/// Creates worktree if needed, passes task context as initial prompt
+pub fn launch_zellij_claude_in_worktree_with_context(
+    branch: &str,
+    task_context: &str,
+    plan_mode: bool,
+) -> Result<()> {
+    let session_name = super::session_name_for_branch(branch);
+
+    // Try to attach to existing zellij session first
+    let attach_result = Command::new("zellij")
+        .args(["attach", "-f", &session_name])
+        .status();
+
+    if let Ok(status) = attach_result {
+        if status.success() {
+            return Ok(());
+        }
+    }
+
+    // No existing session - create worktree and launch claude with context
+    let mut claude_cmd = format!(
+        "claude --dangerously-skip-permissions --print {}",
+        shell_escape(task_context)
+    );
+    if plan_mode {
+        claude_cmd = format!(
+            "claude --dangerously-skip-permissions --plan --print {}",
+            shell_escape(task_context)
+        );
+    }
+
+    // Use wt switch with -x to execute zellij after switching
+    let zellij_cmd = format!(
+        "zellij -s {} -e -- zsh -c '{} ; exec zsh'",
+        shell_escape(&session_name),
+        claude_cmd
+    );
+
+    let status = Command::new("wt")
+        .args(["switch", "--create", branch, "-y", "-x", &zellij_cmd])
+        .status()?;
+
+    if !status.success() {
+        anyhow::bail!("wt switch failed");
     }
 
     Ok(())

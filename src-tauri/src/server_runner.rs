@@ -47,6 +47,8 @@ pub async fn spawn_server(app: AppHandle) {
                         if let Err(e) = window.show() {
                             tracing::error!("Failed to show window: {}", e);
                         }
+                        // Open devtools for debugging
+                        window.open_devtools();
                     }
                 }
             } else {

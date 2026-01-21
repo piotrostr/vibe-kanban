@@ -8,8 +8,9 @@ use crate::api::{
     UpdateTask,
 };
 use crate::external::{
-    attach_zellij_foreground, edit_markdown, launch_zellij_claude_foreground,
-    list_sessions_with_status, list_worktrees, session_name_for_branch,
+    attach_zellij_foreground, edit_markdown, launch_zellij_claude_in_worktree,
+    launch_zellij_claude_in_worktree_with_context, list_sessions_with_status, list_worktrees,
+    session_name_for_branch,
 };
 use crate::input::{extract_key_event, key_to_action, Action, EventStream};
 use crate::state::{AppState, Modal, View};
@@ -626,47 +627,53 @@ impl App {
     }
 
     fn handle_launch_session(&mut self, terminal: &mut Terminal, plan_mode: bool) -> Result<()> {
-        // Ensure worktrees are loaded
-        if self.state.worktrees.worktrees.is_empty() {
-            self.load_worktrees();
-        }
-
-        // Get the worktree to launch in
-        let worktree = match self.state.view {
-            View::Worktrees => self.state.worktrees.selected(),
-            View::Kanban | View::TaskDetail => {
-                // Use current worktree if available
-                self.state.worktrees.worktrees.iter().find(|w| w.is_current)
+        // Get task and derive branch name
+        let task = match self.state.view {
+            View::Worktrees => {
+                // If in worktrees view, use selected worktree directly
+                if let Some(wt) = self.state.worktrees.selected() {
+                    terminal.suspend()?;
+                    let result = launch_zellij_claude_in_worktree(
+                        &wt.branch,
+                        plan_mode,
+                    );
+                    terminal.resume()?;
+                    if let Err(e) = result {
+                        tracing::error!("Failed to launch session: {}", e);
+                    }
+                    return Ok(());
+                }
+                return Ok(());
             }
+            View::Kanban | View::TaskDetail => self.state.tasks.selected_task(),
             _ => None,
         };
 
-        let Some(worktree) = worktree else {
-            tracing::warn!("No worktree selected for session launch");
+        let Some(task) = task else {
+            tracing::warn!("No task selected for session launch");
             return Ok(());
         };
 
-        // Get task context if available
-        let task_context = self.state.tasks.selected_task().map(|t| {
-            let mut context = format!("Task: {}\nBranch: {}", t.title, worktree.branch);
-            if let Some(desc) = &t.description {
+        // Create branch slug from task title
+        let branch = task_title_to_branch(&task.title);
+
+        // Build task context for fresh sessions
+        let task_context = {
+            let mut context = format!("Task: {}", task.title);
+            if let Some(desc) = &task.description {
                 if !desc.is_empty() {
                     context.push_str(&format!("\n\nDescription:\n{}", desc));
                 }
             }
             context
-        });
+        };
 
-        let session_name = session_name_for_branch(&worktree.branch);
-        let worktree_path = std::path::Path::new(&worktree.path);
-
-        // Suspend TUI, run zellij in foreground, then resume TUI
+        // Suspend TUI, create worktree if needed, launch claude
         terminal.suspend()?;
 
-        let result = launch_zellij_claude_foreground(
-            &session_name,
-            worktree_path,
-            task_context.as_deref(),
+        let result = launch_zellij_claude_in_worktree_with_context(
+            &branch,
+            &task_context,
             plan_mode,
         );
 
@@ -674,8 +681,6 @@ impl App {
 
         if let Err(e) = result {
             tracing::error!("Failed to launch session: {}", e);
-        } else {
-            tracing::info!("Returned from session {}", session_name);
         }
 
         Ok(())
@@ -734,4 +739,17 @@ impl App {
 
         Ok(())
     }
+}
+
+/// Convert task title to a branch name slug
+fn task_title_to_branch(title: &str) -> String {
+    title
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '-' })
+        .collect::<String>()
+        .split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
 }
