@@ -10,8 +10,8 @@ use crate::api::{
 };
 use crate::external::{
     attach_zellij_foreground, edit_markdown, launch_zellij_claude_in_worktree,
-    launch_zellij_claude_in_worktree_with_context, list_sessions_with_status, list_worktrees,
-    WorktreeInfo, ZellijSession,
+    launch_zellij_claude_in_worktree_with_context, list_prs, list_sessions_with_status,
+    list_worktrees, select_pr_with_fzf, WorktreeInfo, ZellijSession,
 };
 use crate::input::{extract_key_event, key_to_action, Action, EventStream};
 use crate::state::{check_linear_api_key, AppState, Modal, View};
@@ -310,6 +310,9 @@ impl App {
             }
             Action::ViewPR => {
                 self.handle_view_pr()?;
+            }
+            Action::BindPR => {
+                self.handle_bind_pr(terminal).await?;
             }
             Action::AttachSession => {
                 self.handle_attach_session(terminal)?;
@@ -786,6 +789,104 @@ impl App {
                 tracing::warn!("No PR URL for this task");
             }
         }
+        Ok(())
+    }
+
+    async fn handle_bind_pr(&mut self, terminal: &mut Terminal) -> Result<()> {
+        // Get the selected task
+        let task = match self.state.view {
+            View::Kanban | View::TaskDetail => self.state.tasks.selected_task().cloned(),
+            _ => None,
+        };
+
+        let Some(task) = task else {
+            tracing::warn!("No task selected for PR binding");
+            return Ok(());
+        };
+
+        // Check if task has an attempt (workspace_id)
+        let Some(attempt_id) = &task.parent_workspace_id else {
+            tracing::warn!("Task has no attempt - launch a session first to create one");
+            return Ok(());
+        };
+
+        // Get project repos to find the repo_id
+        let project_id = &task.project_id;
+        let repos = match self.api.get_project_repos(project_id).await {
+            Ok(repos) => repos,
+            Err(e) => {
+                tracing::error!("Failed to get project repos: {}", e);
+                return Ok(());
+            }
+        };
+
+        let Some(repo) = repos.first() else {
+            tracing::warn!("Project has no repos configured");
+            return Ok(());
+        };
+
+        let repo_id = repo.repo_id.clone();
+
+        // Suspend terminal for fzf
+        terminal.suspend()?;
+
+        // List PRs using gh CLI
+        let prs = match list_prs(20, None) {
+            Ok(prs) => prs,
+            Err(e) => {
+                terminal.resume()?;
+                tracing::error!("Failed to list PRs: {}", e);
+                return Ok(());
+            }
+        };
+
+        if prs.is_empty() {
+            terminal.resume()?;
+            tracing::warn!("No PRs found in repository");
+            return Ok(());
+        }
+
+        // Select PR with fzf
+        let selected_pr_number = match select_pr_with_fzf(&prs) {
+            Ok(Some(num)) => num,
+            Ok(None) => {
+                terminal.resume()?;
+                tracing::info!("PR selection cancelled");
+                return Ok(());
+            }
+            Err(e) => {
+                terminal.resume()?;
+                tracing::error!("Failed to select PR: {}", e);
+                return Ok(());
+            }
+        };
+
+        // Resume terminal
+        terminal.resume()?;
+
+        // Bind the PR via API
+        match self
+            .api
+            .bind_pr(attempt_id, &repo_id, selected_pr_number)
+            .await
+        {
+            Ok(response) => {
+                if response.pr_attached {
+                    tracing::info!(
+                        "Bound PR #{} to task",
+                        response.pr_number.unwrap_or(selected_pr_number)
+                    );
+                    // Refresh to show updated PR status
+                    self.refresh().await?;
+                } else {
+                    tracing::warn!("Failed to bind PR");
+                }
+            }
+            Err(e) => {
+                tracing::error!("Failed to bind PR: {}", e);
+            }
+        }
+
         Ok(())
     }
 

@@ -28,6 +28,7 @@ pub enum Action {
     AttachSession,
     KillSession,
     ViewPR,
+    BindPR,
 
     // Search (vim-style /)
     StartSearch,
