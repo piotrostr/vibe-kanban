@@ -150,7 +150,8 @@ fn create_launcher_script(session_name: &str, claude_cmd: &str) -> Result<std::p
     let launcher_path = script_dir.join(format!("{}-launch.sh", session_name));
     let launcher_script = format!(
         r#"#!/bin/zsh
-SESSION_LINE=$(zellij list-sessions 2>/dev/null | grep "^{0}")
+# Strip ANSI color codes for reliable grep
+SESSION_LINE=$(zellij list-sessions 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep "^{0}")
 if [[ -n "$SESSION_LINE" ]]; then
   if echo "$SESSION_LINE" | grep -q "EXITED"; then
     zellij delete-session {0} 2>/dev/null
