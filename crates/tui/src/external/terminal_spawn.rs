@@ -118,6 +118,42 @@ fn shell_escape(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
+/// Create a launcher script for zellij session
+fn create_launcher_script(session_name: &str, claude_cmd: &str) -> Result<std::path::PathBuf> {
+    use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
+
+    let script_dir = dirs::cache_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
+        .join("vibe-scripts");
+    std::fs::create_dir_all(&script_dir)?;
+
+    // Shell script that zellij will use
+    let shell_script_path = script_dir.join(format!("{}-shell.sh", session_name));
+    let shell_script = format!(
+        "#!/bin/zsh\n{}\nexec zsh\n",
+        claude_cmd
+    );
+    let mut file = std::fs::File::create(&shell_script_path)?;
+    file.write_all(shell_script.as_bytes())?;
+    drop(file);
+    std::fs::set_permissions(&shell_script_path, std::fs::Permissions::from_mode(0o755))?;
+
+    // Launcher script that wt switch -x will execute
+    let launcher_path = script_dir.join(format!("{}-launch.sh", session_name));
+    let launcher_script = format!(
+        "#!/bin/zsh\nSHELL={} exec zellij -s {}\n",
+        shell_script_path.display(),
+        session_name
+    );
+    let mut file = std::fs::File::create(&launcher_path)?;
+    file.write_all(launcher_script.as_bytes())?;
+    drop(file);
+    std::fs::set_permissions(&launcher_path, std::fs::Permissions::from_mode(0o755))?;
+
+    Ok(launcher_path)
+}
+
 /// Launch claude in a zellij session for an existing worktree
 /// Uses `wt switch` to ensure we're in the right worktree, then launches zellij
 pub fn launch_zellij_claude_in_worktree(branch: &str, plan_mode: bool) -> Result<()> {
@@ -134,22 +170,18 @@ pub fn launch_zellij_claude_in_worktree(branch: &str, plan_mode: bool) -> Result
         }
     }
 
-    // No existing session - use wt switch to go to worktree and launch claude
-    // wt switch --create is idempotent - creates if needed, switches if exists
-    let mut claude_cmd = "claude --continue --dangerously-skip-permissions".to_string();
-    if plan_mode {
-        claude_cmd = "claude --continue --dangerously-skip-permissions --plan".to_string();
-    }
+    // No existing session - create launcher script
+    let claude_cmd = if plan_mode {
+        "claude --continue --dangerously-skip-permissions --plan"
+    } else {
+        "claude --continue --dangerously-skip-permissions"
+    };
 
-    // Use wt switch with -x to execute zellij after switching
-    let zellij_cmd = format!(
-        "zellij -s {} -e -- zsh -c '{} ; exec zsh'",
-        shell_escape(&session_name),
-        claude_cmd
-    );
+    let launcher = create_launcher_script(&session_name, claude_cmd)?;
 
+    // Use wt switch to create/switch worktree and execute launcher
     let status = Command::new("wt")
-        .args(["switch", "--create", branch, "-y", "-x", &zellij_cmd])
+        .args(["switch", "--create", branch, "-y", "-x", launcher.to_str().unwrap()])
         .status()?;
 
     if !status.success() {
@@ -179,27 +211,32 @@ pub fn launch_zellij_claude_in_worktree_with_context(
         }
     }
 
-    // No existing session - create worktree and launch claude with context
-    let mut claude_cmd = format!(
-        "claude --dangerously-skip-permissions --print {}",
-        shell_escape(task_context)
-    );
-    if plan_mode {
-        claude_cmd = format!(
-            "claude --dangerously-skip-permissions --plan --print {}",
-            shell_escape(task_context)
-        );
-    }
+    // No existing session - create launcher script with task context
+    // Write task context to a temp file to avoid escaping issues
+    let context_file = dirs::cache_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
+        .join("vibe-scripts")
+        .join(format!("{}-context.txt", session_name));
+    std::fs::create_dir_all(context_file.parent().unwrap())?;
+    std::fs::write(&context_file, task_context)?;
 
-    // Use wt switch with -x to execute zellij after switching
-    let zellij_cmd = format!(
-        "zellij -s {} -e -- zsh -c '{} ; exec zsh'",
-        shell_escape(&session_name),
-        claude_cmd
-    );
+    let claude_cmd = if plan_mode {
+        format!(
+            "claude --dangerously-skip-permissions --plan --print \"$(cat {})\"",
+            context_file.display()
+        )
+    } else {
+        format!(
+            "claude --dangerously-skip-permissions --print \"$(cat {})\"",
+            context_file.display()
+        )
+    };
 
+    let launcher = create_launcher_script(&session_name, &claude_cmd)?;
+
+    // Use wt switch to create/switch worktree and execute launcher
     let status = Command::new("wt")
-        .args(["switch", "--create", branch, "-y", "-x", &zellij_cmd])
+        .args(["switch", "--create", branch, "-y", "-x", launcher.to_str().unwrap()])
         .status()?;
 
     if !status.success() {
