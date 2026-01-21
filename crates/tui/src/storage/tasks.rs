@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+use crate::external::LinearIssue;
 use crate::state::{Task, TaskStatus};
 
 /// File-based task storage.
@@ -136,6 +137,70 @@ impl TaskStorage {
             linear_issue_id: None,
             linear_url: None,
             linear_labels: None,
+            created_at: created.clone(),
+            updated_at: created,
+            has_in_progress_attempt: false,
+            last_attempt_failed: false,
+            executor: String::new(),
+            pr_url: None,
+            pr_status: None,
+            pr_is_draft: None,
+            pr_review_decision: None,
+            pr_checks_status: None,
+            pr_has_conflicts: None,
+        })
+    }
+
+    /// Create a task from a Linear issue
+    pub fn create_task_from_linear(&self, issue: &LinearIssue) -> Result<Task> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let slug = slugify(&issue.title);
+        let path = self.tasks_dir.join(format!("{}.md", slug));
+
+        // Handle duplicate filenames
+        let path = if path.exists() {
+            let short_id = &id[..8];
+            self.tasks_dir.join(format!("{}-{}.md", slug, short_id))
+        } else {
+            path
+        };
+
+        let created = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        let labels_str = if issue.labels.is_empty() {
+            None
+        } else {
+            Some(issue.labels.join(", "))
+        };
+
+        let frontmatter = TaskFrontmatter {
+            id: id.clone(),
+            linear_id: Some(issue.id.clone()),
+            linear_url: Some(issue.url.clone()),
+            linear_labels: labels_str.clone(),
+            created: created.clone(),
+        };
+
+        let content = format!(
+            "---\n{}---\n\n# {}\n\n{}",
+            serde_yaml::to_string(&frontmatter).unwrap_or_default(),
+            issue.title,
+            issue.description.as_deref().unwrap_or("")
+        );
+
+        std::fs::write(&path, &content)
+            .with_context(|| format!("Failed to write task file: {:?}", path))?;
+
+        Ok(Task {
+            id,
+            project_id: self.project_name.clone(),
+            title: issue.title.clone(),
+            description: issue.description.clone(),
+            status: TaskStatus::Backlog,
+            parent_workspace_id: None,
+            shared_task_id: None,
+            linear_issue_id: Some(issue.id.clone()),
+            linear_url: Some(issue.url.clone()),
+            linear_labels: labels_str,
             created_at: created.clone(),
             updated_at: created,
             has_in_progress_attempt: false,

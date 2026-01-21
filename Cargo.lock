@@ -8318,6 +8318,7 @@ dependencies = [
  "md5",
  "open",
  "ratatui",
+ "reqwest",
  "rusqlite",
  "serde",
  "serde_json",

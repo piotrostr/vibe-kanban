@@ -4,8 +4,11 @@
 default:
     @just --list
 
-# Run the TUI (with embedded server)
 vibe:
+    cargo run -p tui --bin vibe
+
+# Run the TUI (with embedded server)
+vibe-live:
     cargo watch -x "run -p tui --bin vibe"
 
 # Run the backend only

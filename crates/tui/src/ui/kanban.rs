@@ -16,6 +16,7 @@ pub fn render_kanban_board(
     worktrees: &WorktreesState,
     sessions: &SessionsState,
     spinner_char: char,
+    linear_pending_count: usize,
 ) {
     // Split into 4 horizontal rows (Backlog, In Progress, In Review, Done)
     let rows = Layout::default()
@@ -30,7 +31,8 @@ pub fn render_kanban_board(
 
     for (i, status) in TaskStatus::VISIBLE.iter().enumerate() {
         let is_selected = tasks.selected_column == i;
-        render_row(frame, rows[i], tasks, worktrees, sessions, *status, is_selected, spinner_char);
+        let pending = if *status == TaskStatus::Backlog { linear_pending_count } else { 0 };
+        render_row(frame, rows[i], tasks, worktrees, sessions, *status, is_selected, spinner_char, pending);
     }
 }
 
@@ -43,6 +45,7 @@ fn render_row(
     status: TaskStatus,
     is_selected: bool,
     spinner_char: char,
+    linear_pending: usize,
 ) {
     let tasks = tasks_state.tasks_in_column_with_prs(
         status,
@@ -52,7 +55,11 @@ fn render_row(
     let count = tasks.len();
     let column_index = status.column_index();
 
-    let title = format!(" {} ({}) ", status.label(), count);
+    let title = if linear_pending > 0 {
+        format!(" {} ({}) - Linear (+{}) ", status.label(), count, linear_pending)
+    } else {
+        format!(" {} ({}) ", status.label(), count)
+    };
 
     let border_color = if is_selected {
         Color::Cyan

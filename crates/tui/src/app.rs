@@ -4,12 +4,13 @@ use ratatui::layout::{Constraint, Direction, Layout};
 use tokio::sync::mpsc;
 
 use crate::external::{
-    BranchPrInfo, ClaudeActivityTracker, ClaudePlanReader, WorktreeInfo, ZellijSession,
     attach_zellij_foreground, edit_markdown, get_pr_for_branch, launch_zellij_claude_in_worktree,
     launch_zellij_claude_in_worktree_with_context, list_sessions_with_status, list_worktrees,
+    BranchPrInfo, ClaudeActivityTracker, ClaudePlanReader, LinearClient, LinearIssue,
+    WorktreeInfo, ZellijSession,
 };
-use crate::input::{Action, EventStream, extract_key_event, key_to_action};
-use crate::state::{AppState, Modal, View, check_linear_api_key};
+use crate::input::{extract_key_event, key_to_action, Action, EventStream};
+use crate::state::{check_linear_api_key, linear_env_var_name, AppState, Modal, View};
 use crate::storage::TaskStorage;
 use crate::terminal::Terminal;
 use crate::ui::{
@@ -21,6 +22,7 @@ use crate::ui::{
 type WorktreeResult = Result<Vec<WorktreeInfo>, String>;
 type SessionResult = Result<Vec<ZellijSession>, String>;
 type BranchPrResult = (String, Option<BranchPrInfo>);
+type LinearResult = Result<Vec<LinearIssue>, String>;
 
 pub struct App {
     state: AppState,
@@ -39,6 +41,9 @@ pub struct App {
     session_sender: mpsc::Sender<SessionResult>,
     pr_info_receiver: mpsc::Receiver<BranchPrResult>,
     pr_info_sender: mpsc::Sender<BranchPrResult>,
+    // Linear sync channels
+    linear_receiver: mpsc::Receiver<LinearResult>,
+    linear_sender: mpsc::Sender<LinearResult>,
 }
 
 impl App {
@@ -65,6 +70,7 @@ impl App {
         let (worktree_sender, worktree_receiver) = mpsc::channel(4);
         let (session_sender, session_receiver) = mpsc::channel(4);
         let (pr_info_sender, pr_info_receiver) = mpsc::channel(32);
+        let (linear_sender, linear_receiver) = mpsc::channel(4);
 
         // Mark as loading immediately so UI shows loading state
         state.worktrees.loading = true;
@@ -84,6 +90,34 @@ impl App {
             let _ = sess_sender.blocking_send(result);
         });
 
+        // Spawn initial Linear fetch if API key is available
+        if state.linear_api_key_available {
+            let lin_sender = linear_sender.clone();
+            let env_var = linear_env_var_name(&project_name);
+            tracing::info!("Starting Linear fetch with env var: {}", env_var);
+            tokio::spawn(async move {
+                match std::env::var(&env_var) {
+                    Ok(api_key) => {
+                        tracing::info!("Linear API key found, fetching backlog issues...");
+                        let client = LinearClient::new(api_key);
+                        match client.fetch_all_backlog_issues().await {
+                            Ok(issues) => {
+                                tracing::info!("Linear fetch succeeded: {} issues", issues.len());
+                                let _ = lin_sender.send(Ok(issues)).await;
+                            }
+                            Err(e) => {
+                                tracing::error!("Linear fetch failed: {}", e);
+                                let _ = lin_sender.send(Err(e)).await;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to read Linear API key {}: {}", env_var, e);
+                    }
+                }
+            });
+        }
+
         Ok(Self {
             state,
             storage,
@@ -100,6 +134,8 @@ impl App {
             session_sender,
             pr_info_receiver,
             pr_info_sender,
+            linear_receiver,
+            linear_sender,
         })
     }
 
@@ -198,6 +234,35 @@ impl App {
                 self.state.worktrees.clear_branch_pr(&branch);
             }
         }
+
+        // Non-blocking check for Linear results
+        while let Ok(result) = self.linear_receiver.try_recv() {
+            match result {
+                Ok(issues) => {
+                    // Filter to issues not already imported locally
+                    let local_linear_ids: std::collections::HashSet<_> = self
+                        .state
+                        .tasks
+                        .tasks
+                        .iter()
+                        .filter_map(|t| t.linear_issue_id.as_ref())
+                        .collect();
+
+                    let pending: Vec<_> = issues
+                        .into_iter()
+                        .filter(|i| !local_linear_ids.contains(&i.id))
+                        .collect();
+
+                    tracing::info!("Linear: {} pending issues not imported locally", pending.len());
+                    self.state.linear_pending_issues = pending;
+                    self.state.linear_error = None;
+                }
+                Err(e) => {
+                    tracing::error!("Linear fetch error: {}", e);
+                    self.state.linear_error = Some(e);
+                }
+            }
+        }
     }
 
     fn fetch_pr_info_for_branches(&self, worktrees: &[WorktreeInfo]) {
@@ -244,6 +309,7 @@ impl App {
                         &self.state.worktrees,
                         &self.state.sessions,
                         self.state.spinner_char(),
+                        self.state.linear_pending_issues.len(),
                     );
                 }
                 View::TaskDetail => {
@@ -435,8 +501,7 @@ impl App {
             }
 
             Action::SyncLinear => {
-                // Linear sync not available in standalone mode yet
-                tracing::info!("Linear sync not yet implemented in standalone mode");
+                self.handle_sync_linear()?;
             }
 
             Action::ShowLogs => {
@@ -474,6 +539,39 @@ impl App {
         if self.state.logs_overlay_visible {
             self.state.logs.load_logs();
         }
+    }
+
+    fn handle_sync_linear(&mut self) -> Result<()> {
+        if self.state.linear_pending_issues.is_empty() {
+            tracing::info!("No pending Linear issues to import");
+            return Ok(());
+        }
+
+        // Import all pending issues
+        let pending = std::mem::take(&mut self.state.linear_pending_issues);
+        let mut imported = 0;
+        let mut errors = 0;
+
+        for issue in &pending {
+            match self.storage.create_task_from_linear(issue) {
+                Ok(_) => {
+                    tracing::info!("Imported Linear issue: {}", issue.title);
+                    imported += 1;
+                }
+                Err(e) => {
+                    tracing::error!("Failed to import Linear issue {}: {}", issue.title, e);
+                    errors += 1;
+                }
+            }
+        }
+
+        tracing::info!("Linear sync: imported {}, errors {}", imported, errors);
+
+        // Refresh tasks to show newly imported ones
+        let tasks = self.storage.list_tasks()?;
+        self.state.tasks.set_tasks(tasks);
+
+        Ok(())
     }
 
     fn execute_command(&mut self) {
@@ -670,6 +768,8 @@ impl App {
             View::Kanban | View::TaskDetail => {
                 let tasks = self.storage.list_tasks()?;
                 self.state.tasks.set_tasks(tasks);
+                // Also refresh Linear pending issues
+                self.refresh_linear();
             }
             View::Worktrees => {
                 self.load_worktrees();
@@ -688,6 +788,24 @@ impl App {
         }
 
         Ok(())
+    }
+
+    fn refresh_linear(&self) {
+        if !self.state.linear_api_key_available {
+            return;
+        }
+
+        let project_name = self.storage.project_name().to_string();
+        let env_var = linear_env_var_name(&project_name);
+        let sender = self.linear_sender.clone();
+
+        tokio::spawn(async move {
+            if let Ok(api_key) = std::env::var(&env_var) {
+                let client = LinearClient::new(api_key);
+                let result = client.fetch_all_backlog_issues().await;
+                let _ = sender.send(result).await;
+            }
+        });
     }
 
     fn handle_edit_task(&mut self, terminal: &mut Terminal) -> Result<()> {

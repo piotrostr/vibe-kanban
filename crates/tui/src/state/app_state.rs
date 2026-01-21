@@ -1,4 +1,5 @@
 use super::{LogsState, ProjectsState, SearchState, SessionsState, TasksState, WorktreesState};
+use crate::external::LinearIssue;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum View {
@@ -43,6 +44,12 @@ pub struct AppState {
 
     pub linear_api_key_available: bool,
 
+    /// Linear issues in backlog that haven't been imported locally yet
+    pub linear_pending_issues: Vec<LinearIssue>,
+
+    /// Error message from Linear API (if any)
+    pub linear_error: Option<String>,
+
     /// When true, logs are shown as an overlay on top of the current view
     pub logs_overlay_visible: bool,
 
@@ -77,6 +84,9 @@ impl AppState {
             animation_frame: 0,
 
             linear_api_key_available: false,
+
+            linear_pending_issues: Vec::new(),
+            linear_error: None,
 
             logs_overlay_visible: false,
 
