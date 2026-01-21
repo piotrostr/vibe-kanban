@@ -57,14 +57,7 @@ fn render_results_list(frame: &mut Frame, area: Rect, search: &SearchState) {
     let items: Vec<ListItem> = search
         .results
         .iter()
-        .map(|result| {
-            let title = if result.title.len() > 35 {
-                format!("{}...", &result.title[..32])
-            } else {
-                result.title.clone()
-            };
-            ListItem::new(Line::from(title))
-        })
+        .map(|result| ListItem::new(Line::from(result.title.clone())))
         .collect();
 
     let results_count = search.results.len();

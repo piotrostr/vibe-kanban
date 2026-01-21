@@ -119,8 +119,13 @@ impl Task {
         self.status
     }
 
-    /// Compute effective status considering locally detected PR info
-    pub fn effective_status_with_pr(&self, branch_pr: Option<&BranchPrInfo>) -> TaskStatus {
+    /// Compute effective status considering locally detected PR info and worktree
+    /// Priority: PR status > worktree exists > stored status
+    pub fn effective_status_with_pr(
+        &self,
+        branch_pr: Option<&BranchPrInfo>,
+        has_worktree: bool,
+    ) -> TaskStatus {
         // Backend PR info takes precedence
         if self.pr_status.is_some() {
             return self.effective_status();
@@ -135,9 +140,18 @@ impl Task {
                     if !pr.is_draft {
                         return TaskStatus::Inreview;
                     }
+                    // Draft PR with worktree -> In Progress
+                    if has_worktree {
+                        return TaskStatus::Inprogress;
+                    }
                 }
                 _ => {}
             }
+        }
+
+        // Worktree exists means we're working on it -> In Progress
+        if has_worktree {
+            return TaskStatus::Inprogress;
         }
 
         self.status
@@ -193,8 +207,9 @@ impl TasksState {
                         || task_slug.contains(&w.branch.to_lowercase())
                 });
 
+                let has_worktree = matching_branch.is_some();
                 let branch_pr = matching_branch.and_then(|wt| branch_prs.get(&wt.branch));
-                t.effective_status_with_pr(branch_pr).column_index() == column_index
+                t.effective_status_with_pr(branch_pr, has_worktree).column_index() == column_index
             })
             .filter(|t| {
                 if self.search_filter.is_empty() {

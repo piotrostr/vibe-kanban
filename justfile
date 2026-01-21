@@ -6,7 +6,7 @@ default:
 
 # Run the TUI (with embedded server)
 vibe:
-    cargo run -p tui --release
+    cargo run -p tui
 
 # Run the backend only
 backend:
