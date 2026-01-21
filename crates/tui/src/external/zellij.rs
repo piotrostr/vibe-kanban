@@ -4,12 +4,22 @@ use anyhow::Result;
 use std::path::Path;
 use std::process::Command;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ClaudeActivityState {
+    #[default]
+    Unknown,        // No statusline data available
+    Idle,           // Claude not running (stale data)
+    Thinking,       // Actively processing (tokens changing)
+    WaitingForUser, // Stopped, awaiting input (tokens stable)
+}
+
 #[derive(Debug, Clone)]
 pub struct ZellijSession {
     pub name: String,
     pub is_current: bool,
     pub is_dead: bool,
     pub needs_attention: bool,
+    pub claude_activity: ClaudeActivityState,
 }
 
 pub fn list_sessions() -> Result<Vec<ZellijSession>> {
@@ -47,6 +57,7 @@ pub fn list_sessions() -> Result<Vec<ZellijSession>> {
                 is_current,
                 is_dead,
                 needs_attention: false,
+                claude_activity: ClaudeActivityState::Unknown,
             }
         })
         .collect();
