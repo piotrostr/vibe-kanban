@@ -83,8 +83,20 @@ fn render_row(
             };
             spans.push(Span::raw(title_display));
 
-            // PR status with visible icons
-            if task.pr_url.is_some() {
+            // Worktree/branch info - find it first so we can use it for PR lookup
+            let task_slug = task.title.to_lowercase().replace(' ', "-");
+            let matching_worktree = worktrees
+                .worktrees
+                .iter()
+                .find(|w| w.branch.to_lowercase().contains(&task_slug) || task_slug.contains(&w.branch.to_lowercase()));
+
+            // PR status - check backend first, then local gh detection
+            let has_backend_pr = task.pr_url.is_some();
+            let branch_pr = matching_worktree
+                .and_then(|wt| worktrees.pr_for_branch(&wt.branch));
+
+            if has_backend_pr {
+                // Use backend PR info
                 let (pr_icon, pr_color) = match task.pr_status.as_deref() {
                     Some("merged") => ("[M]", Color::Magenta),
                     Some("closed") => ("[X]", Color::Red),
@@ -100,6 +112,28 @@ fn render_row(
                 if task.pr_has_conflicts == Some(true) {
                     spans.push(Span::styled(" !", Style::default().fg(Color::Red)));
                 }
+            } else if let Some(pr) = branch_pr {
+                // Use locally detected PR info from gh
+                let (pr_icon, pr_color) = match pr.state.as_str() {
+                    "MERGED" => ("[M]", Color::Magenta),
+                    "CLOSED" => ("[X]", Color::Red),
+                    _ => {
+                        // Open PR - check review/checks status
+                        match (pr.review_decision.as_deref(), pr.checks_status().as_deref()) {
+                            (Some("APPROVED"), _) => ("[v]", Color::Green),
+                            (Some("CHANGES_REQUESTED"), _) => ("[?]", Color::Yellow),
+                            (_, Some("FAILURE")) => ("[x]", Color::Red),
+                            (_, Some("SUCCESS")) => ("[+]", Color::Green),
+                            (_, Some("PENDING")) => ("[~]", Color::Yellow),
+                            _ if pr.is_draft => ("[D]", Color::DarkGray),
+                            _ => ("[PR]", Color::Cyan),
+                        }
+                    }
+                };
+                spans.push(Span::styled(format!(" {}", pr_icon), Style::default().fg(pr_color)));
+                if pr.has_conflicts() {
+                    spans.push(Span::styled(" !", Style::default().fg(Color::Red)));
+                }
             }
 
             // Linear indicator
@@ -107,13 +141,7 @@ fn render_row(
                 spans.push(Span::styled(" [L]", Style::default().fg(Color::Blue)));
             }
 
-            // Worktree/branch info
-            let task_slug = task.title.to_lowercase().replace(' ', "-");
-            let matching_worktree = worktrees
-                .worktrees
-                .iter()
-                .find(|w| w.branch.to_lowercase().contains(&task_slug) || task_slug.contains(&w.branch.to_lowercase()));
-
+            // Worktree/branch display
             if let Some(wt) = matching_worktree {
                 let branch_display = if wt.branch.len() > 15 {
                     format!(" ({}...)", &wt.branch[..12])

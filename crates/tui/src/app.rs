@@ -9,9 +9,9 @@ use crate::api::{
     CreateTaskAttemptRequest, TaskStreamConnection, TaskUpdateReceiver, UpdateTask,
 };
 use crate::external::{
-    attach_zellij_foreground, edit_markdown, launch_zellij_claude_in_worktree,
+    attach_zellij_foreground, edit_markdown, get_pr_for_branch, launch_zellij_claude_in_worktree,
     launch_zellij_claude_in_worktree_with_context, list_prs, list_sessions_with_status,
-    list_worktrees, select_pr_with_fzf, WorktreeInfo, ZellijSession,
+    list_worktrees, select_pr_with_fzf, BranchPrInfo, WorktreeInfo, ZellijSession,
 };
 use crate::input::{extract_key_event, key_to_action, Action, EventStream};
 use crate::state::{check_linear_api_key, AppState, Modal, View};
@@ -23,6 +23,7 @@ use crate::ui::{
 
 type WorktreeResult = Result<Vec<WorktreeInfo>, String>;
 type SessionResult = Result<Vec<ZellijSession>, String>;
+type BranchPrResult = (String, Option<BranchPrInfo>); // (branch_name, pr_info)
 
 pub struct App {
     state: AppState,
@@ -33,11 +34,14 @@ pub struct App {
     task_receiver: Option<TaskUpdateReceiver>,
     last_session_poll: std::time::Instant,
     last_animation_tick: std::time::Instant,
+    last_pr_poll: std::time::Instant,
     // Background loading channels
     worktree_receiver: mpsc::Receiver<WorktreeResult>,
     worktree_sender: mpsc::Sender<WorktreeResult>,
     session_receiver: mpsc::Receiver<SessionResult>,
     session_sender: mpsc::Sender<SessionResult>,
+    pr_info_receiver: mpsc::Receiver<BranchPrResult>,
+    pr_info_sender: mpsc::Sender<BranchPrResult>,
 }
 
 impl App {
@@ -56,6 +60,7 @@ impl App {
         // Create background loading channels
         let (worktree_sender, worktree_receiver) = mpsc::channel(4);
         let (session_sender, session_receiver) = mpsc::channel(4);
+        let (pr_info_sender, pr_info_receiver) = mpsc::channel(32);
 
         // Mark as loading immediately so UI shows loading state
         state.worktrees.loading = true;
@@ -84,16 +89,21 @@ impl App {
             task_receiver: None,
             last_session_poll: std::time::Instant::now(),
             last_animation_tick: std::time::Instant::now(),
+            last_pr_poll: std::time::Instant::now(),
             worktree_receiver,
             worktree_sender,
             session_receiver,
             session_sender,
+            pr_info_receiver,
+            pr_info_sender,
         })
     }
 
     pub async fn run(&mut self, terminal: &mut Terminal) -> Result<()> {
         // Poll session status every 5 seconds
         const SESSION_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
+        // Poll PR status every 30 seconds
+        const PR_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
         // Tick animation every 250ms for smooth spinner
         const ANIMATION_TICK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
 
@@ -101,13 +111,19 @@ impl App {
             // Check for WebSocket updates
             self.check_ws_updates();
 
-            // Check for background load results (worktrees, sessions)
+            // Check for background load results (worktrees, sessions, PRs)
             self.check_background_loads();
 
             // Poll session status periodically (non-blocking background refresh)
             if self.last_session_poll.elapsed() >= SESSION_POLL_INTERVAL {
                 self.poll_sessions_async();
                 self.last_session_poll = std::time::Instant::now();
+            }
+
+            // Poll PR status periodically
+            if self.last_pr_poll.elapsed() >= PR_POLL_INTERVAL {
+                self.poll_pr_info_async();
+                self.last_pr_poll = std::time::Instant::now();
             }
 
             // Tick animation for spinners
@@ -151,6 +167,8 @@ impl App {
         while let Ok(result) = self.worktree_receiver.try_recv() {
             match result {
                 Ok(worktrees) => {
+                    // Spawn PR info fetch for each branch
+                    self.fetch_pr_info_for_branches(&worktrees);
                     self.state.worktrees.set_worktrees(worktrees);
                     self.state.worktrees.loading = false;
                     self.state.worktrees.error = None;
@@ -175,6 +193,33 @@ impl App {
                     self.state.sessions.loading = false;
                 }
             }
+        }
+
+        // Non-blocking check for PR info results
+        while let Ok((branch, pr_info)) = self.pr_info_receiver.try_recv() {
+            if let Some(info) = pr_info {
+                self.state.worktrees.set_branch_pr(branch, info);
+            } else {
+                self.state.worktrees.clear_branch_pr(&branch);
+            }
+        }
+    }
+
+    fn fetch_pr_info_for_branches(&self, worktrees: &[WorktreeInfo]) {
+        for wt in worktrees {
+            // Skip main/master branches - they don't have PRs
+            if wt.branch == "main" || wt.branch == "master" {
+                continue;
+            }
+
+            let branch = wt.branch.clone();
+            let sender = self.pr_info_sender.clone();
+
+            tokio::task::spawn_blocking(move || {
+                let result = get_pr_for_branch(&branch);
+                let pr_info = result.ok().flatten();
+                let _ = sender.blocking_send((branch, pr_info));
+            });
         }
     }
 
@@ -747,6 +792,12 @@ impl App {
                 let _ = sender.blocking_send(result);
             });
         }
+    }
+
+    fn poll_pr_info_async(&mut self) {
+        // Re-fetch PR info for all known worktree branches
+        let worktrees = self.state.worktrees.worktrees.clone();
+        self.fetch_pr_info_for_branches(&worktrees);
     }
 
     fn handle_launch_session(&mut self, terminal: &mut Terminal, plan_mode: bool) -> Result<()> {

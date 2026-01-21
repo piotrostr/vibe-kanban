@@ -1,10 +1,14 @@
-use crate::external::WorktreeInfo;
+use std::collections::HashMap;
+
+use crate::external::{BranchPrInfo, WorktreeInfo};
 
 pub struct WorktreesState {
     pub worktrees: Vec<WorktreeInfo>,
     pub selected_index: usize,
     pub loading: bool,
     pub error: Option<String>,
+    /// PR info indexed by branch name
+    pub branch_prs: HashMap<String, BranchPrInfo>,
 }
 
 impl WorktreesState {
@@ -14,7 +18,23 @@ impl WorktreesState {
             selected_index: 0,
             loading: false,
             error: None,
+            branch_prs: HashMap::new(),
         }
+    }
+
+    /// Get PR info for a branch if available
+    pub fn pr_for_branch(&self, branch: &str) -> Option<&BranchPrInfo> {
+        self.branch_prs.get(branch)
+    }
+
+    /// Set PR info for a branch
+    pub fn set_branch_pr(&mut self, branch: String, pr_info: BranchPrInfo) {
+        self.branch_prs.insert(branch, pr_info);
+    }
+
+    /// Clear PR info (e.g., when branch has no PR)
+    pub fn clear_branch_pr(&mut self, branch: &str) {
+        self.branch_prs.remove(branch);
     }
 
     pub fn set_worktrees(&mut self, worktrees: Vec<WorktreeInfo>) {
