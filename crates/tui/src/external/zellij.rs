@@ -205,85 +205,73 @@ fn zellij_config_dir() -> PathBuf {
         .join("zellij")
 }
 
-/// Vibe-specific zellij config that:
-/// - Unbinds Ctrl+p and Ctrl+n to let bash handle history navigation
-/// - Binds Ctrl+q for quick detach
-/// - Hides the status bar for a cleaner look
+/// Minimal layout for vibe sessions - no status bar, just the pane
+const VIBE_LAYOUT: &str = r#"layout {
+    pane borderless=true
+}
+"#;
+
+/// Vibe-specific zellij config
 const VIBE_ZELLIJ_CONFIG: &str = r#"// Vibe TUI zellij config
-// Unbinds common bash shortcuts to allow history navigation
+// Minimal UI - no status bar, Ctrl+o d to detach
 
-// Skip intro screen
 on_force_close "detach"
-
-// Hide the mode/status bar at the bottom for a cleaner look
-simplified_ui true
 pane_frames false
-default_layout "compact"
+mouse_mode false
+simplified_ui true
+session_serialization true
+default_mode "locked"
 
+// Hide ALL UI elements
+ui {
+    pane_frames {
+        hide_session_name true
+    }
+}
+
+// Use locked mode by default so keys pass through to app
+// Ctrl+o switches to normal mode for zellij commands
 keybinds clear-defaults=true {
-    // Unbind Ctrl+p and Ctrl+n to let bash handle them for history
-    // These are not bound to anything, so they pass through
+    locked {
+        bind "Ctrl o" { SwitchToMode "normal"; }
+    }
 
     normal {
-        // Quick detach with Ctrl+q
-        bind "Ctrl q" { Detach; }
-
-        // Basic navigation
-        bind "Alt h" "Alt Left" { MoveFocusOrTab "Left"; }
-        bind "Alt l" "Alt Right" { MoveFocusOrTab "Right"; }
-        bind "Alt j" "Alt Down" { MoveFocus "Down"; }
-        bind "Alt k" "Alt Up" { MoveFocus "Up"; }
-
-        // Scrolling
+        bind "Ctrl o" { SwitchToMode "locked"; }
+        bind "d" { Detach; }
+        bind "Esc" { SwitchToMode "locked"; }
         bind "PageUp" { ScrollUp; }
         bind "PageDown" { ScrollDown; }
-
-        // Enter scroll mode
-        bind "Ctrl s" { SwitchToMode "Scroll"; }
-
-        // Copy mode
-        bind "Ctrl c" { SwitchToMode "EnterSearch"; SearchInput 0; }
-    }
-
-    scroll {
-        bind "j" "Down" { ScrollDown; }
-        bind "k" "Up" { ScrollUp; }
-        bind "d" { HalfPageScrollDown; }
-        bind "u" { HalfPageScrollUp; }
-        bind "Ctrl d" { HalfPageScrollDown; }
-        bind "Ctrl u" { HalfPageScrollUp; }
-        bind "Esc" "q" { SwitchToMode "Normal"; }
-    }
-
-    entersearch {
-        bind "Esc" { SwitchToMode "Scroll"; }
-        bind "Enter" { SwitchToMode "Search"; }
-    }
-
-    search {
-        bind "n" { Search "down"; }
-        bind "N" { Search "up"; }
-        bind "Esc" "q" { SwitchToMode "Normal"; }
     }
 }
 "#;
 
+/// Get path to vibe layout file, creating it if needed
+pub fn get_vibe_layout_path() -> Result<PathBuf> {
+    let layout_dir = zellij_config_dir().join("layouts");
+    fs::create_dir_all(&layout_dir)?;
+
+    let layout_path = layout_dir.join("vibe.kdl");
+    if !layout_path.exists() {
+        fs::write(&layout_path, VIBE_LAYOUT)?;
+    }
+    Ok(layout_path)
+}
+
 /// Ensure zellij config exists with vibe-specific settings
-/// Returns true if config was created, false if it already exists
+/// Overwrites existing config to ensure our settings are applied
 pub fn ensure_zellij_config() -> Result<bool> {
     let config_dir = zellij_config_dir();
     let config_path = config_dir.join("config.kdl");
 
-    if config_path.exists() {
-        // Config already exists - don't overwrite user's config
-        return Ok(false);
-    }
-
     // Create config directory if it doesn't exist
     fs::create_dir_all(&config_dir)?;
 
-    // Write the vibe config
+    // Always write our config (user can backup theirs if needed)
     fs::write(&config_path, VIBE_ZELLIJ_CONFIG)?;
+
+    // Also ensure layout exists
+    get_vibe_layout_path()?;
 
     Ok(true)
 }

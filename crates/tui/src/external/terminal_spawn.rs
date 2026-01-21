@@ -120,12 +120,13 @@ fn shell_escape(s: &str) -> String {
 /// Creates session if it doesn't exist, attaches if it does
 /// User can detach with Ctrl+q to return to TUI while claude keeps running
 pub fn launch_zellij_claude_foreground(session_name: &str, cwd: &Path) -> Result<()> {
-    use super::zellij::{ensure_zellij_config, get_session_status};
+    use super::zellij::{ensure_zellij_config, get_session_status, get_vibe_layout_path};
     use std::io::Write;
     use std::os::unix::fs::PermissionsExt;
 
-    // Ensure zellij config is set up with keybindings that allow Ctrl+p/n passthrough
+    // Ensure zellij config and layout are set up
     let _ = ensure_zellij_config();
+    let layout_path = get_vibe_layout_path()?;
 
     // Check if session exists and whether it's dead
     // None = doesn't exist, Some(is_dead) = exists
@@ -165,9 +166,10 @@ pub fn launch_zellij_claude_foreground(session_name: &str, cwd: &Path) -> Result
             // Make script executable
             std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755))?;
 
-            // Create session with custom shell that runs our script
+            // Create session with vibe layout (no status bar) and custom shell
+            let layout_str = layout_path.to_string_lossy();
             let status = Command::new("zellij")
-                .args(["-s", session_name])
+                .args(["-s", session_name, "--layout", &layout_str])
                 .env("SHELL", &script_path)
                 .status()?;
 
