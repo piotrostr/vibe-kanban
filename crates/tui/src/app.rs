@@ -56,7 +56,49 @@ impl App {
 
         // Load initial data
         let projects = api.get_projects().await?;
-        state.projects.set_projects(projects);
+        state.projects.set_projects(projects.clone());
+
+        // Check if we're in a project directory - if so, auto-select it
+        let cwd = std::env::current_dir().ok();
+        let mut auto_selected_project: Option<(String, String)> = None;
+
+        if let Some(ref cwd) = cwd {
+            for project in &projects {
+                if let Some(ref dir) = project.default_agent_working_dir {
+                    let project_path = if dir.starts_with('/') {
+                        std::path::PathBuf::from(dir)
+                    } else if dir.starts_with('~') {
+                        if let Some(home) = dirs::home_dir() {
+                            home.join(&dir[2..])
+                        } else {
+                            continue;
+                        }
+                    } else {
+                        // Bare name like "vibe-kanban" -> ~/vibe-kanban
+                        if let Some(home) = dirs::home_dir() {
+                            home.join(dir)
+                        } else {
+                            continue;
+                        }
+                    };
+
+                    // Check if cwd is the project dir or a subdirectory of it
+                    if cwd.starts_with(&project_path) {
+                        auto_selected_project =
+                            Some((project.id.clone(), project.name.clone()));
+                        break;
+                    }
+                }
+            }
+        }
+
+        // If we found a matching project, auto-select it and load tasks
+        if let Some((project_id, project_name)) = auto_selected_project {
+            state.linear_api_key_available = check_linear_api_key(&project_name);
+            let tasks = api.get_tasks(&project_id).await?;
+            state.tasks.set_tasks(tasks);
+            state.select_project(project_id);
+        }
 
         // Create background loading channels
         let (worktree_sender, worktree_receiver) = mpsc::channel(4);
@@ -107,6 +149,11 @@ impl App {
         const PR_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
         // Tick animation every 250ms for smooth spinner
         const ANIMATION_TICK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
+
+        // If a project was auto-selected (we're in kanban view), start WebSocket
+        if let Some(project_id) = self.state.selected_project_id.clone() {
+            self.start_ws_stream(&project_id);
+        }
 
         loop {
             // Check for WebSocket updates
