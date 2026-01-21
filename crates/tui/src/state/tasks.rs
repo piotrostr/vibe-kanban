@@ -210,7 +210,15 @@ impl TasksState {
             let count = self.tasks_in_column_with_prs(status, branch_prs, worktrees).len();
             if count > 0 {
                 let current = self.selected_card_per_column[self.selected_column];
-                self.selected_card_per_column[self.selected_column] = (current + 1) % count;
+                if current + 1 >= count {
+                    // At the last card - move to next row
+                    self.select_next_column();
+                } else {
+                    self.selected_card_per_column[self.selected_column] = current + 1;
+                }
+            } else {
+                // Empty row - move to next row
+                self.select_next_column();
             }
         }
     }
@@ -224,11 +232,23 @@ impl TasksState {
             let count = self.tasks_in_column_with_prs(status, branch_prs, worktrees).len();
             if count > 0 {
                 let current = self.selected_card_per_column[self.selected_column];
-                self.selected_card_per_column[self.selected_column] = if current == 0 {
-                    count - 1
+                if current == 0 {
+                    // At the first card - move to previous row and select last card
+                    self.select_prev_column();
+                    // Select last card in new row
+                    if let Some(new_status) = TaskStatus::from_column_index(self.selected_column) {
+                        let new_count =
+                            self.tasks_in_column_with_prs(new_status, branch_prs, worktrees).len();
+                        if new_count > 0 {
+                            self.selected_card_per_column[self.selected_column] = new_count - 1;
+                        }
+                    }
                 } else {
-                    current - 1
-                };
+                    self.selected_card_per_column[self.selected_column] = current - 1;
+                }
+            } else {
+                // Empty row - move to previous row
+                self.select_prev_column();
             }
         }
     }
