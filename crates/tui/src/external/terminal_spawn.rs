@@ -121,10 +121,12 @@ fn shell_escape(s: &str) -> String {
 /// Create a launcher script for zellij session
 /// fresh_cmd: command for new sessions (with prompt)
 /// continue_cmd: command for resuming EXITED sessions (with --continue)
+/// plan_mode: if true, kill running sessions to restart in plan mode
 fn create_launcher_script(
     session_name: &str,
     fresh_cmd: &str,
     continue_cmd: &str,
+    plan_mode: bool,
 ) -> Result<std::path::PathBuf> {
     use std::io::Write;
     use std::os::unix::fs::PermissionsExt;
@@ -150,15 +152,20 @@ fn create_launcher_script(
     drop(file);
     std::fs::set_permissions(&continue_script_path, std::fs::Permissions::from_mode(0o755))?;
 
+    // Track plan mode state in a marker file
+    let plan_marker = script_dir.join(format!("{}-plan.marker", session_name));
+
     // Launcher script that wt switch -x will execute
     // Check session state and handle accordingly:
+    // - Running + plan mode requested but session not in plan mode: kill and restart
     // - Running: attach to it
     // - EXITED: delete and create with --continue (resume conversation)
     // - Not found: create new with prompt
     // Use SHELL=/path/to/script zellij -s session to run script as the shell
     let launcher_path = script_dir.join(format!("{}-launch.sh", session_name));
-    let launcher_script = format!(
-        r#"#!/bin/zsh
+    let launcher_script = if plan_mode {
+        format!(
+            r#"#!/bin/zsh
 # Strip ANSI color codes for reliable grep
 SESSION_LINE=$(zellij list-sessions 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep "^{session}")
 # Reset terminal state - pipes above can corrupt it, sleep lets terminal settle
@@ -167,17 +174,55 @@ sleep 0.1
 if [[ -n "$SESSION_LINE" ]]; then
   if echo "$SESSION_LINE" | grep -q "EXITED"; then
     zellij delete-session {session} 2>/dev/null
+    touch {plan_marker}
+    SHELL={continue_script} exec zellij -s {session}
+  else
+    # Plan mode requested - check if session was started in plan mode
+    if [[ ! -f {plan_marker} ]]; then
+      # Session running but not in plan mode - kill and restart in plan mode
+      zellij kill-session {session} 2>/dev/null
+      sleep 0.2
+      touch {plan_marker}
+      SHELL={fresh_script} exec zellij -s {session}
+    else
+      exec zellij attach {session}
+    fi
+  fi
+fi
+touch {plan_marker}
+SHELL={fresh_script} exec zellij -s {session}
+"#,
+            session = session_name,
+            fresh_script = fresh_script_path.display(),
+            continue_script = continue_script_path.display(),
+            plan_marker = plan_marker.display(),
+        )
+    } else {
+        format!(
+            r#"#!/bin/zsh
+# Strip ANSI color codes for reliable grep
+SESSION_LINE=$(zellij list-sessions 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep "^{session}")
+# Reset terminal state - pipes above can corrupt it, sleep lets terminal settle
+stty sane 2>/dev/null
+sleep 0.1
+if [[ -n "$SESSION_LINE" ]]; then
+  if echo "$SESSION_LINE" | grep -q "EXITED"; then
+    zellij delete-session {session} 2>/dev/null
+    rm -f {plan_marker}
     SHELL={continue_script} exec zellij -s {session}
   else
     exec zellij attach {session}
   fi
 fi
+rm -f {plan_marker}
 SHELL={fresh_script} exec zellij -s {session}
 "#,
-        session = session_name,
-        fresh_script = fresh_script_path.display(),
-        continue_script = continue_script_path.display(),
-    );
+            session = session_name,
+            fresh_script = fresh_script_path.display(),
+            continue_script = continue_script_path.display(),
+            plan_marker = plan_marker.display(),
+        )
+    };
     let mut file = std::fs::File::create(&launcher_path)?;
     file.write_all(launcher_script.as_bytes())?;
     drop(file);
@@ -222,7 +267,7 @@ pub fn launch_zellij_claude_in_worktree(
         "claude --continue --dangerously-skip-permissions"
     };
 
-    let launcher = create_launcher_script(&session_name, claude_cmd, claude_cmd)?;
+    let launcher = create_launcher_script(&session_name, claude_cmd, claude_cmd, plan_mode)?;
     let launcher_path = launcher.to_str().unwrap();
 
     // Use .status() to inherit TTY - this is critical for zellij to work!
@@ -300,7 +345,7 @@ pub fn launch_zellij_claude_in_worktree_with_context(
         )
     };
 
-    let launcher = create_launcher_script(&session_name, &fresh_cmd, &continue_cmd)?;
+    let launcher = create_launcher_script(&session_name, &fresh_cmd, &continue_cmd, plan_mode)?;
     let launcher_path = launcher.to_str().unwrap();
 
     // Use .status() to inherit TTY - critical for zellij!
