@@ -403,6 +403,11 @@ impl App {
                     self.state.search_query.pop();
                 }
             }
+            Action::SearchDeleteWord => {
+                if self.state.view == View::Search {
+                    self.state.search.delete_word();
+                }
+            }
             Action::SearchConfirm => {
                 self.state.search_active = false;
                 // Apply filter to tasks
@@ -414,8 +419,12 @@ impl App {
                 self.state.tasks.search_filter.clear();
             }
             Action::ClearSearch => {
-                self.state.search_query.clear();
-                self.state.tasks.search_filter.clear();
+                if self.state.view == View::Search {
+                    self.state.search.clear_query();
+                } else {
+                    self.state.search_query.clear();
+                    self.state.tasks.search_filter.clear();
+                }
             }
 
             Action::SyncLinear => {

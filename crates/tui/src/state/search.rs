@@ -57,10 +57,28 @@ impl SearchState {
         self.update_results();
     }
 
+    pub fn delete_word(&mut self) {
+        // Delete backwards to the start of the previous word (like Ctrl-w in shell)
+        // First, skip trailing whitespace
+        while self.query.ends_with(' ') {
+            self.query.pop();
+        }
+        // Then delete until whitespace or empty
+        while !self.query.is_empty() && !self.query.ends_with(' ') {
+            self.query.pop();
+        }
+        self.update_results();
+    }
+
     pub fn clear(&mut self) {
         self.query.clear();
         self.results.clear();
         self.selected_index = 0;
+    }
+
+    pub fn clear_query(&mut self) {
+        self.query.clear();
+        self.update_results();
     }
 
     fn update_results(&mut self) {

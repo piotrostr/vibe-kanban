@@ -47,20 +47,28 @@ pub fn key_to_action(
 }
 
 fn search_bindings(key: KeyEvent) -> Option<Action> {
-    match key.code {
-        // Navigation with j/k while typing
-        KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(Action::Down),
-        KeyCode::Char('k') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(Action::Up),
-        KeyCode::Down => Some(Action::Down),
-        KeyCode::Up => Some(Action::Up),
+    match (key.code, key.modifiers) {
+        // Navigation with Ctrl-j/k while typing
+        (KeyCode::Char('j'), KeyModifiers::CONTROL) => Some(Action::Down),
+        (KeyCode::Char('k'), KeyModifiers::CONTROL) => Some(Action::Up),
+        (KeyCode::Char('n'), KeyModifiers::CONTROL) => Some(Action::Down),
+        (KeyCode::Char('p'), KeyModifiers::CONTROL) => Some(Action::Up),
+        (KeyCode::Down, _) => Some(Action::Down),
+        (KeyCode::Up, _) => Some(Action::Up),
+        // Ctrl-w to delete word (like shell)
+        (KeyCode::Char('w'), KeyModifiers::CONTROL) => Some(Action::SearchDeleteWord),
+        // Ctrl-u to clear line
+        (KeyCode::Char('u'), KeyModifiers::CONTROL) => Some(Action::ClearSearch),
         // Esc to close search
-        KeyCode::Esc => Some(Action::Back),
+        (KeyCode::Esc, _) => Some(Action::Back),
         // Enter to select and go to task
-        KeyCode::Enter => Some(Action::Select),
+        (KeyCode::Enter, _) => Some(Action::Select),
         // Backspace to delete char
-        KeyCode::Backspace => Some(Action::SearchBackspace),
+        (KeyCode::Backspace, _) => Some(Action::SearchBackspace),
         // Any other char is typed into search
-        KeyCode::Char(c) => Some(Action::SearchType(c)),
+        (KeyCode::Char(c), KeyModifiers::NONE | KeyModifiers::SHIFT) => {
+            Some(Action::SearchType(c))
+        }
         _ => None,
     }
 }

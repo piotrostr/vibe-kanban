@@ -37,6 +37,7 @@ pub enum Action {
     StartSearch,
     SearchType(char),
     SearchBackspace,
+    SearchDeleteWord,
     SearchConfirm,
     SearchCancel,
     ClearSearch,

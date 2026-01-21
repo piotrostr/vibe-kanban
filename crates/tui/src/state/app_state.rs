@@ -131,6 +131,7 @@ impl AppState {
             }
             View::Search => {
                 self.search.clear();
+                self.search_active = false;
                 self.view = View::Kanban;
                 self.focus = Focus::KanbanColumn(1);
             }
