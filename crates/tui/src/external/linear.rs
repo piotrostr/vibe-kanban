@@ -4,6 +4,7 @@ use serde::Deserialize;
 #[derive(Debug, Clone)]
 pub struct LinearIssue {
     pub id: String,
+    pub identifier: String, // Human-readable ID like "VIB-6"
     pub title: String,
     pub description: Option<String>,
     pub url: String,
@@ -45,6 +46,7 @@ struct IssueConnection {
 #[derive(Debug, Deserialize)]
 struct IssueNode {
     id: String,
+    identifier: String,
     title: String,
     description: Option<String>,
     url: String,
@@ -84,6 +86,7 @@ impl LinearClient {
                     assignedIssues(filter: { state: { type: { eq: "backlog" } } }) {
                         nodes {
                             id
+                            identifier
                             title
                             description
                             url
@@ -136,6 +139,7 @@ impl LinearClient {
             .into_iter()
             .map(|node| LinearIssue {
                 id: node.id,
+                identifier: node.identifier,
                 title: node.title,
                 description: node.description,
                 url: node.url,
@@ -154,6 +158,7 @@ impl LinearClient {
                 issues(filter: { state: { type: { eq: "backlog" } } }) {
                     nodes {
                         id
+                        identifier
                         title
                         description
                         url
@@ -210,6 +215,7 @@ impl LinearClient {
             .into_iter()
             .map(|node| LinearIssue {
                 id: node.id,
+                identifier: node.identifier,
                 title: node.title,
                 description: node.description,
                 url: node.url,
@@ -244,7 +250,7 @@ mod tests {
             Ok(issues) => {
                 println!("Found {} backlog issues", issues.len());
                 for issue in &issues {
-                    println!("  - {} ({})", issue.title, issue.id);
+                    println!("  - {} [{}]", issue.title, issue.identifier);
                 }
                 assert!(!issues.is_empty(), "Expected at least one backlog issue");
             }
@@ -268,7 +274,7 @@ mod tests {
             Ok(issues) => {
                 println!("Found {} assigned backlog issues", issues.len());
                 for issue in &issues {
-                    println!("  - {} ({})", issue.title, issue.id);
+                    println!("  - {} [{}]", issue.title, issue.identifier);
                 }
                 // This may be empty if no issues are assigned to the API key owner
             }

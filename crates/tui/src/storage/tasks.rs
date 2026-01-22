@@ -174,7 +174,7 @@ impl TaskStorage {
 
         let frontmatter = TaskFrontmatter {
             id: id.clone(),
-            linear_id: Some(issue.id.clone()),
+            linear_id: Some(issue.identifier.clone()),
             linear_url: Some(issue.url.clone()),
             linear_labels: labels_str.clone(),
             created: created.clone(),
@@ -198,7 +198,7 @@ impl TaskStorage {
             status: TaskStatus::Backlog,
             parent_workspace_id: None,
             shared_task_id: None,
-            linear_issue_id: Some(issue.id.clone()),
+            linear_issue_id: Some(issue.identifier.clone()),
             linear_url: Some(issue.url.clone()),
             linear_labels: labels_str,
             created_at: created.clone(),

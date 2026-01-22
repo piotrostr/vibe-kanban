@@ -250,7 +250,7 @@ impl App {
 
                     let pending: Vec<_> = issues
                         .into_iter()
-                        .filter(|i| !local_linear_ids.contains(&i.id))
+                        .filter(|i| !local_linear_ids.contains(&i.identifier))
                         .collect();
 
                     tracing::info!("Linear: {} pending issues not imported locally", pending.len());
