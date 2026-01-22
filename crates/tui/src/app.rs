@@ -708,7 +708,7 @@ impl App {
 
     /// Load the Claude Code plan for a task based on its branch.
     fn load_plan_for_task(&mut self, task: &crate::state::Task) {
-        let branch = task_title_to_branch(&task.title);
+        let branch = task_title_to_branch(&task.title, task.linear_issue_id.as_deref());
         if let Some(project_dir) = self.get_project_dir() {
             let project_path = project_dir.to_string_lossy().to_string();
             self.state.selected_task_plan = self
@@ -1062,8 +1062,8 @@ impl App {
             return Ok(());
         };
 
-        // Create branch slug from task title
-        let branch = task_title_to_branch(&task.title);
+        // Create branch slug from task title (with Linear ID prefix if available)
+        let branch = task_title_to_branch(&task.title, task.linear_issue_id.as_deref());
 
         // Build task context for fresh sessions
         let task_context = {
@@ -1113,7 +1113,7 @@ impl App {
             }
 
             // Check locally detected PR info
-            let branch = task_title_to_branch(&task.title);
+            let branch = task_title_to_branch(&task.title, task.linear_issue_id.as_deref());
             if let Some(pr_info) = self.state.worktrees.branch_prs.get(&branch) {
                 if let Err(e) = open::that(&pr_info.url) {
                     tracing::error!("Failed to open PR URL: {}", e);
@@ -1167,9 +1167,10 @@ impl App {
     }
 }
 
-/// Convert task title to a branch name slug
-fn task_title_to_branch(title: &str) -> String {
-    title
+/// Convert task title to a branch name slug.
+/// If linear_id is provided, prefixes the branch name with it (e.g., "AMB-67/add-feature").
+fn task_title_to_branch(title: &str, linear_id: Option<&str>) -> String {
+    let slug = title
         .to_lowercase()
         .chars()
         .map(|c| if c.is_alphanumeric() { c } else { '-' })
@@ -1177,5 +1178,41 @@ fn task_title_to_branch(title: &str) -> String {
         .split('-')
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
-        .join("-")
+        .join("-");
+
+    match linear_id {
+        Some(id) => format!("{}/{}", id, slug),
+        None => slug,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_task_title_to_branch_without_linear_id() {
+        assert_eq!(task_title_to_branch("Hello World", None), "hello-world");
+        assert_eq!(
+            task_title_to_branch("Add feature: user auth", None),
+            "add-feature-user-auth"
+        );
+        assert_eq!(task_title_to_branch("Fix bug #123", None), "fix-bug-123");
+        assert_eq!(
+            task_title_to_branch("  Multiple   Spaces  ", None),
+            "multiple-spaces"
+        );
+    }
+
+    #[test]
+    fn test_task_title_to_branch_with_linear_id() {
+        assert_eq!(
+            task_title_to_branch("Add some feature", Some("AMB-67")),
+            "AMB-67/add-some-feature"
+        );
+        assert_eq!(
+            task_title_to_branch("Fix the bug", Some("TEAM-123")),
+            "TEAM-123/fix-the-bug"
+        );
+    }
 }
