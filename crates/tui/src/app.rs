@@ -100,7 +100,7 @@ impl App {
                     Ok(api_key) => {
                         tracing::info!("Linear API key found, fetching backlog issues...");
                         let client = LinearClient::new(api_key);
-                        match client.fetch_all_backlog_issues().await {
+                        match client.fetch_backlog_issues().await {
                             Ok(issues) => {
                                 tracing::info!("Linear fetch succeeded: {} issues", issues.len());
                                 let _ = lin_sender.send(Ok(issues)).await;
@@ -802,7 +802,7 @@ impl App {
         tokio::spawn(async move {
             if let Ok(api_key) = std::env::var(&env_var) {
                 let client = LinearClient::new(api_key);
-                let result = client.fetch_all_backlog_issues().await;
+                let result = client.fetch_backlog_issues().await;
                 let _ = sender.send(result).await;
             }
         });
